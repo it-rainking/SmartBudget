@@ -1,0 +1,30 @@
+Code,Title,Status,Priority,Complexity,Story Points
+SB-001,Setup repository Git,To Do,High,Low,1
+SB-002,Setup Supabase project,To Do,High,Medium,2
+SB-003,Setup Next.js + Tailwind structure,To Do,High,Medium,3
+SB-004,Configure environment variables,To Do,Medium,Low,1
+SB-010,Create complete database schema,To Do,High,High,5
+SB-011,Implement Row Level Security,To Do,Critical,High,5
+SB-012,Setup Supabase Auth,To Do,High,Medium,3
+SB-013,API Login / Signup / Logout,To Do,High,Medium,3
+SB-020,UI Category Management,To Do,Medium,Medium,3
+SB-021,CRUD Categories + Subcategories,To Do,High,High,5
+SB-022,Icon assignment to categories,To Do,Medium,Low,2
+SB-023,Monthly Budget UI,To Do,Medium,Medium,3
+SB-024,Budget total calculation,To Do,Medium,Medium,3
+SB-030,Transactions UI,To Do,High,High,5
+SB-031,CRUD Transactions API,To Do,High,High,5
+SB-032,Automatic month assignment,To Do,Low,Low,1
+SB-033,Advanced filters,To Do,Medium,Medium,3
+SB-040,Income/Expense/Savings KPIs,To Do,Medium,Medium,3
+SB-041,Income donut chart,To Do,Low,Low,1
+SB-042,Detailed expenses donut,To Do,Medium,High,5
+SB-043,Savings donut,To Do,Medium,Low,2
+SB-044,Budget vs Actual bar,To Do,Medium,Medium,3
+SB-045,Savings bar chart,To Do,Low,Low,1
+SB-050,Bills table + CRUD,To Do,Medium,Medium,3
+SB-051,Bill status logic,To Do,Medium,Low,2
+SB-052,Calendar with bill deadlines,To Do,High,High,5
+SB-055,Annual data table,To Do,Medium,Medium,3
+SB-056,Annual financial graph,To Do,Medium,High,4
+SB-057,Annual KPIs,To Do,Medium,Low,2

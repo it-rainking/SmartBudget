@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SmartBudget – Technical Specification</title>
+</head>
+<body>
+<h1>SmartBudget – Technical Specification</h1>
+<br>
+<h2>1. Overview</h2>
+<p>**Title:** SmartBudget  </p>
+<p>**Platform:** Web App + Excel Template  </p>
+<p>**Goal:** Complete personal finance management: budget, income, expenses, savings, invoices, dashboards.  </p>
+<p>**Target:** Individuals & families  </p>
+<p>**Languages:** IT (v1), ready for i18n  </p>
+<br>
+<p>---</p>
+<br>
+<h2>2. User Roles</h2>
+<ul>
+<li>**User** (v1)</li>
+<ul>
+<li>**Admin** (v2)</li>
+</ul>
+<br>
+<p>---</p>
+<br>
+<h2>3. Core Modules</h2>
+<br>
+<h3>3.1 Onboarding</h3>
+<ul>
+<li>Initial balance  </li>
+<ul>
+<li>Category setup  </li>
+<ul>
+<li>First month budget setup  </li>
+</ul>
+<br>
+<h3>3.2 Category Management</h3>
+<ul>
+<li>Income  </li>
+<ul>
+<li>Expenses (macro + subcategories)  </li>
+<ul>
+<li>Savings  </li>
+<ul>
+<li>Debts  </li>
+<ul>
+<li>Bills  </li>
+<ul>
+<li>Icons  </li>
+<ul>
+<li>Full CRUD  </li>
+</ul>
+<br>
+<h3>3.3 Monthly Budget</h3>
+<ul>
+<li>Planned vs Actual  </li>
+<ul>
+<li>KPIs  </li>
+<ul>
+<li>Automatic totals  </li>
+<ul>
+<li>Percent achieved  </li>
+</ul>
+<br>
+<h3>3.4 Transactions</h3>
+<ul>
+<li>CRUD  </li>
+<ul>
+<li>Filters  </li>
+<ul>
+<li>Tags  </li>
+<ul>
+<li>Payment method  </li>
+<ul>
+<li>Automatic month assignment  </li>
+</ul>
+<br>
+<h3>3.5 Bills Monitoring</h3>
+<ul>
+<li>Due dates  </li>
+<ul>
+<li>Recurrence  </li>
+<ul>
+<li>Status  </li>
+<ul>
+<li>Monthly calendar view  </li>
+</ul>
+<br>
+<h3>3.6 Monthly Dashboard</h3>
+<p>**KPIs**</p>
+<ul>
+<li>Income %  </li>
+<ul>
+<li>Expenses %  </li>
+<ul>
+<li>Savings %  </li>
+<ul>
+<li>Debts %  </li>
+<ul>
+<li>Remaining income  </li>
+</ul>
+<br>
+<p>**Charts**</p>
+<ul>
+<li>Income donut  </li>
+<ul>
+<li>Expenses donut  </li>
+<ul>
+<li>Savings donut  </li>
+<ul>
+<li>Debts donut  </li>
+<ul>
+<li>Savings bar chart  </li>
+<ul>
+<li>Budget vs Actual bar  </li>
+</ul>
+<br>
+<h3>3.7 Annual Dashboard</h3>
+<ul>
+<li>Year totals  </li>
+<ul>
+<li>Monthly trends  </li>
+<ul>
+<li>Income/Expenses/Balance  </li>
+<ul>
+<li>Comparisons  </li>
+</ul>
+<br>
+<h3>3.8 Goals</h3>
+<ul>
+<li>Savings goals  </li>
+<ul>
+<li>Debt goals  </li>
+<ul>
+<li>% and € progress  </li>
+</ul>
+<br>
+<h3>3.9 Notifications (v2)</h3>
+<ul>
+<li>Overbudget  </li>
+<ul>
+<li>Bills due  </li>
+<ul>
+<li>Goals achieved  </li>
+<ul>
+<li>Email / Telegram  </li>
+</ul>
+<br>
+<h3>3.10 Import/Export</h3>
+<ul>
+<li>CSV/XLS  </li>
+<ul>
+<li>CSV Import (v2)  </li>
+<ul>
+<li>OFX/QFX Import (v2)  </li>
+<ul>
+<li>PSD2 bank integration (v3)  </li>
+</ul>
+<br>
+<h3>3.11 Security</h3>
+<ul>
+<li>Supabase Auth  </li>
+<ul>
+<li>RLS  </li>
+<ul>
+<li>GDPR-compliant  </li>
+<ul>
+<li>HTTPS + encryption  </li>
+</ul>
+<br>
+<p>---</p>
+<br>
+<h2>4. Data Model (Supabase/Postgres)</h2>
+<p>Tables:</p>
+<ul>
+<li>users  </li>
+<ul>
+<li>settings  </li>
+<ul>
+<li>income_categories  </li>
+<ul>
+<li>expense_categories  </li>
+<ul>
+<li>expense_subcategories  </li>
+<ul>
+<li>saving_categories  </li>
+<ul>
+<li>debt_items  </li>
+<ul>
+<li>monthly_budgets  </li>
+<ul>
+<li>monthly_budget_items  </li>
+<ul>
+<li>transactions  </li>
+<ul>
+<li>invoices  </li>
+<ul>
+<li>goals  </li>
+<ul>
+<li>notifications (v2)</li>
+</ul>
+<br>
+<p>---</p>
+<br>
+<h2>5. Web Architecture</h2>
+<h3>Frontend</h3>
+<ul>
+<li>Next.js  </li>
+<ul>
+<li>React  </li>
+<ul>
+<li>TailwindCSS  </li>
+<ul>
+<li>Chart.js  </li>
+<ul>
+<li>React Query  </li>
+</ul>
+<br>
+<h3>Backend</h3>
+<ul>
+<li>Supabase (DB, Auth, RLS, API)</li>
+</ul>
+<br>
+<h3>Routes</h3>
+<ul>
+<li>/login  </li>
+<ul>
+<li>/signup  </li>
+<ul>
+<li>/onboarding  </li>
+<ul>
+<li>/dashboard/mensile  </li>
+<ul>
+<li>/dashboard/annuale  </li>
+<ul>
+<li>/budget  </li>
+<ul>
+<li>/transazioni  </li>
+<ul>
+<li>/fatture  </li>
+<ul>
+<li>/obiettivi  </li>
+<ul>
+<li>/settings  </li>
+</ul>
+<br>
+<p>---</p>
+<br>
+<h2>6. Excel Architecture</h2>
+<h3>Sheets</h3>
+<p>1. Settings  </p>
+<p>2. Transactions  </p>
+<p>3. Budget  </p>
+<p>4. Monthly Dashboard  </p>
+<p>5. Annual Dashboard  </p>
+<p>6. Bills + Calendar  </p>
+<p>7. Goals  </p>
+<br>
+<h3>Functions</h3>
+<ul>
+<li>SUMIFS  </li>
+<ul>
+<li>XLOOKUP  </li>
+<ul>
+<li>INDIRECT  </li>
+<ul>
+<li>PivotTables  </li>
+<ul>
+<li>Conditional formatting  </li>
+</ul>
+<br>
+<h3>Optional macros</h3>
+<ul>
+<li>Duplicate month  </li>
+<ul>
+<li>Reset year  </li>
+<ul>
+<li>Backup  </li>
+</ul>
+<br>
+<p>---</p>
+<br>
+<h2>7. Non Functional Requirements</h2>
+<ul>
+<li>Dashboard < 1.5 seconds  </li>
+<ul>
+<li>Mobile-ready UI  </li>
+<ul>
+<li>99% uptime  </li>
+<ul>
+<li>GDPR ready  </li>
+<ul>
+<li>Automatic Supabase backups  </li>
+</ul>
+<br>
+<p>---</p>
+<br>
+<h2>8. Technical Roadmap</h2>
+<br>
+<h3>Phase 0 – Setup</h3>
+<ul>
+<li>Repo  </li>
+<ul>
+<li>Supabase  </li>
+<ul>
+<li>Project structure  </li>
+</ul>
+<br>
+<h3>Phase 1 – Auth + DB</h3>
+<ul>
+<li>Schema  </li>
+<ul>
+<li>RLS  </li>
+<ul>
+<li>API  </li>
+</ul>
+<br>
+<h3>Phase 2 – Budget + Transactions</h3>
+<ul>
+<li>Budget UI  </li>
+<ul>
+<li>Transactions UI  </li>
+<ul>
+<li>KPIs  </li>
+</ul>
+<br>
+<h3>Phase 3 – Monthly Dashboard</h3>
+<ul>
+<li>Charts  </li>
+<ul>
+<li>KPIs  </li>
+<ul>
+<li>Month selector  </li>
+</ul>
+<br>
+<h3>Phase 4 – Bills + Calendar  </h3>
+<br>
+<h3>Phase 5 – Annual Dashboard + Goals  </h3>
+<br>
+<h3>Phase 6 – Import CSV + Notifications + UX  </h3>
+<br>
+<p>---</p>
+<br>
+<h2>9. Future Evolutions</h2>
+<br>
+<h3>9.1 Automation & AI</h3>
+<ul>
+<li>Auto categorization  </li>
+<ul>
+<li>Spending anomaly detection  </li>
+<ul>
+<li>Forecasts  </li>
+<ul>
+<li>Optimization suggestions  </li>
+<ul>
+<li>AI chatbot  </li>
+</ul>
+<br>
+<h3>9.2 Bank Integrations</h3>
+<ul>
+<li>PSD2 connections  </li>
+<ul>
+<li>Multi-account  </li>
+</ul>
+<br>
+<h3>9.3 Investments Module</h3>
+<ul>
+<li>Stocks / ETF / Crypto  </li>
+<ul>
+<li>API prices  </li>
+<ul>
+<li>ROI  </li>
+</ul>
+<br>
+<h3>9.4 Advanced Debts</h3>
+<ul>
+<li>Amortization  </li>
+<ul>
+<li>Snowball/Avalanche  </li>
+</ul>
+<br>
+<h3>9.5 Advanced Savings</h3>
+<ul>
+<li>Envelope system  </li>
+<ul>
+<li>Automatic rules  </li>
+</ul>
+<br>
+<h3>9.6 Reporting</h3>
+<ul>
+<li>PDF monthly/annual  </li>
+<ul>
+<li>Google Sheets sync  </li>
+</ul>
+<br>
+<h3>9.7 Multi-User</h3>
+<ul>
+<li>Shared budgets  </li>
+<ul>
+<li>Roles  </li>
+</ul>
+<br>
+<h3>9.8 Gamification</h3>
+<ul>
+<li>Badges  </li>
+<ul>
+<li>Missions  </li>
+</ul>
+<br>
+<h3>9.9 Marketplace</h3>
+<ul>
+<li>Templates  </li>
+<ul>
+<li>AI models  </li>
+<ul>
+<li>Plugins  </li>
+</ul>
+<br>
+<h3>9.10 Backup & Cloud</h3>
+<ul>
+<li>Drive / iCloud / Dropbox sync  </li>
+</ul>
+<br>
+<h3>9.11 Mobile App</h3>
+<ul>
+<li>Flutter  </li>
+<ul>
+<li>OCR receipts  </li>
+<ul>
+<li>Widgets  </li>
+</ul>
+<br>
+<h3>9.12 Integrations</h3>
+<ul>
+<li>YNAB  </li>
+<ul>
+<li>Notion  </li>
+<ul>
+<li>Webhooks  </li>
+</ul>
+<br>
+</body>
+</html>

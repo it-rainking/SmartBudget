@@ -1,0 +1,353 @@
+📘 SMARTBUDGET — TECH SPEC COMPLETA (V.3)
+
+(con Notion setup + Kanban + Evoluzioni avanzate)
+
+⸻
+
+1. 🚀 Overview
+
+SmartBudget è una piattaforma completa per la gestione delle finanze personali composta da:
+	•	Web App (core)
+	•	Template Excel avanzato (complementare)
+	•	Kanban e workflow di sviluppo
+	•	Template per Notion
+	•	Automazioni presenti e future (AI, PSD2, app mobile)
+
+🎯 Obiettivi principali
+	•	Gestione budget mensile/annuale
+	•	Monitoraggio entrate, spese, risparmi, debiti
+	•	Dashboard con grafici avanzati
+	•	Calendario scadenze fatture/abbonamenti
+	•	Analisi automatica (v2–v3) basata su AI
+
+👤 Target
+	•	Privati
+	•	Coppie
+	•	Famiglie
+	•	Lavoratori autonomi con esigenze basiche
+
+🌍 Lingue
+	•	Italiano (v1)
+	•	Inglese in roadmap (i18n-ready)
+
+⸻
+
+2. 👥 User Roles
+	•	User → Utente standard
+	•	Admin (v2) → Gestione contenuti, logging, strumenti premium
+
+⸻
+
+3. 🧱 Core Features & Functional Modules
+
+3.1 Onboarding
+	•	Inserimento saldo iniziale
+	•	Configurazione categorie di base
+	•	Creazione primo budget mensile
+
+3.2 Category Management
+	•	Categorie reddito
+	•	Categorie spese (macro + sottocategorie)
+	•	Categorie risparmi
+	•	Debiti
+	•	Fatture/abbonamenti
+	•	Icone personalizzabili
+	•	CRUD completo
+
+3.3 Monthly Budget
+	•	Budget previsto vs effettivo
+	•	KPI mensile
+	•	Differenze e indicatori rosso/verde
+	•	Percentuali raggiunte
+
+3.4 Transactions
+	•	CRUD transazioni
+	•	Tag, note, metodo pagamento
+	•	Filtri per categoria / metodo / mese
+	•	Calcolo automatico mese
+
+3.5 Bills Monitoring
+	•	Gestione fatture (importo, data, ricorrenza)
+	•	Stato: Pagata / In scadenza / Scaduta
+	•	Calendario mensile con evidenziazione scadenze
+
+3.6 Monthly Dashboard
+	•	KPI:
+	•	Reddito %
+	•	Spese %
+	•	Risparmi %
+	•	Debiti %
+	•	Reddito residuo
+	•	Grafici:
+	•	Donut reddito
+	•	Donut spese
+	•	Donut risparmi
+	•	Donut debiti (v2)
+	•	Bar chart risparmi
+	•	Barra “Budget vs Effettivo”
+
+3.7 Annual Dashboard
+	•	Entrate/spese/saldo mensile
+	•	KPI annuali
+	•	Grafico sintetico 12 mesi
+
+3.8 Goals (Risparmi + Debiti)
+	•	Target economici
+	•	% e € progressi
+	•	Timeline e scadenze
+
+3.9 Import / Export
+	•	Export CSV
+	•	Import CSV (v2)
+	•	Import OFX/QFX (v2)
+	•	API bancarie PSD2 (v3)
+
+3.10 Security
+	•	Supabase Auth
+	•	RLS (Row Level Security)
+	•	GDPR (delete, export)
+	•	HTTPS obbligatorio
+
+⸻
+
+4. 🗄️ Data Model (Supabase/Postgres)
+
+Tabelle principali:
+	•	users
+	•	settings
+	•	income_categories
+	•	expense_categories
+	•	expense_subcategories
+	•	saving_categories
+	•	debt_items
+	•	monthly_budgets
+	•	monthly_budget_items
+	•	transactions
+	•	invoices
+	•	goals
+	•	notifications (v2)
+
+Tutte isolate tramite RLS user_id-based.
+
+⸻
+
+5. 🌐 Web App Architecture
+
+Frontend
+	•	Next.js
+	•	React
+	•	TailwindCSS
+	•	Chart.js
+	•	React Query
+
+Backend
+	•	Supabase (DB + Auth + RLS + API native)
+
+Routing
+	•	/login
+	•	/signup
+	•	/onboarding
+	•	/dashboard/mensile
+	•	/dashboard/annuale
+	•	/budget
+	•	/transazioni
+	•	/fatture
+	•	/obiettivi
+	•	/settings
+
+⸻
+
+6. 📊 Excel Architecture
+
+Sheets
+	1.	Settings
+	2.	Transactions
+	3.	Budget
+	4.	Dashboard Mensile
+	5.	Dashboard Annuale
+	6.	Bills + Calendar
+	7.	Goals
+
+Funzioni principali
+	•	SOMMA.PIÙ.SE
+	•	CERCA.X
+	•	INDIRETTO
+	•	Tabelle Pivot
+	•	Formattazione condizionale
+
+Macro opzionali
+	•	Duplica budget
+	•	Reset mese/anno
+	•	Backup
+
+⸻
+
+7. ⚙️ Non Functional Requirements
+	•	Caricamento dashboard < 1.5s
+	•	UI responsive
+	•	99% uptime provider
+	•	Backup automatici Supabase
+	•	GDPR compliance
+
+⸻
+
+8. 🧭 Technical Roadmap
+
+Phase 0 — Setup
+	•	Repo
+	•	Supabase
+	•	Next.js + Tailwind
+
+Phase 1 — Auth + DB
+	•	Schema
+	•	RLS
+	•	API Auth
+
+Phase 2 — Budget & Transactions
+	•	UI
+	•	CRUD
+	•	KPI base
+
+Phase 3 — Monthly Dashboard
+	•	Grafici
+	•	KPI
+	•	Logiche
+
+Phase 4 — Bills + Calendar
+
+Phase 5 — Annual Dashboard + Goals
+
+Phase 6 — Import CSV + Notifications
+
+⸻
+
+9. 🔮 Evoluzioni Future
+
+🧠 AI & Automation
+	•	Auto-categorizzazione
+	•	Forecast spese
+	•	Rilevamento anomalie
+	•	Suggerimenti ottimizzazione
+	•	Chatbot integrato
+
+💳 Banking / PSD2
+	•	Import automatico transazioni
+	•	Multi-account
+
+📈 Investimenti
+	•	Portafoglio
+	•	Prezzi realtime
+	•	ROI
+
+💰 Debiti avanzati
+	•	Ammortamento completo
+	•	Snowball/Avalanche
+
+🧺 Risparmi avanzati
+	•	Envelope System
+	•	Regole automatiche
+
+📑 Reporting Pro
+	•	PDF mensili/annuali
+	•	Sync Google Sheets
+
+🧑‍🤝‍🧑 Multi-user
+	•	Budget familiari condivisi
+	•	Ruoli Viewer/Editor
+
+🎮 Gamification
+	•	Badge
+	•	Missioni settimanali
+
+🛒 Marketplace interno
+	•	Template premium
+	•	Plugin
+	•	Modelli AI
+
+📱 Mobile App
+	•	Flutter
+	•	OCR scontrini
+	•	Widget
+
+🔗 Integrazioni esterne
+	•	YNAB
+	•	Notion
+	•	Webhooks
+
+⸻
+
+10. 🗂️ Kanban Structure (con Priority/Complexity/Points)
+
+Columns:
+	•	Backlog
+	•	To Do
+	•	In Progress
+	•	Review
+	•	Done
+
+Labels Ufficiali
+
+Priority:
+	•	🔥 Critical
+	•	🟥 High
+	•	🟧 Medium
+	•	🟩 Low
+
+Complexity:
+	•	🟦 Low
+	•	🟪 Medium
+	•	🟨 High
+	•	🔶 Very High
+	•	🟥 Extreme
+
+Story Points (Fibonacci):
+
+1 – 2 – 3 – 5 – 8
+
+⸻
+
+11. 🧩 Template Notion (collegabile al CSV)
+
+👉 Hai già il file pronto:
+SmartBudget_Kanban_Notion.csv
+
+Puoi importarlo in pochi secondi.
+
+⸻
+
+12. 📥 Guida passo passo — Import in Notion
+
+1️⃣ Crea una pagina vuota
+	•	Premi + Add Page
+	•	Scegli Empty with Icon
+
+2️⃣ Importa il CSV
+	•	Dentro la pagina → Import
+	•	Seleziona CSV
+	•	Carica:
+➡ SmartBudget_Kanban_Notion.csv
+
+3️⃣ Cambia i tipi di colonne
+	•	Priority → Select
+	•	Complexity → Select
+	•	Story Points → Number
+	•	Status → Select (To Do, In Progress, Review, Done)
+
+4️⃣ Crea la vista Kanban
+	•	In alto → Add a View
+	•	Scegli Board
+	•	Raggruppa per Status
+
+5️⃣ Aggiungi icone e colori
+	•	Clicca su ogni label → imposta colore ed emoji come da label set ufficiale.
+
+6️⃣ Aggiungi altre viste consigliate
+	•	Priorità
+	•	Tasks critiche
+	•	Backend Only
+	•	DevOps
+	•	Design Tasks
+
+7️⃣ Collega il Template Notion
+
+Nella pagina principale → /linked database → scegli il database importato.
