@@ -28,6 +28,18 @@ export default function LoginPage() {
         return
       }
 
+      const { data: { user: authedUser } } = await supabase.auth.getUser()
+      if (authedUser) {
+        const { data: settings } = await supabase
+          .from('settings')
+          .select('onboarding_completed')
+          .eq('user_id', authedUser.id)
+          .single()
+        if (!settings?.onboarding_completed) {
+          router.push('/onboarding')
+          return
+        }
+      }
       router.push('/dashboard/mensile')
       router.refresh()
     } catch {

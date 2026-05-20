@@ -2,9 +2,9 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import type { InsertTables } from '@/types/database'
 import type { IncomeCategory, ExpenseCategory, SavingCategory, ExpenseSubcategory } from '@/types'
 
-// Fetch all categories
 export function useIncomeCategories() {
   return useQuery({
     queryKey: ['income_categories'],
@@ -35,7 +35,7 @@ export function useExpenseCategories() {
         .order('sort_order')
 
       if (error) throw error
-      return data as ExpenseCategory[]
+      return data as unknown as ExpenseCategory[]
     },
   })
 }
@@ -56,23 +56,22 @@ export function useSavingCategories() {
   })
 }
 
-// Create category mutations
 export function useCreateIncomeCategory() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: Partial<IncomeCategory>) => {
-      const { data: user } = await supabase.auth.getUser()
-      if (!user.user) throw new Error('Non autenticato')
+    mutationFn: async (data: Omit<InsertTables<'income_categories'>, 'user_id'>) => {
+      const { data: auth } = await supabase.auth.getUser()
+      if (!auth.user) throw new Error('Non autenticato')
 
       const { data: category, error } = await supabase
         .from('income_categories')
-        .insert({ ...data, user_id: user.user.id })
+        .insert({ ...data, user_id: auth.user.id })
         .select()
         .single()
 
       if (error) throw error
-      return category
+      return category as IncomeCategory
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['income_categories'] })
@@ -84,18 +83,18 @@ export function useCreateExpenseCategory() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: Partial<ExpenseCategory>) => {
-      const { data: user } = await supabase.auth.getUser()
-      if (!user.user) throw new Error('Non autenticato')
+    mutationFn: async (data: Omit<InsertTables<'expense_categories'>, 'user_id'>) => {
+      const { data: auth } = await supabase.auth.getUser()
+      if (!auth.user) throw new Error('Non autenticato')
 
       const { data: category, error } = await supabase
         .from('expense_categories')
-        .insert({ ...data, user_id: user.user.id })
+        .insert({ ...data, user_id: auth.user.id })
         .select()
         .single()
 
       if (error) throw error
-      return category
+      return category as ExpenseCategory
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expense_categories'] })
@@ -107,18 +106,18 @@ export function useCreateExpenseSubcategory() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: Partial<ExpenseSubcategory> & { category_id: string }) => {
-      const { data: user } = await supabase.auth.getUser()
-      if (!user.user) throw new Error('Non autenticato')
+    mutationFn: async (data: Omit<InsertTables<'expense_subcategories'>, 'user_id'>) => {
+      const { data: auth } = await supabase.auth.getUser()
+      if (!auth.user) throw new Error('Non autenticato')
 
       const { data: subcategory, error } = await supabase
         .from('expense_subcategories')
-        .insert({ ...data, user_id: user.user.id })
+        .insert({ ...data, user_id: auth.user.id })
         .select()
         .single()
 
       if (error) throw error
-      return subcategory
+      return subcategory as ExpenseSubcategory
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expense_categories'] })
@@ -130,18 +129,18 @@ export function useCreateSavingCategory() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (data: Partial<SavingCategory>) => {
-      const { data: user } = await supabase.auth.getUser()
-      if (!user.user) throw new Error('Non autenticato')
+    mutationFn: async (data: Omit<InsertTables<'saving_categories'>, 'user_id'>) => {
+      const { data: auth } = await supabase.auth.getUser()
+      if (!auth.user) throw new Error('Non autenticato')
 
       const { data: category, error } = await supabase
         .from('saving_categories')
-        .insert({ ...data, user_id: user.user.id })
+        .insert({ ...data, user_id: auth.user.id })
         .select()
         .single()
 
       if (error) throw error
-      return category
+      return category as SavingCategory
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['saving_categories'] })
@@ -149,7 +148,6 @@ export function useCreateSavingCategory() {
   })
 }
 
-// Delete category mutations
 export function useDeleteCategory() {
   const queryClient = useQueryClient()
 
@@ -162,7 +160,7 @@ export function useDeleteCategory() {
 
       const { error } = await supabase
         .from(table)
-        .update({ is_active: false })
+        .update({ is_active: false } as never)
         .eq('id', id)
 
       if (error) throw error
@@ -175,18 +173,16 @@ export function useDeleteCategory() {
   })
 }
 
-// Initialize default categories
 export function useInitializeCategories() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async () => {
-      const { data: user } = await supabase.auth.getUser()
-      if (!user.user) throw new Error('Non autenticato')
+      const { data: auth } = await supabase.auth.getUser()
+      if (!auth.user) throw new Error('Non autenticato')
 
-      // Call the stored function to create default categories
       const { error } = await supabase.rpc('create_default_categories', {
-        p_user_id: user.user.id
+        p_user_id: auth.user.id,
       })
 
       if (error) throw error

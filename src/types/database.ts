@@ -1,28 +1,32 @@
-// Database types - will be generated from Supabase schema
-// For now, placeholder structure based on CLAUDE.md spec
-
 export type Database = {
   public: {
     Tables: {
-      users: {
+      profiles: {
         Row: {
           id: string
           email: string
+          full_name: string | null
+          avatar_url: string | null
           created_at: string
           updated_at: string
         }
         Insert: {
-          id?: string
+          id: string
           email: string
+          full_name?: string | null
+          avatar_url?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
           email?: string
+          full_name?: string | null
+          avatar_url?: string | null
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       settings: {
         Row: {
@@ -30,6 +34,8 @@ export type Database = {
           user_id: string
           currency: string
           locale: string
+          initial_balance: number
+          onboarding_completed: boolean
           created_at: string
           updated_at: string
         }
@@ -38,6 +44,8 @@ export type Database = {
           user_id: string
           currency?: string
           locale?: string
+          initial_balance?: number
+          onboarding_completed?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -46,9 +54,12 @@ export type Database = {
           user_id?: string
           currency?: string
           locale?: string
+          initial_balance?: number
+          onboarding_completed?: boolean
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       income_categories: {
         Row: {
@@ -56,22 +67,35 @@ export type Database = {
           user_id: string
           name: string
           icon: string | null
+          color: string
+          sort_order: number
+          is_active: boolean
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           user_id: string
           name: string
           icon?: string | null
+          color?: string
+          sort_order?: number
+          is_active?: boolean
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           user_id?: string
           name?: string
           icon?: string | null
+          color?: string
+          sort_order?: number
+          is_active?: boolean
           created_at?: string
+          updated_at?: string
         }
+        Relationships: []
       }
       expense_categories: {
         Row: {
@@ -79,22 +103,35 @@ export type Database = {
           user_id: string
           name: string
           icon: string | null
+          color: string
+          sort_order: number
+          is_active: boolean
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           user_id: string
           name: string
           icon?: string | null
+          color?: string
+          sort_order?: number
+          is_active?: boolean
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           user_id?: string
           name?: string
           icon?: string | null
+          color?: string
+          sort_order?: number
+          is_active?: boolean
           created_at?: string
+          updated_at?: string
         }
+        Relationships: []
       }
       expense_subcategories: {
         Row: {
@@ -103,7 +140,10 @@ export type Database = {
           user_id: string
           name: string
           icon: string | null
+          sort_order: number
+          is_active: boolean
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
@@ -111,7 +151,10 @@ export type Database = {
           user_id: string
           name: string
           icon?: string | null
+          sort_order?: number
+          is_active?: boolean
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
@@ -119,8 +162,20 @@ export type Database = {
           user_id?: string
           name?: string
           icon?: string | null
+          sort_order?: number
+          is_active?: boolean
           created_at?: string
+          updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: 'expense_subcategories_category_id_fkey'
+            columns: ['category_id']
+            isOneToOne: false
+            referencedRelation: 'expense_categories'
+            referencedColumns: ['id']
+          }
+        ]
       }
       saving_categories: {
         Row: {
@@ -128,54 +183,83 @@ export type Database = {
           user_id: string
           name: string
           icon: string | null
+          color: string
+          sort_order: number
+          is_active: boolean
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           user_id: string
           name: string
           icon?: string | null
+          color?: string
+          sort_order?: number
+          is_active?: boolean
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           user_id?: string
           name?: string
           icon?: string | null
+          color?: string
+          sort_order?: number
+          is_active?: boolean
           created_at?: string
+          updated_at?: string
         }
+        Relationships: []
       }
       debt_items: {
         Row: {
           id: string
           user_id: string
           name: string
+          description: string | null
           total_amount: number
           remaining_amount: number
           interest_rate: number | null
+          start_date: string | null
           due_date: string | null
+          monthly_payment: number | null
+          is_active: boolean
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           user_id: string
           name: string
+          description?: string | null
           total_amount: number
           remaining_amount: number
           interest_rate?: number | null
+          start_date?: string | null
           due_date?: string | null
+          monthly_payment?: number | null
+          is_active?: boolean
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           user_id?: string
           name?: string
+          description?: string | null
           total_amount?: number
           remaining_amount?: number
           interest_rate?: number | null
+          start_date?: string | null
           due_date?: string | null
+          monthly_payment?: number | null
+          is_active?: boolean
           created_at?: string
+          updated_at?: string
         }
+        Relationships: []
       }
       monthly_budgets: {
         Row: {
@@ -183,51 +267,62 @@ export type Database = {
           user_id: string
           month: number
           year: number
+          notes: string | null
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           user_id: string
           month: number
           year: number
+          notes?: string | null
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           user_id?: string
           month?: number
           year?: number
+          notes?: string | null
           created_at?: string
+          updated_at?: string
         }
+        Relationships: []
       }
       monthly_budget_items: {
         Row: {
           id: string
           budget_id: string
+          user_id: string
           category_type: 'income' | 'expense' | 'saving'
           category_id: string
           planned_amount: number
-          actual_amount: number
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           budget_id: string
+          user_id: string
           category_type: 'income' | 'expense' | 'saving'
           category_id: string
-          planned_amount: number
-          actual_amount?: number
+          planned_amount?: number
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           budget_id?: string
+          user_id?: string
           category_type?: 'income' | 'expense' | 'saving'
           category_id?: string
           planned_amount?: number
-          actual_amount?: number
           created_at?: string
+          updated_at?: string
         }
+        Relationships: []
       }
       transactions: {
         Row: {
@@ -241,7 +336,11 @@ export type Database = {
           description: string | null
           payment_method: string | null
           tags: string[] | null
+          notes: string | null
+          is_recurring: boolean
+          recurring_id: string | null
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
@@ -254,7 +353,11 @@ export type Database = {
           description?: string | null
           payment_method?: string | null
           tags?: string[] | null
+          notes?: string | null
+          is_recurring?: boolean
+          recurring_id?: string | null
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
@@ -267,81 +370,141 @@ export type Database = {
           description?: string | null
           payment_method?: string | null
           tags?: string[] | null
+          notes?: string | null
+          is_recurring?: boolean
+          recurring_id?: string | null
           created_at?: string
+          updated_at?: string
         }
+        Relationships: []
       }
       invoices: {
         Row: {
           id: string
           user_id: string
           name: string
+          description: string | null
           amount: number
           due_date: string
           paid_date: string | null
-          recurrence: 'once' | 'monthly' | 'yearly' | null
-          status: 'pending' | 'paid' | 'overdue'
+          paid_amount: number | null
+          recurrence: 'once' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | null
+          status: 'pending' | 'paid' | 'overdue' | 'cancelled'
+          category_id: string | null
+          reminder_days: number
+          auto_renew: boolean
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           user_id: string
           name: string
+          description?: string | null
           amount: number
           due_date: string
           paid_date?: string | null
-          recurrence?: 'once' | 'monthly' | 'yearly' | null
-          status?: 'pending' | 'paid' | 'overdue'
+          paid_amount?: number | null
+          recurrence?: 'once' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | null
+          status?: 'pending' | 'paid' | 'overdue' | 'cancelled'
+          category_id?: string | null
+          reminder_days?: number
+          auto_renew?: boolean
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           user_id?: string
           name?: string
+          description?: string | null
           amount?: number
           due_date?: string
           paid_date?: string | null
-          recurrence?: 'once' | 'monthly' | 'yearly' | null
-          status?: 'pending' | 'paid' | 'overdue'
+          paid_amount?: number | null
+          recurrence?: 'once' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | null
+          status?: 'pending' | 'paid' | 'overdue' | 'cancelled'
+          category_id?: string | null
+          reminder_days?: number
+          auto_renew?: boolean
           created_at?: string
+          updated_at?: string
         }
+        Relationships: []
       }
       goals: {
         Row: {
           id: string
           user_id: string
           name: string
+          description: string | null
           type: 'saving' | 'debt'
           target_amount: number
           current_amount: number
           deadline: string | null
+          category_id: string | null
+          icon: string | null
+          color: string | null
+          is_completed: boolean
+          completed_at: string | null
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           user_id: string
           name: string
+          description?: string | null
           type: 'saving' | 'debt'
           target_amount: number
           current_amount?: number
           deadline?: string | null
+          category_id?: string | null
+          icon?: string | null
+          color?: string | null
+          is_completed?: boolean
+          completed_at?: string | null
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           user_id?: string
           name?: string
+          description?: string | null
           type?: 'saving' | 'debt'
           target_amount?: number
           current_amount?: number
           deadline?: string | null
+          category_id?: string | null
+          icon?: string | null
+          color?: string | null
+          is_completed?: boolean
+          completed_at?: string | null
           created_at?: string
+          updated_at?: string
         }
+        Relationships: []
       }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      create_default_categories: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
     }
   }
 }
 
-// Helper types
 export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
 export type InsertTables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert']
 export type UpdateTables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update']
