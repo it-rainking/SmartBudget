@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useTransactions, useCreateTransaction, useDeleteTransaction } from '@/hooks/useTransactions'
 import { useIncomeCategories, useExpenseCategories, useSavingCategories, useInitializeCategories } from '@/hooks/useCategories'
+import { useToast } from '@/components/Toast'
 import type { TransactionType } from '@/types'
 
 const MONTHS = [
@@ -21,6 +22,8 @@ export default function TransazioniPage() {
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear())
   const [showForm, setShowForm] = useState(false)
   const [filterType, setFilterType] = useState<TransactionType | ''>('')
+
+  const { showToast } = useToast()
 
   // Form state
   const [formType, setFormType] = useState<TransactionType>('expense')
@@ -93,29 +96,27 @@ export default function TransazioniPage() {
         payment_method: formPaymentMethod || undefined,
       })
 
-      // Reset form
       setFormAmount('')
       setFormDescription('')
       setFormCategoryId('')
       setShowForm(false)
-    } catch (error) {
-      console.error('Error creating transaction:', error)
+      showToast('Transazione aggiunta')
+    } catch {
+      showToast('Errore durante il salvataggio', 'error')
     }
   }
 
   const handleInitCategories = async () => {
     try {
       await initializeCategories.mutateAsync()
-    } catch (error) {
-      console.error('Error initializing categories:', error)
+      showToast('Categorie inizializzate')
+    } catch {
+      showToast('Errore inizializzazione categorie', 'error')
     }
   }
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(amount)
+    return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
   }
 
   const getTypeColor = (type: TransactionType) => {
@@ -243,7 +244,10 @@ export default function TransazioniPage() {
                       {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                     </span>
                     <button
-                      onClick={() => deleteTransaction.mutate(transaction.id)}
+                      onClick={() => {
+                        deleteTransaction.mutate(transaction.id)
+                        showToast('Transazione eliminata', 'info')
+                      }}
                       className="text-zinc-400 hover:text-red-500 transition-colors"
                     >
                       🗑️

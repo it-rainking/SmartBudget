@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { ToastProvider } from '@/components/Toast'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -118,7 +119,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Main Content */}
       <main className="lg:pl-64 pt-32 lg:pt-0">
         <div className="p-6 lg:p-8">
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </div>
       </main>
     </div>
