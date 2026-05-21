@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useTransactions, useCreateTransaction, useDeleteTransaction } from '@/hooks/useTransactions'
 import { useIncomeCategories, useExpenseCategories, useSavingCategories, useInitializeCategories } from '@/hooks/useCategories'
+import { useToast } from '@/components/Toast'
+import { ImportCSVModal } from '@/components/ImportCSVModal'
 import type { TransactionType } from '@/types'
 
 const MONTHS = [
@@ -20,7 +22,10 @@ export default function TransazioniPage() {
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear())
   const [showForm, setShowForm] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [filterType, setFilterType] = useState<TransactionType | ''>('')
+
+  const { showToast } = useToast()
 
   // Form state
   const [formType, setFormType] = useState<TransactionType>('expense')
@@ -93,29 +98,27 @@ export default function TransazioniPage() {
         payment_method: formPaymentMethod || undefined,
       })
 
-      // Reset form
       setFormAmount('')
       setFormDescription('')
       setFormCategoryId('')
       setShowForm(false)
-    } catch (error) {
-      console.error('Error creating transaction:', error)
+      showToast('Transazione aggiunta')
+    } catch {
+      showToast('Errore durante il salvataggio', 'error')
     }
   }
 
   const handleInitCategories = async () => {
     try {
       await initializeCategories.mutateAsync()
-    } catch (error) {
-      console.error('Error initializing categories:', error)
+      showToast('Categorie inizializzate')
+    } catch {
+      showToast('Errore inizializzazione categorie', 'error')
     }
   }
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(amount)
+    return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
   }
 
   const getTypeColor = (type: TransactionType) => {
@@ -149,13 +152,22 @@ export default function TransazioniPage() {
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Transazioni</h1>
             <p className="text-zinc-600 dark:text-zinc-400">Gestisci le tue entrate e uscite</p>
           </div>
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-          >
-            <span>+</span>
-            Nuova Transazione
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowImport(true)}
+              className="inline-flex items-center gap-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+            >
+              <span>📥</span>
+              Importa CSV
+            </button>
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+            >
+              <span>+</span>
+              Nuova Transazione
+            </button>
+          </div>
         </div>
 
         {/* Initialize Categories Banner */}
@@ -243,7 +255,10 @@ export default function TransazioniPage() {
                       {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                     </span>
                     <button
-                      onClick={() => deleteTransaction.mutate(transaction.id)}
+                      onClick={() => {
+                        deleteTransaction.mutate(transaction.id)
+                        showToast('Transazione eliminata', 'info')
+                      }}
                       className="text-zinc-400 hover:text-red-500 transition-colors"
                     >
                       🗑️
@@ -393,6 +408,8 @@ export default function TransazioniPage() {
           </div>
         </div>
       )}
+
+      {showImport && <ImportCSVModal onClose={() => setShowImport(false)} />}
     </DashboardLayout>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { getMonthDateRange } from '@/lib/utils'
 import type { Transaction, TransactionFormData } from '@/types'
 
 interface TransactionFilters {
@@ -125,19 +126,34 @@ export function useMonthlyKPIs(month?: number, year?: number) {
   const m = month ?? currentDate.getMonth() + 1
   const y = year ?? currentDate.getFullYear()
 
-  const startDate = `${y}-${String(m).padStart(2, '0')}-01`
-  const endDate = new Date(y, m, 0).toISOString().split('T')[0]
+  const { startDate, endDate } = getMonthDateRange(m, y)
+
+  const prevDate = new Date(y, m - 2, 1)
+  const prevM = prevDate.getMonth() + 1
+  const prevY = prevDate.getFullYear()
+  const { startDate: prevStart, endDate: prevEnd } = getMonthDateRange(prevM, prevY)
+
+  const daysInMonth = new Date(y, m, 0).getDate()
 
   return useQuery({
     queryKey: ['monthly_kpis', { month: m, year: y }],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('type, amount')
-        .gte('date', startDate)
-        .lte('date', endDate)
+      const [curr, prev] = await Promise.all([
+        supabase
+          .from('transactions')
+          .select('type, category_id, amount')
+          .gte('date', startDate)
+          .lte('date', endDate),
+        supabase
+          .from('transactions')
+          .select('type, amount')
+          .gte('date', prevStart)
+          .lte('date', prevEnd),
+      ])
 
-      if (error) throw error
+      if (curr.error) throw curr.error
+
+      const categoryBreakdown: Record<string, number> = {}
 
       const kpis = {
         totalIncome: 0,
@@ -148,32 +164,49 @@ export function useMonthlyKPIs(month?: number, year?: number) {
         incomePercent: 0,
         expensePercent: 0,
         savingsPercent: 0,
+        prevMonthExpenses: 0,
+        deltaExpensePercent: null as number | null,
+        dailyAverage: 0,
+        topCategoryId: null as string | null,
+        categoryBreakdown,
       }
 
-      data?.forEach((t) => {
+      curr.data?.forEach((t) => {
+        const amt = Number(t.amount)
         switch (t.type) {
-          case 'income':
-            kpis.totalIncome += Number(t.amount)
-            break
+          case 'income':  kpis.totalIncome += amt; break
           case 'expense':
-            kpis.totalExpenses += Number(t.amount)
+            kpis.totalExpenses += amt
+            categoryBreakdown[t.category_id] = (categoryBreakdown[t.category_id] || 0) + amt
             break
-          case 'saving':
-            kpis.totalSavings += Number(t.amount)
-            break
-          case 'debt':
-            kpis.totalDebts += Number(t.amount)
-            break
+          case 'saving':  kpis.totalSavings += amt; break
+          case 'debt':    kpis.totalDebts += amt; break
         }
       })
 
+      prev.data?.forEach((t) => {
+        if (t.type === 'expense') kpis.prevMonthExpenses += Number(t.amount)
+      })
+
       kpis.balance = kpis.totalIncome - kpis.totalExpenses - kpis.totalSavings - kpis.totalDebts
+      kpis.dailyAverage = kpis.totalExpenses / daysInMonth
 
       if (kpis.totalIncome > 0) {
         kpis.expensePercent = Math.round((kpis.totalExpenses / kpis.totalIncome) * 100)
         kpis.savingsPercent = Math.round((kpis.totalSavings / kpis.totalIncome) * 100)
         kpis.incomePercent = 100
       }
+
+      if (kpis.prevMonthExpenses > 0) {
+        kpis.deltaExpensePercent = Math.round(
+          ((kpis.totalExpenses - kpis.prevMonthExpenses) / kpis.prevMonthExpenses) * 100
+        )
+      }
+
+      let maxCat = 0
+      Object.entries(categoryBreakdown).forEach(([id, amt]) => {
+        if (amt > maxCat) { maxCat = amt; kpis.topCategoryId = id }
+      })
 
       return kpis
     },
