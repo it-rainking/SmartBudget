@@ -11,6 +11,7 @@ interface DashboardLayoutProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard/mensile', icon: '📊' },
+  { name: 'Annuale', href: '/dashboard/annuale', icon: '📈' },
   { name: 'Transazioni', href: '/transazioni', icon: '💳' },
   { name: 'Budget', href: '/budget', icon: '📅' },
   { name: 'Fatture', href: '/fatture', icon: '🧾' },
