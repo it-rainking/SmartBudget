@@ -346,7 +346,7 @@ export type Database = {
           id?: string
           user_id: string
           type: 'income' | 'expense' | 'saving' | 'debt'
-          category_id: string
+          category_id?: string | null
           subcategory_id?: string | null
           amount: number
           date: string
@@ -363,7 +363,7 @@ export type Database = {
           id?: string
           user_id?: string
           type?: 'income' | 'expense' | 'saving' | 'debt'
-          category_id?: string
+          category_id?: string | null
           subcategory_id?: string | null
           amount?: number
           date?: string

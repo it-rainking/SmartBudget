@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { ToastProvider } from '@/components/Toast'
+import { NotificationBell } from '@/components/NotificationBell'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -67,6 +68,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 {user?.email}
               </p>
             </div>
+            <NotificationBell />
             <button
               onClick={signOut}
               className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
@@ -87,12 +89,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
             <span className="text-xl font-bold text-zinc-900 dark:text-white">SmartBudget</span>
           </div>
-          <button
-            onClick={signOut}
-            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
-          >
-            Esci
-          </button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <button
+              onClick={signOut}
+              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+            >
+              Esci
+            </button>
+          </div>
         </div>
 
         {/* Mobile Navigation */}
