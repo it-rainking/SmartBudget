@@ -201,6 +201,9 @@ export function useMonthlyKPIs(month?: number, year?: number) {
         kpis.deltaExpensePercent = Math.round(
           ((kpis.totalExpenses - kpis.prevMonthExpenses) / kpis.prevMonthExpenses) * 100
         )
+      } else {
+        // Nessuna spesa nel mese precedente: delta non calcolabile
+        kpis.deltaExpensePercent = null
       }
 
       let maxCat = 0

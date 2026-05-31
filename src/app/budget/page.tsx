@@ -7,7 +7,9 @@ import {
   useEnsureMonthlyBudget,
   useUpsertBudgetItem,
   useActualAmountsByCategory,
+  useBudgetItems,
 } from '@/hooks/useBudget'
+import { useToast } from '@/components/Toast'
 import { useIncomeCategories, useExpenseCategories, useSavingCategories } from '@/hooks/useCategories'
 import { formatCurrency, formatMonth } from '@/lib/utils'
 
@@ -25,8 +27,16 @@ export default function BudgetPage() {
   const [activeTab, setActiveTab] = useState<TabType>('expense')
   const [editingValues, setEditingValues] = useState<Record<string, string>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [copying, setCopying] = useState(false)
+
+  const { showToast } = useToast()
+
+  // Calcola mese/anno precedente
+  const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1
+  const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear
 
   const { data: budget, isLoading: budgetLoading } = useMonthlyBudget(selectedMonth, selectedYear)
+  const { data: prevBudgetData } = useBudgetItems(prevMonth, prevYear)
   const { data: actuals } = useActualAmountsByCategory(selectedMonth, selectedYear)
   const { data: incomeCategories } = useIncomeCategories()
   const { data: expenseCategories } = useExpenseCategories()
@@ -34,6 +44,13 @@ export default function BudgetPage() {
 
   const ensureBudget = useEnsureMonthlyBudget()
   const upsertItem = useUpsertBudgetItem()
+
+  // Crea automaticamente il record budget del mese al mount e al cambio mese/anno
+  useEffect(() => {
+    ensureBudget.mutate({ month: selectedMonth, year: selectedYear })
+    // ensureBudget è stabile: escluso volutamente dalle dipendenze
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth, selectedYear])
 
   // Sync editing values from loaded budget items
   useEffect(() => {
@@ -81,6 +98,35 @@ export default function BudgetPage() {
     }
   }
 
+  // Copia tutti gli item del mese precedente nel mese corrente
+  const handleCopyFromPrevMonth = async () => {
+    const items = prevBudgetData?.monthly_budget_items
+    if (!items?.length) return
+    setCopying(true)
+    try {
+      let budgetId = budget?.id
+      if (!budgetId) {
+        const result = await ensureBudget.mutateAsync({ month: selectedMonth, year: selectedYear })
+        budgetId = result.id
+      }
+      for (const item of items) {
+        await upsertItem.mutateAsync({
+          budgetId: budgetId!,
+          month: selectedMonth,
+          year: selectedYear,
+          categoryType: item.category_type as TabType,
+          categoryId: item.category_id,
+          plannedAmount: Number(item.planned_amount),
+        })
+      }
+      showToast('Budget copiato dal mese precedente', 'success')
+    } catch {
+      showToast('Errore durante la copia del budget', 'error')
+    } finally {
+      setCopying(false)
+    }
+  }
+
   const tabConfig: { key: TabType; label: string; color: string; activeColor: string }[] = [
     { key: 'expense', label: 'Spese', color: 'text-red-600', activeColor: 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800' },
     { key: 'income', label: 'Entrate', color: 'text-emerald-600', activeColor: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' },
@@ -119,6 +165,13 @@ export default function BudgetPage() {
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>
+            <button
+              onClick={handleCopyFromPrevMonth}
+              disabled={!prevBudgetData?.monthly_budget_items?.length || copying}
+              className="px-3 py-2 rounded-lg text-sm font-medium border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {copying ? 'Copia in corso...' : 'Copia da mese precedente'}
+            </button>
           </div>
         </div>
 

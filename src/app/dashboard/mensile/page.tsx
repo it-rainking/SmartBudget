@@ -255,7 +255,11 @@ export default function DashboardMensilePage() {
                           legend: { display: false },
                           tooltip: {
                             callbacks: {
-                              label: (ctx) => ` ${fmt(ctx.parsed)}`,
+                              label: (ctx) => {
+                                const total = (ctx.dataset.data as number[]).reduce((a, b) => a + b, 0)
+                                const pct = total > 0 ? Math.round((ctx.parsed / total) * 100) : 0
+                                return ` ${ctx.label}: ${fmt(ctx.parsed)} (${pct}%)`
+                              },
                             },
                           },
                         },

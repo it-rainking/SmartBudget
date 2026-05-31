@@ -2,11 +2,11 @@
 
 import { useState } from 'react'
 import { DashboardLayout } from '@/components/DashboardLayout'
-import { useGoals, useCreateGoal, useAddGoalProgress, useCompleteGoal, useDeleteGoal } from '@/hooks/useGoals'
+import { useGoals, useCreateGoal, useUpdateGoal, useAddGoalProgress, useCompleteGoal, useDeleteGoal } from '@/hooks/useGoals'
 import { useSettings } from '@/hooks/useSettings'
 import { useToast } from '@/components/Toast'
 import { formatCurrency } from '@/lib/utils'
-import type { GoalType } from '@/types'
+import type { GoalType, Goal } from '@/types'
 
 const TYPE_LABELS: Record<GoalType, string> = {
   saving: 'Risparmio',
@@ -46,12 +46,14 @@ export default function ObiettiviPage() {
   const { data: goals, isLoading } = useGoals()
   const { data: settings } = useSettings()
   const createGoal = useCreateGoal()
+  const updateGoal = useUpdateGoal()
   const addProgress = useAddGoalProgress()
   const completeGoal = useCompleteGoal()
   const deleteGoal = useDeleteGoal()
   const { showToast } = useToast()
 
   const [showModal, setShowModal] = useState(false)
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null)
   const [progressModal, setProgressModal] = useState<ProgressForm | null>(null)
   const [form, setForm] = useState<NewGoalForm>(emptyForm)
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all')
@@ -70,11 +72,50 @@ export default function ObiettiviPage() {
   const totalTarget = activeGoals.reduce((s, g) => s + g.target_amount, 0)
   const totalSaved = activeGoals.reduce((s, g) => s + g.current_amount, 0)
 
+  // Apre il modal in modalità modifica pre-popolando i campi
+  function openEditForm(goal: Goal) {
+    setEditingGoal(goal)
+    setForm({
+      name: goal.name,
+      target_amount: String(goal.target_amount),
+      current_amount: String(goal.current_amount),
+      deadline: goal.deadline ?? '',
+      type: goal.type as GoalType,
+      description: goal.description ?? '',
+    })
+    setShowModal(true)
+  }
+
+  // Chiude il modal e resetta il form
+  function closeModal() {
+    setShowModal(false)
+    setEditingGoal(null)
+    setForm(emptyForm)
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     const target = parseFloat(form.target_amount)
     const current = parseFloat(form.current_amount || '0')
     if (!form.name || isNaN(target) || target <= 0) return
+
+    if (editingGoal) {
+      try {
+        await updateGoal.mutateAsync({
+          id: editingGoal.id,
+          data: {
+            name: form.name,
+            target_amount: target,
+            ...(form.deadline ? { deadline: form.deadline } : {}),
+          },
+        })
+        showToast('Obiettivo modificato', 'success')
+        closeModal()
+      } catch {
+        showToast('Errore durante la modifica', 'error')
+      }
+      return
+    }
 
     try {
       await createGoal.mutateAsync({
@@ -280,6 +321,18 @@ export default function ObiettiviPage() {
                         style={{ width: `${pct}%` }}
                       />
                     </div>
+                    {/* Proiezione mensile necessaria */}
+                    {goal.deadline && goal.current_amount < goal.target_amount && (() => {
+                      const today = new Date()
+                      const deadline = new Date(goal.deadline)
+                      const monthsLeft = Math.max(1, (deadline.getFullYear() - today.getFullYear()) * 12 + (deadline.getMonth() - today.getMonth()))
+                      const needed = (goal.target_amount - goal.current_amount) / monthsLeft
+                      return (
+                        <p className="text-xs text-zinc-400 mt-1">
+                          Risparmia {formatCurrency(needed, settings?.currency || 'EUR')}/mese per raggiungere l&apos;obiettivo
+                        </p>
+                      )
+                    })()}
                   </div>
 
                   {/* Deadline */}
@@ -314,16 +367,32 @@ export default function ObiettiviPage() {
                         Completa
                       </button>
                       <button
+                        onClick={() => openEditForm(goal)}
+                        aria-label="Modifica obiettivo"
+                        className="py-1.5 px-2.5 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg text-xs transition-colors"
+                      >
+                        ✏️
+                      </button>
+                      <button
                         onClick={() => handleDelete(goal.id)}
+                        aria-label="Elimina obiettivo"
                         className="py-1.5 px-2.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-xs transition-colors"
                       >
                         🗑️
                       </button>
                     </div>
                   ) : (
-                    <div className="flex justify-end mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-700">
+                    <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-700">
+                      <button
+                        onClick={() => openEditForm(goal)}
+                        aria-label="Modifica obiettivo"
+                        className="py-1.5 px-2.5 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg text-xs transition-colors"
+                      >
+                        ✏️
+                      </button>
                       <button
                         onClick={() => handleDelete(goal.id)}
+                        aria-label="Elimina obiettivo"
                         className="py-1.5 px-2.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-xs transition-colors"
                       >
                         🗑️
@@ -361,8 +430,8 @@ export default function ObiettiviPage() {
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-700">
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Nuovo Obiettivo</h2>
-              <button onClick={() => { setShowModal(false); setForm(emptyForm) }} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">{editingGoal ? 'Modifica Obiettivo' : 'Nuovo Obiettivo'}</h2>
+              <button onClick={closeModal} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
               <div>
@@ -442,17 +511,17 @@ export default function ObiettiviPage() {
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => { setShowModal(false); setForm(emptyForm) }}
+                  onClick={closeModal}
                   className="flex-1 py-2 px-4 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
                 >
                   Annulla
                 </button>
                 <button
                   type="submit"
-                  disabled={createGoal.isPending}
+                  disabled={createGoal.isPending || updateGoal.isPending}
                   className="flex-1 py-2 px-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
                 >
-                  {createGoal.isPending ? 'Salvataggio...' : 'Crea obiettivo'}
+                  {(createGoal.isPending || updateGoal.isPending) ? 'Salvataggio...' : editingGoal ? 'Aggiorna obiettivo' : 'Crea obiettivo'}
                 </button>
               </div>
             </form>

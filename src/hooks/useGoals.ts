@@ -84,6 +84,25 @@ export function useCompleteGoal() {
   })
 }
 
+export function useUpdateGoal() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<{ name: string; target_amount: number; deadline: string }> }) => {
+      const { data: goal, error } = await supabase
+        .from('goals')
+        .update(data)
+        .eq('id', id)
+        .select()
+        .single()
+
+      if (error) throw error
+      return goal as Goal
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['goals'] }),
+  })
+}
+
 export function useDeleteGoal() {
   const queryClient = useQueryClient()
 

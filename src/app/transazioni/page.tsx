@@ -2,11 +2,11 @@
 
 import { useState } from 'react'
 import { DashboardLayout } from '@/components/DashboardLayout'
-import { useTransactions, useCreateTransaction, useDeleteTransaction } from '@/hooks/useTransactions'
+import { useTransactions, useCreateTransaction, useUpdateTransaction, useDeleteTransaction } from '@/hooks/useTransactions'
 import { useIncomeCategories, useExpenseCategories, useSavingCategories, useInitializeCategories } from '@/hooks/useCategories'
 import { useToast } from '@/components/Toast'
 import { ImportCSVModal } from '@/components/ImportCSVModal'
-import type { TransactionType } from '@/types'
+import type { TransactionType, Transaction } from '@/types'
 
 const MONTHS = [
   'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
@@ -22,8 +22,10 @@ export default function TransazioniPage() {
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear())
   const [showForm, setShowForm] = useState(false)
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [showImport, setShowImport] = useState(false)
   const [filterType, setFilterType] = useState<TransactionType | ''>('')
+  const [searchTerm, setSearchTerm] = useState('')
 
   const { showToast } = useToast()
 
@@ -47,6 +49,7 @@ export default function TransazioniPage() {
 
   // Mutations
   const createTransaction = useCreateTransaction()
+  const updateTransaction = useUpdateTransaction()
   const deleteTransaction = useDeleteTransaction()
   const initializeCategories = useInitializeCategories()
 
@@ -54,6 +57,11 @@ export default function TransazioniPage() {
   const hasCategories = (incomeCategories?.length || 0) > 0 ||
                         (expenseCategories?.length || 0) > 0 ||
                         (savingCategories?.length || 0) > 0
+
+  // Filtra le transazioni client-side per descrizione
+  const filteredTransactions = transactions?.filter(
+    (t) => !searchTerm || t.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   const getCategories = () => {
     switch (formType) {
@@ -85,24 +93,51 @@ export default function TransazioniPage() {
     return cat ? `${cat.icon || ''} ${cat.name}` : 'Categoria'
   }
 
+  // Apre il form in modalità modifica pre-popolando i campi
+  const openEditForm = (transaction: Transaction) => {
+    setEditingTransaction(transaction)
+    setFormType(transaction.type)
+    setFormCategoryId(transaction.category_id || '')
+    setFormAmount(String(transaction.amount))
+    setFormDate(transaction.date)
+    setFormDescription(transaction.description || '')
+    setFormPaymentMethod(transaction.payment_method || '')
+    setShowForm(true)
+  }
+
+  // Resetta il form e chiude il modal
+  const closeForm = () => {
+    setFormAmount('')
+    setFormDescription('')
+    setFormCategoryId('')
+    setFormPaymentMethod('')
+    setFormDate(new Date().toISOString().split('T')[0])
+    setEditingTransaction(null)
+    setShowForm(false)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    try {
-      await createTransaction.mutateAsync({
-        type: formType,
-        category_id: formCategoryId,
-        amount: parseFloat(formAmount),
-        date: formDate,
-        description: formDescription || undefined,
-        payment_method: formPaymentMethod || undefined,
-      })
+    const payload = {
+      type: formType,
+      category_id: formCategoryId,
+      amount: parseFloat(formAmount),
+      date: formDate,
+      description: formDescription || undefined,
+      payment_method: formPaymentMethod || undefined,
+    }
 
-      setFormAmount('')
-      setFormDescription('')
-      setFormCategoryId('')
-      setShowForm(false)
-      showToast('Transazione aggiunta')
+    try {
+      if (editingTransaction) {
+        await updateTransaction.mutateAsync({ id: editingTransaction.id, data: payload })
+        closeForm()
+        showToast('Transazione modificata', 'success')
+      } else {
+        await createTransaction.mutateAsync(payload)
+        closeForm()
+        showToast('Transazione aggiunta')
+      }
     } catch {
       showToast('Errore durante il salvataggio', 'error')
     }
@@ -224,6 +259,15 @@ export default function TransazioniPage() {
           </select>
         </div>
 
+        {/* Ricerca testo */}
+        <input
+          type="text"
+          placeholder="Cerca per descrizione..."
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+          className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        />
+
         {/* Transactions List */}
         <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm overflow-hidden">
           {isLoading ? (
@@ -232,18 +276,28 @@ export default function TransazioniPage() {
             <div className="p-8 text-center text-zinc-500">
               Nessuna transazione per questo periodo
             </div>
+          ) : filteredTransactions?.length === 0 ? (
+            <div className="p-8 text-center text-zinc-500">
+              Nessun risultato per &ldquo;{searchTerm}&rdquo;
+            </div>
           ) : (
             <div className="divide-y divide-zinc-100 dark:divide-zinc-700">
-              {transactions?.map((transaction) => (
+              {filteredTransactions?.map((transaction) => (
                 <div key={transaction.id} className="p-4 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
                   <div className="flex items-center gap-4">
                     <div className={`px-2 py-1 rounded text-xs font-medium ${getTypeColor(transaction.type)}`}>
                       {getTypeLabel(transaction.type)}
                     </div>
                     <div>
-                      <p className="font-medium text-zinc-900 dark:text-white">
-                        {getCategoryName(transaction.category_id, transaction.type)}
-                      </p>
+                      {transaction.category_id ? (
+                        <p className="font-medium text-zinc-900 dark:text-white">
+                          {getCategoryName(transaction.category_id, transaction.type)}
+                        </p>
+                      ) : (
+                        <span className="inline-block px-2 py-0.5 rounded text-xs italic text-gray-500 bg-gray-100 dark:bg-zinc-700 dark:text-gray-400">
+                          Non categorizzato
+                        </span>
+                      )}
                       {transaction.description && (
                         <p className="text-sm text-zinc-500 dark:text-zinc-400">{transaction.description}</p>
                       )}
@@ -255,10 +309,18 @@ export default function TransazioniPage() {
                       {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                     </span>
                     <button
+                      onClick={() => openEditForm(transaction)}
+                      aria-label="Modifica transazione"
+                      className="text-zinc-400 hover:text-emerald-600 transition-colors"
+                    >
+                      ✏️
+                    </button>
+                    <button
                       onClick={() => {
                         deleteTransaction.mutate(transaction.id)
                         showToast('Transazione eliminata', 'info')
                       }}
+                      aria-label="Elimina transazione"
                       className="text-zinc-400 hover:text-red-500 transition-colors"
                     >
                       🗑️
@@ -276,7 +338,7 @@ export default function TransazioniPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md">
             <div className="p-6 border-b border-zinc-200 dark:border-zinc-700">
-              <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Nuova Transazione</h2>
+              <h2 className="text-xl font-bold text-zinc-900 dark:text-white">{editingTransaction ? 'Modifica Transazione' : 'Nuova Transazione'}</h2>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -391,17 +453,17 @@ export default function TransazioniPage() {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
+                  onClick={closeForm}
                   className="flex-1 py-3 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
                 >
                   Annulla
                 </button>
                 <button
                   type="submit"
-                  disabled={createTransaction.isPending}
+                  disabled={createTransaction.isPending || updateTransaction.isPending}
                   className="flex-1 py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-medium transition-colors"
                 >
-                  {createTransaction.isPending ? 'Salvataggio...' : 'Salva'}
+                  {(createTransaction.isPending || updateTransaction.isPending) ? 'Salvataggio...' : editingTransaction ? 'Aggiorna' : 'Salva'}
                 </button>
               </div>
             </form>

@@ -29,6 +29,26 @@ export function useMonthlyBudget(month: number, year: number) {
   })
 }
 
+// Fetch del budget + items di uno specifico mese/anno (usato per la copia da mese precedente)
+export function useBudgetItems(month: number, year: number) {
+  return useQuery({
+    queryKey: ['monthly_budget_items', { month, year }],
+    queryFn: async () => {
+      const { data: user } = await supabase.auth.getUser()
+      if (!user.user) return null
+      const { data, error } = await supabase
+        .from('monthly_budgets')
+        .select('id, monthly_budget_items(*)')
+        .eq('user_id', user.user.id)
+        .eq('month', month)
+        .eq('year', year)
+        .maybeSingle()
+      if (error) throw error
+      return data as { id: string; monthly_budget_items: MonthlyBudgetItem[] } | null
+    },
+  })
+}
+
 export function useEnsureMonthlyBudget() {
   const queryClient = useQueryClient()
 

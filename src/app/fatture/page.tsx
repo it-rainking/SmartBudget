@@ -6,6 +6,7 @@ import { useToast } from '@/components/Toast'
 import {
   useInvoices,
   useCreateInvoice,
+  useUpdateInvoice,
   useMarkAsPaid,
   useDeleteInvoice,
 } from '@/hooks/useInvoices'
@@ -38,6 +39,7 @@ export default function FatturePage() {
   const today = new Date()
   const { data: invoices = [], isLoading } = useInvoices()
   const createInvoice = useCreateInvoice()
+  const updateInvoice = useUpdateInvoice()
   const markAsPaid    = useMarkAsPaid()
   const deleteInvoice = useDeleteInvoice()
   const { showToast } = useToast()
@@ -45,6 +47,7 @@ export default function FatturePage() {
   const [activeTab,    setActiveTab]    = useState<'lista' | 'calendario'>('lista')
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all')
   const [showForm,     setShowForm]     = useState(false)
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
   const [calMonth,     setCalMonth]     = useState(today.getMonth())
   const [calYear,      setCalYear]      = useState(today.getFullYear())
   const [selectedDay,  setSelectedDay]  = useState<number | null>(null)
@@ -96,24 +99,60 @@ export default function FatturePage() {
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
+  // Apre il form in modalità modifica pre-popolando i campi
+  const openEditForm = (inv: Invoice) => {
+    setEditingInvoice(inv)
+    setFName(inv.name)
+    setFAmount(String(inv.amount))
+    setFDueDate(inv.due_date)
+    setFRecurrence(inv.recurrence ?? 'once')
+    setFDescription(inv.description ?? '')
+    setFAutoRenew(inv.auto_renew ?? false)
+    setShowForm(true)
+  }
+
+  // Resetta il form e chiude il modal
+  const closeForm = () => {
+    setShowForm(false)
+    setEditingInvoice(null)
+    setFName(''); setFAmount(''); setFDescription('')
+    setFDueDate(today.toISOString().split('T')[0])
+    setFRecurrence('once'); setFAutoRenew(false)
+  }
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await createInvoice.mutateAsync({
-        name: fName,
-        amount: parseFloat(fAmount),
-        due_date: fDueDate,
-        recurrence: fRecurrence,
-        description: fDescription || null,
-        auto_renew: fAutoRenew,
-        status: 'pending',
-        paid_date: null,
-        paid_amount: null,
-        category_id: null,
-        reminder_days: 3,
-      })
-      setShowForm(false); setFName(''); setFAmount(''); setFDescription('')
-      showToast('Fattura aggiunta')
+      if (editingInvoice) {
+        await updateInvoice.mutateAsync({
+          id: editingInvoice.id,
+          data: {
+            name: fName,
+            amount: parseFloat(fAmount),
+            due_date: fDueDate,
+            recurrence: fRecurrence,
+            auto_renew: fAutoRenew,
+          },
+        })
+        closeForm()
+        showToast('Fattura modificata', 'success')
+      } else {
+        await createInvoice.mutateAsync({
+          name: fName,
+          amount: parseFloat(fAmount),
+          due_date: fDueDate,
+          recurrence: fRecurrence,
+          description: fDescription || null,
+          auto_renew: fAutoRenew,
+          status: 'pending',
+          paid_date: null,
+          paid_amount: null,
+          category_id: null,
+          reminder_days: 3,
+        })
+        closeForm()
+        showToast('Fattura aggiunta')
+      }
     } catch {
       showToast('Errore nel salvataggio', 'error')
     }
@@ -343,8 +382,17 @@ export default function FatturePage() {
                               </button>
                             )}
                             <button
+                              onClick={() => openEditForm(inv)}
+                              title="Modifica"
+                              aria-label="Modifica fattura"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors text-xs"
+                            >
+                              ✏️
+                            </button>
+                            <button
                               onClick={() => handleDelete(inv.id)}
                               title="Elimina"
+                              aria-label="Elimina fattura"
                               className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-xs"
                             >
                               ✕
@@ -376,7 +424,10 @@ export default function FatturePage() {
               {/* Day headers */}
               <div className="grid grid-cols-7 border-b border-zinc-100 dark:border-zinc-700">
                 {DAYS_IT.map(d => (
-                  <div key={d} className="text-center text-xs font-medium text-zinc-400 py-2">{d}</div>
+                  <div key={d} className="text-center text-[10px] sm:text-xs font-medium text-zinc-400 py-2 min-w-0 truncate">
+                    <span className="sm:hidden">{d.charAt(0)}</span>
+                    <span className="hidden sm:inline">{d}</span>
+                  </div>
                 ))}
               </div>
 
@@ -399,11 +450,11 @@ export default function FatturePage() {
                     <div
                       key={day}
                       onClick={() => setSelectedDay(isSelected ? null : day)}
-                      className={`min-h-[60px] border-b border-r border-zinc-50 dark:border-zinc-700/50 p-1.5 cursor-pointer transition-colors ${
+                      className={`min-h-[60px] min-w-0 overflow-hidden border-b border-r border-zinc-50 dark:border-zinc-700/50 p-1 sm:p-1.5 cursor-pointer transition-colors ${
                         isSelected ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'hover:bg-zinc-50 dark:hover:bg-zinc-700/30'
                       } ${col === 6 ? 'border-r-0' : ''}`}
                     >
-                      <div className={`text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full mb-1 ${
+                      <div className={`text-[10px] sm:text-xs font-medium w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full mb-1 ${
                         isToday ? 'bg-emerald-600 text-white' : 'text-zinc-700 dark:text-zinc-300'
                       }`}>
                         {day}
@@ -483,8 +534,8 @@ export default function FatturePage() {
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-700">
-              <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Nuova fattura</h2>
-              <button onClick={() => setShowForm(false)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-xl leading-none">✕</button>
+              <h2 className="text-lg font-bold text-zinc-900 dark:text-white">{editingInvoice ? 'Modifica fattura' : 'Nuova fattura'}</h2>
+              <button onClick={closeForm} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-xl leading-none">✕</button>
             </div>
 
             <form onSubmit={handleCreate} className="p-6 space-y-4">
@@ -565,17 +616,17 @@ export default function FatturePage() {
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
+                  onClick={closeForm}
                   className="flex-1 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
                 >
                   Annulla
                 </button>
                 <button
                   type="submit"
-                  disabled={createInvoice.isPending}
+                  disabled={createInvoice.isPending || updateInvoice.isPending}
                   className="flex-1 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white text-sm font-medium transition-colors"
                 >
-                  {createInvoice.isPending ? 'Salvataggio...' : 'Salva'}
+                  {(createInvoice.isPending || updateInvoice.isPending) ? 'Salvataggio...' : editingInvoice ? 'Aggiorna' : 'Salva'}
                 </button>
               </div>
             </form>
