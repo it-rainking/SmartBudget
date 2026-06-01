@@ -28,6 +28,10 @@ CREATE TABLE public.settings (
     locale TEXT DEFAULT 'it-IT' NOT NULL,
     initial_balance DECIMAL(12,2) DEFAULT 0,
     onboarding_completed BOOLEAN DEFAULT FALSE,
+    notify_email BOOLEAN DEFAULT FALSE NOT NULL,
+    notify_telegram BOOLEAN DEFAULT FALSE NOT NULL,
+    telegram_chat_id TEXT,
+    notification_email TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     UNIQUE(user_id)

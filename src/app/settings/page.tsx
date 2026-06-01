@@ -39,15 +39,58 @@ export default function SettingsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteInput, setDeleteInput] = useState('')
   const [isExporting, setIsExporting] = useState(false)
+  const [isSendingTest, setIsSendingTest] = useState(false)
+
+  // Stato locale preferenze notifiche
+  const [notifyEmail, setNotifyEmail] = useState(settings?.notify_email ?? false)
+  const [notifyTelegram, setNotifyTelegram] = useState(settings?.notify_telegram ?? false)
+  const [telegramChatId, setTelegramChatId] = useState(settings?.telegram_chat_id ?? '')
+  const [notificationEmail, setNotificationEmail] = useState(settings?.notification_email ?? '')
 
   useEffect(() => {
     if (settings) {
       setCurrency(settings.currency)
       setLocale(settings.locale)
       setInitialBalance(String(settings.initial_balance ?? 0))
+      setNotifyEmail(settings.notify_email ?? false)
+      setNotifyTelegram(settings.notify_telegram ?? false)
+      setTelegramChatId(settings.telegram_chat_id ?? '')
+      setNotificationEmail(settings.notification_email ?? '')
       setIsDirty(false)
     }
   }, [settings])
+
+  // Salva preferenze notifiche
+  async function saveNotificationSettings() {
+    try {
+      await updateSettings.mutateAsync({
+        notify_email: notifyEmail,
+        notify_telegram: notifyTelegram,
+        telegram_chat_id: telegramChatId || null,
+        notification_email: notificationEmail || null,
+      })
+      showToast('Preferenze notifiche salvate', 'success')
+    } catch {
+      showToast('Errore nel salvataggio', 'error')
+    }
+  }
+
+  // Invia una notifica di test tramite la route server-side
+  async function handleSendTest() {
+    setIsSendingTest(true)
+    try {
+      const res = await fetch('/api/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!res.ok) throw new Error('Test failed')
+      showToast('Notifica di test inviata', 'info')
+    } catch {
+      showToast('Errore nell\'invio della notifica di test', 'error')
+    } finally {
+      setIsSendingTest(false)
+    }
+  }
 
   function markDirty() { setIsDirty(true) }
 
@@ -199,6 +242,79 @@ export default function SettingsPage() {
               )}
             </div>
           )}
+        </div>
+
+        {/* Notifiche */}
+        <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-100 dark:border-zinc-700">
+          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4 uppercase tracking-wide">Notifiche</h2>
+
+          <div className="space-y-4">
+            {/* Toggle Email */}
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Notifiche Email</span>
+              <input
+                type="checkbox"
+                checked={notifyEmail}
+                onChange={e => setNotifyEmail(e.target.checked)}
+                className="h-5 w-5 rounded border-zinc-300 dark:border-zinc-600 text-emerald-500 focus:ring-emerald-500"
+              />
+            </label>
+
+            {notifyEmail && (
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Indirizzo email per le notifiche</label>
+                <input
+                  type="email"
+                  value={notificationEmail}
+                  onChange={e => setNotificationEmail(e.target.value)}
+                  placeholder="email@example.com"
+                  className="w-full px-3 py-2.5 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            )}
+
+            {/* Toggle Telegram */}
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Notifiche Telegram</span>
+              <input
+                type="checkbox"
+                checked={notifyTelegram}
+                onChange={e => setNotifyTelegram(e.target.checked)}
+                className="h-5 w-5 rounded border-zinc-300 dark:border-zinc-600 text-emerald-500 focus:ring-emerald-500"
+              />
+            </label>
+
+            {notifyTelegram && (
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Chat ID Telegram</label>
+                <input
+                  type="text"
+                  value={telegramChatId}
+                  onChange={e => setTelegramChatId(e.target.value)}
+                  placeholder="123456789"
+                  className="w-full px-3 py-2.5 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">Scrivi a @userinfobot su Telegram per ottenere il tuo Chat ID</p>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
+              <button
+                onClick={handleSendTest}
+                disabled={isSendingTest}
+                className="px-5 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors"
+              >
+                {isSendingTest ? 'Invio...' : 'Invia notifica di test'}
+              </button>
+              <button
+                onClick={saveNotificationSettings}
+                disabled={updateSettings.isPending}
+                className="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                {updateSettings.isPending ? 'Salvataggio...' : 'Salva preferenze notifiche'}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* GDPR / Export */}

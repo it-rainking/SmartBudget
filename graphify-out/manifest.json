@@ -1,0 +1,222 @@
+{
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/eslint.config.mjs": {
+    "mtime": 1763919512.0,
+    "hash": "dfa1f5f6a7037bf39dc510f30b180002"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/next-env.d.ts": {
+    "mtime": 1763923253.0,
+    "hash": "d0f8375ae1199dc7acd3977fc33b78b8"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/next.config.ts": {
+    "mtime": 1763919512.0,
+    "hash": "9b77af189a21a7a64e4bd7a426f64176"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/postcss.config.mjs": {
+    "mtime": 1763919512.0,
+    "hash": "239f3ebf717465dc636818a1a619398d"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/middleware.ts": {
+    "mtime": 1763922981.0,
+    "hash": "a08290dbcfae94dd210232179afb3ff3"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/layout.tsx": {
+    "mtime": 1779343994.0,
+    "hash": "da8ae1d17fe4cca337d6864fa7681995"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/page.tsx": {
+    "mtime": 1763920112.0,
+    "hash": "a10745009d702fc6f0bc3a2a4b20e949"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/auth/callback/route.ts": {
+    "mtime": 1763923039.0,
+    "hash": "365d2f1b13f4089dd26f5e26a300da8d"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/budget/page.tsx": {
+    "mtime": 1779343994.0,
+    "hash": "0b3d86e5a704927050529f4ae64b962a"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/dashboard/annuale/page.tsx": {
+    "mtime": 1779343994.0,
+    "hash": "45f029c7a8fecbfc26f1389f91d160bf"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/dashboard/mensile/page.tsx": {
+    "mtime": 1779343994.0,
+    "hash": "ec840166c5a71fb7ec1da1976ee07604"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/fatture/page.tsx": {
+    "mtime": 1779343994.0,
+    "hash": "ef610f2aae0dc850c32e19b7365981a8"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/login/page.tsx": {
+    "mtime": 1779343994.0,
+    "hash": "bd6078081efe132565d7747123a0b211"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/obiettivi/page.tsx": {
+    "mtime": 1779343994.0,
+    "hash": "6bcf1019e3be9091655672907260e327"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/onboarding/page.tsx": {
+    "mtime": 1779343994.0,
+    "hash": "924df000f5a8b9e957f910a6065b3bce"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/settings/page.tsx": {
+    "mtime": 1779343994.0,
+    "hash": "d9ddd921d89116caccf5946800d32589"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/signup/page.tsx": {
+    "mtime": 1763923089.0,
+    "hash": "41a24f90c837c5f6fb2a016715f89528"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/transazioni/page.tsx": {
+    "mtime": 1779343994.0,
+    "hash": "b67ddd6b4b6dbbcb927439382a82c468"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/DashboardLayout.tsx": {
+    "mtime": 1779343994.0,
+    "hash": "be8f0586e5046bcae38f7fc2d445a958"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/ImportCSVModal.tsx": {
+    "mtime": 1779343994.0,
+    "hash": "1f210a35fe2bbdd9837ff1c6735f3936"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/NotificationBell.tsx": {
+    "mtime": 1779343994.0,
+    "hash": "53f60fd00c8c41a988cb2c66226315c8"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/Providers.tsx": {
+    "mtime": 1763920080.0,
+    "hash": "a1708e6a5610897c9a554f4c23b24c5b"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/Toast.tsx": {
+    "mtime": 1779343994.0,
+    "hash": "05d53aaa0eb039228d019e6ac4572fd4"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useAnnualData.ts": {
+    "mtime": 1779343994.0,
+    "hash": "134191c3f8809bde24b0163688fa9ee2"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useAuth.ts": {
+    "mtime": 1763923067.0,
+    "hash": "809fc1a3c8aff1c11c1609820cb52a9f"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useBudget.ts": {
+    "mtime": 1779343994.0,
+    "hash": "4e60426386a11ee1f921b7c1d0bbe5d5"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useCategories.ts": {
+    "mtime": 1779343994.0,
+    "hash": "54a32b3296d8babf5416023fedf97c9e"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useGoals.ts": {
+    "mtime": 1779343994.0,
+    "hash": "d779fe7f701ceca76f66189da64d6a28"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useImportTransactions.ts": {
+    "mtime": 1779343994.0,
+    "hash": "1e3cadd8fbe8b72d57aabdce3e0f6e0a"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useInvoices.ts": {
+    "mtime": 1779343994.0,
+    "hash": "13905241eab577f9dc4af9b1c6f24c30"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useNotifications.ts": {
+    "mtime": 1779343994.0,
+    "hash": "eaeda2da03a71dd4c160c7db4d526a3e"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useSettings.ts": {
+    "mtime": 1779343994.0,
+    "hash": "db12bd1241b9e2f69ffa3eeb7a111660"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useTransactions.ts": {
+    "mtime": 1779343994.0,
+    "hash": "b675b7c943af188620b3bdcd5e08514c"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/queryClient.ts": {
+    "mtime": 1763920070.0,
+    "hash": "848322caa022875f9f54cece828361df"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/supabase-server.ts": {
+    "mtime": 1763922980.0,
+    "hash": "a2289ab09b18ed8046484f23fe8e39d8"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/supabase.ts": {
+    "mtime": 1763922979.0,
+    "hash": "a3a256bd4839de98ecf4b34b886dd114"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/utils.ts": {
+    "mtime": 1779343994.0,
+    "hash": "7a850e644fec731193a4d1519b90c76d"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/types/database.ts": {
+    "mtime": 1779343994.0,
+    "hash": "97a120f2c287b3a09220255d1a47877d"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/types/index.ts": {
+    "mtime": 1763925114.0,
+    "hash": "f82237ab713c3ca0a19fa07cb538274d"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/rls_policies.sql": {
+    "mtime": 1763922914.0,
+    "hash": "e6a570dde4ab19ec890582570e4a6365"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/schema.sql": {
+    "mtime": 1763922883.0,
+    "hash": "758111a658227e2e104fe2b1255fa1dc"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/seed_categories.sql": {
+    "mtime": 1763922941.0,
+    "hash": "4ec5a6d12621815bc23aaa6bd78ec6e8"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/CLAUDE.md": {
+    "mtime": 1780157314.0,
+    "hash": "cc18d3a905cbb4fc23c4e11731d8d195"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/README.md": {
+    "mtime": 1779343994.0,
+    "hash": "747103412aa88fe5aee5d433a4d20e73"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/SMARTBUDGET \u2014 TECH SPEC COMPLETA (V.3).txt": {
+    "mtime": 1763916422.0,
+    "hash": "8231da1030ef086f6038ddf6c13eff92"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/SmartBudget_TechDoc_TOC.md": {
+    "mtime": 1763908173.0,
+    "hash": "eb4fe1060ac88365dbc713a852afcb00"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/SmartBudget_TechSpec.html": {
+    "mtime": 1763908122.0,
+    "hash": "594a8637d3d4d9ebc3d71e8486537ec1"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/SmartBudget_TechSpec.md": {
+    "mtime": 1763907742.0,
+    "hash": "152eb2930331f6ba2ab752598b5d0633"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/SmartBudget_TechSpec_Notion.md": {
+    "mtime": 1763908135.0,
+    "hash": "f021ee7c9ea28f5accd433c62481fce2"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/TODO.md": {
+    "mtime": 1779343994.0,
+    "hash": "030175bde8072a8941e1caad11cc6b71"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/file.svg": {
+    "mtime": 1763919512.0,
+    "hash": "d09f95206c3fa0bb9bd9fefabfd0ea71"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/globe.svg": {
+    "mtime": 1763919512.0,
+    "hash": "2aaafa6a49b6563925fe440891e32717"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/next.svg": {
+    "mtime": 1763919512.0,
+    "hash": "8e061864f388b47f33a1c3780831193e"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/vercel.svg": {
+    "mtime": 1763919512.0,
+    "hash": "c0af2f507b369b085b35ef4bbe3bcf1e"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/window.svg": {
+    "mtime": 1763919512.0,
+    "hash": "a2760511c65806022ad20adf74370ff3"
+  }
+}

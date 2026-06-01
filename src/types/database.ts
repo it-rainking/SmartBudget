@@ -36,6 +36,10 @@ export type Database = {
           locale: string
           initial_balance: number
           onboarding_completed: boolean
+          notify_email: boolean
+          notify_telegram: boolean
+          telegram_chat_id: string | null
+          notification_email: string | null
           created_at: string
           updated_at: string
         }
@@ -46,6 +50,10 @@ export type Database = {
           locale?: string
           initial_balance?: number
           onboarding_completed?: boolean
+          notify_email?: boolean
+          notify_telegram?: boolean
+          telegram_chat_id?: string | null
+          notification_email?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -56,6 +64,10 @@ export type Database = {
           locale?: string
           initial_balance?: number
           onboarding_completed?: boolean
+          notify_email?: boolean
+          notify_telegram?: boolean
+          telegram_chat_id?: string | null
+          notification_email?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -483,6 +495,42 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          type: 'budget_exceeded' | 'bill_due' | 'goal_achieved' | 'goal_progress' | 'system'
+          title: string
+          message: string
+          data: Record<string, unknown> | null
+          is_read: boolean
+          read_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: 'budget_exceeded' | 'bill_due' | 'goal_achieved' | 'goal_progress' | 'system'
+          title: string
+          message: string
+          data?: Record<string, unknown> | null
+          is_read?: boolean
+          read_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: 'budget_exceeded' | 'bill_due' | 'goal_achieved' | 'goal_progress' | 'system'
+          title?: string
+          message?: string
+          data?: Record<string, unknown> | null
+          is_read?: boolean
+          read_at?: string | null
+          created_at?: string
         }
         Relationships: []
       }

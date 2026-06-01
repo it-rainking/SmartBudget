@@ -16,6 +16,10 @@ export interface Settings {
   locale: string
   initial_balance: number
   onboarding_completed: boolean
+  notify_email: boolean
+  notify_telegram: boolean
+  telegram_chat_id: string | null
+  notification_email: string | null
   created_at: string
   updated_at: string
 }

@@ -1,6 +1,8 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
 import { useInvoices } from '@/hooks/useInvoices'
 import { useGoals } from '@/hooks/useGoals'
 import { useMonthlyKPIs } from '@/hooks/useTransactions'
@@ -101,4 +103,39 @@ export function useNotifications() {
   }, [invoices, goals, kpis, budget])
 
   return notifications
+}
+
+// Notifiche persistite nel DB (tabella notifications)
+export function usePersistedNotifications() {
+  return useQuery({
+    queryKey: ['notifications'],
+    queryFn: async () => {
+      const { data: auth } = await supabase.auth.getUser()
+      if (!auth.user) return []
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', auth.user.id)
+        .eq('is_read', false)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+// Segna una notifica DB come letta
+export function useMarkNotificationRead() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+  })
 }

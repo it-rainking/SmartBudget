@@ -1,7 +1,28 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { useNotifications } from '@/hooks/useNotifications'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import {
+  useNotifications,
+  usePersistedNotifications,
+  useMarkNotificationRead,
+  type AppNotification,
+} from '@/hooks/useNotifications'
+
+// Mappa i tipi notifica del DB ai tipi visivi del bell
+const DB_TYPE_MAP: Record<string, AppNotification['type']> = {
+  budget_exceeded: 'warning',
+  bill_due: 'warning',
+  goal_achieved: 'success',
+  goal_progress: 'info',
+  system: 'info',
+}
+const DB_TYPE_ICON: Record<string, string> = {
+  budget_exceeded: '📊',
+  bill_due: '📅',
+  goal_achieved: '🏆',
+  goal_progress: '📈',
+  system: 'ℹ️',
+}
 
 const TYPE_BG = {
   warning: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/50',
@@ -20,10 +41,29 @@ const TYPE_BODY = {
 }
 
 export function NotificationBell() {
-  const notifications = useNotifications()
+  const computed = useNotifications()
+  const { data: persistedNotifications } = usePersistedNotifications()
+  const markRead = useMarkNotificationRead()
   const [open, setOpen] = useState(false)
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const ref = useRef<HTMLDivElement>(null)
+
+  // Merge notifiche calcolate + DB, deduplicando per id
+  const notifications = useMemo<AppNotification[]>(() => {
+    const dbNotifs: AppNotification[] = (persistedNotifications ?? []).map(n => ({
+      id: n.id,
+      type: DB_TYPE_MAP[n.type] ?? 'info',
+      icon: DB_TYPE_ICON[n.type] ?? 'ℹ️',
+      title: n.title,
+      body: n.message,
+    }))
+    const seen = new Set<string>()
+    return [...computed, ...dbNotifs].filter(n => {
+      if (seen.has(n.id)) return false
+      seen.add(n.id)
+      return true
+    })
+  }, [computed, persistedNotifications])
 
   const visible = notifications.filter(n => !dismissed.has(n.id))
   const count = visible.length
@@ -37,10 +77,18 @@ export function NotificationBell() {
   }, [])
 
   function dismiss(id: string) {
+    // Se è una notifica persistita nel DB, segnala come letta; altrimenti dismiss in-memory
+    if (persistedNotifications?.some(n => n.id === id)) {
+      markRead.mutate(id)
+    }
     setDismissed(prev => new Set([...prev, id]))
   }
 
   function dismissAll() {
+    // Segna come lette tutte le notifiche DB visibili
+    persistedNotifications?.forEach(n => {
+      if (!dismissed.has(n.id)) markRead.mutate(n.id)
+    })
     setDismissed(new Set(notifications.map(n => n.id)))
     setOpen(false)
   }

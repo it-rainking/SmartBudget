@@ -10,7 +10,6 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 
 - **Target**: Privati, coppie, famiglie, lavoratori autonomi
 - **Lingua UI**: Italiano (v1); i18n-ready per Inglese in roadmap
-- **Branch di sviluppo**: `claude/check-progress-KzoLw`
 
 ---
 
@@ -202,4 +201,35 @@ Per persistere le notifiche (v2): aggiungere tabella `notifications` al DB e al 
 
 ## Stato Implementazione
 
-Tutte le fasi da 0 a 6 sono completate. Vedere `TODO.md` per bug noti, backlog UX e roadmap v2/v3.
+| Fase | Stato |
+|------|-------|
+| Phase 0–6 | ✅ Completato |
+| Phase 7 — UX + Bug fix | 🔜 Prossimo |
+| Phase 8 — Notifiche Email/Telegram | 📋 Pianificato |
+| Phase 9 — Import OFX + AI categorizzazione | 📋 Pianificato |
+| Phase 10 — i18n, Multi-account | 🔮 Futuro |
+
+### Bug noti (Phase 7)
+- Notifiche dismiss non persiste al refresh (stato locale, no DB)
+- Transazioni CSV importate senza `category_id` → non filtrabili per categoria
+- Delta% dashboard mensile mostra `NaN` se nessuna transazione mese precedente
+- Budget: record `monthly_budgets` non creato fino al primo salvataggio importo
+- Calendario fatture: grid 7-col troppo stretto su schermi < 360px
+
+### Priority backlog (Phase 7)
+- Edit transazione, fattura, obiettivo (attualmente solo delete/create)
+- Categoria "Non categorizzato" per import CSV
+- Paginazione/virtual scroll transazioni
+- Budget: copia da mese precedente
+- Dark mode toggle manuale in Settings
+
+---
+
+## Agenti consigliati
+
+| Agente | Quando usarlo |
+|--------|--------------|
+| `vibe-dev` | Implementazione nuove feature, fix bug |
+| `code-reviewer` | Revisione pre-deploy, audit sicurezza RLS |
+| `my-library` | Prima di scrivere nuove utility (check `TutteLeMieFunzioni/`) |
+| `plan` | Progettazione Phase 7+, decisioni architetturali |
