@@ -7,6 +7,7 @@ import { useSettings, useUpdateSettings } from '@/hooks/useSettings'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/Toast'
 import { supabase } from '@/lib/supabase'
+import { useTheme } from '@/components/ThemeProvider'
 
 const CURRENCIES = [
   { code: 'EUR', label: 'Euro (€)' },
@@ -31,6 +32,7 @@ export default function SettingsPage() {
   const { user, signOut } = useAuth()
   const { showToast } = useToast()
   const router = useRouter()
+  const { theme, setTheme } = useTheme()
 
   const [currency, setCurrency] = useState('EUR')
   const [locale, setLocale] = useState('it-IT')
@@ -227,6 +229,30 @@ export default function SettingsPage() {
                   className="w-full px-3 py-2.5 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
                 <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">Saldo di partenza usato come base per i calcoli</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-2">Tema</label>
+                <div className="flex gap-2">
+                  {([
+                    { value: 'light', label: '☀️ Chiaro' },
+                    { value: 'dark', label: '🌙 Scuro' },
+                    { value: 'system', label: '💻 Sistema' },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setTheme(opt.value)}
+                      className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        theme === opt.value
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+                          : 'border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {isDirty && (
