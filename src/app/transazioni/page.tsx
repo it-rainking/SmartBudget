@@ -17,6 +17,8 @@ const PAYMENT_METHODS = [
   'Contanti', 'Carta di Credito', 'Carta di Debito', 'Bonifico', 'PayPal', 'Altro'
 ]
 
+const PAGE_SIZE = 20
+
 export default function TransazioniPage() {
   const currentDate = new Date()
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1)
@@ -26,6 +28,7 @@ export default function TransazioniPage() {
   const [showImport, setShowImport] = useState(false)
   const [filterType, setFilterType] = useState<TransactionType | ''>('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
 
   const { showToast } = useToast()
 
@@ -61,6 +64,12 @@ export default function TransazioniPage() {
   // Filtra le transazioni client-side per descrizione
   const filteredTransactions = transactions?.filter(
     (t) => !searchTerm || t.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  const totalPages = Math.ceil((filteredTransactions?.length ?? 0) / PAGE_SIZE)
+  const paginatedTransactions = filteredTransactions?.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
   )
 
   const getCategories = () => {
@@ -229,7 +238,7 @@ export default function TransazioniPage() {
           <div className="flex items-center gap-2">
             <select
               value={selectedMonth}
-              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              onChange={(e) => { setSelectedMonth(Number(e.target.value)); setCurrentPage(1) }}
               className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
             >
               {MONTHS.map((month, i) => (
@@ -238,7 +247,7 @@ export default function TransazioniPage() {
             </select>
             <select
               value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              onChange={(e) => { setSelectedYear(Number(e.target.value)); setCurrentPage(1) }}
               className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
             >
               {[2024, 2025, 2026].map(year => (
@@ -249,7 +258,7 @@ export default function TransazioniPage() {
 
           <select
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value as TransactionType | '')}
+            onChange={(e) => { setFilterType(e.target.value as TransactionType | ''); setCurrentPage(1) }}
             className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
           >
             <option value="">Tutti i tipi</option>
@@ -264,7 +273,7 @@ export default function TransazioniPage() {
           type="text"
           placeholder="Cerca per descrizione..."
           value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
+          onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }}
           className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
         />
 
@@ -282,7 +291,7 @@ export default function TransazioniPage() {
             </div>
           ) : (
             <div className="divide-y divide-zinc-100 dark:divide-zinc-700">
-              {filteredTransactions?.map((transaction) => (
+              {paginatedTransactions?.map((transaction) => (
                 <div key={transaction.id} className="p-4 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
                   <div className="flex items-center gap-4">
                     <div className={`px-2 py-1 rounded text-xs font-medium ${getTypeColor(transaction.type)}`}>
@@ -328,6 +337,32 @@ export default function TransazioniPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {!isLoading && totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-100 dark:border-zinc-700">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredTransactions?.length ?? 0)} di {filteredTransactions?.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  ‹ Prec.
+                </button>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">{currentPage} / {totalPages}</span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  Succ. ›
+                </button>
+              </div>
             </div>
           )}
         </div>
