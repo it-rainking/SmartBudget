@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Chart as ChartJS,
   ArcElement,
@@ -74,6 +74,54 @@ export default function DashboardMensilePage() {
   }), [kpis])
 
   const hasData = (kpis?.totalIncome ?? 0) > 0 || (kpis?.totalExpenses ?? 0) > 0 || (kpis?.totalSavings ?? 0) > 0
+
+  // AI Insights
+  const [aiInsights, setAiInsights] = useState<string[]>([])
+  const [isLoadingAI, setIsLoadingAI] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setAiInsights([])
+    setAiError(null)
+  }, [selectedMonth, selectedYear])
+
+  async function handleAIInsights() {
+    if (!kpis || !hasData) return
+    setIsLoadingAI(true)
+    setAiError(null)
+    try {
+      const categoryNamesMap: Record<string, string> = {}
+      expenseCategories?.forEach((c) => { categoryNamesMap[c.id] = c.name })
+      const res = await fetch('/api/ai/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          month: selectedMonth,
+          year: selectedYear,
+          kpis: {
+            totalIncome: kpis.totalIncome,
+            totalExpenses: kpis.totalExpenses,
+            totalSavings: kpis.totalSavings,
+            balance: kpis.balance,
+            savingsPercent: kpis.savingsPercent,
+            dailyAverage: kpis.dailyAverage,
+            deltaExpensePercent: kpis.deltaExpensePercent ?? null,
+            prevMonthExpenses: kpis.prevMonthExpenses ?? 0,
+          },
+          categoryBreakdown: kpis.categoryBreakdown,
+          categoryNames: categoryNamesMap,
+          currency,
+        }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setAiInsights(data.insights ?? [])
+    } catch (e: unknown) {
+      setAiError(e instanceof Error ? e.message : 'Errore sconosciuto')
+    } finally {
+      setIsLoadingAI(false)
+    }
+  }
 
   return (
     <DashboardLayout>
@@ -401,6 +449,49 @@ export default function DashboardMensilePage() {
                 )
               })}
             </div>
+          </div>
+        )}
+
+        {/* AI Insights */}
+        {!isLoading && hasData && (
+          <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-100 dark:border-zinc-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">💡</span>
+                <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Analisi AI</h3>
+              </div>
+              <button
+                onClick={handleAIInsights}
+                disabled={isLoadingAI}
+                className="px-3 py-1.5 text-xs font-medium bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                {isLoadingAI ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Analisi...
+                  </>
+                ) : '✨ Analizza con AI'}
+              </button>
+            </div>
+
+            {aiError && (
+              <p className="text-sm text-red-500 dark:text-red-400">{aiError}</p>
+            )}
+
+            {aiInsights.length > 0 ? (
+              <div className="space-y-3">
+                {aiInsights.map((insight, i) => (
+                  <div key={i} className="flex gap-3 p-3 bg-violet-50 dark:bg-violet-900/10 rounded-lg border border-violet-100 dark:border-violet-900/20">
+                    <span className="text-violet-500 font-bold text-xs mt-0.5 shrink-0">0{i + 1}</span>
+                    <p className="text-sm text-zinc-700 dark:text-zinc-300">{insight}</p>
+                  </div>
+                ))}
+              </div>
+            ) : !aiError && (
+              <p className="text-sm text-zinc-400 text-center py-4">
+                Premi "Analizza con AI" per ottenere 3 insight personalizzati sul mese selezionato.
+              </p>
+            )}
           </div>
         )}
 
