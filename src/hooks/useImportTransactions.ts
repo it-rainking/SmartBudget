@@ -80,6 +80,15 @@ export function useImportTransactions() {
       const { data: auth } = await supabase.auth.getUser()
       if (!auth.user) throw new Error('Non autenticato')
 
+      // Cerca la categoria "Non categorizzato" tra le spese dell'utente
+      const { data: uncatCategory } = await supabase
+        .from('expense_categories')
+        .select('id')
+        .eq('user_id', auth.user.id)
+        .eq('name', 'Non categorizzato')
+        .maybeSingle()
+      const uncatId = uncatCategory?.id ?? null
+
       const inserts = rows.map(r => ({
         user_id: auth.user!.id,
         date: r.date,
@@ -87,7 +96,7 @@ export function useImportTransactions() {
         amount: r.amount,
         description: r.description || null,
         payment_method: r.payment_method || null,
-        category_id: null,
+        category_id: r.type === 'expense' ? uncatId : null,
       }))
 
       const { error } = await supabase.from('transactions').insert(inserts)

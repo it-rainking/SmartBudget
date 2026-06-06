@@ -41,6 +41,7 @@ export default function SettingsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteInput, setDeleteInput] = useState('')
   const [isExporting, setIsExporting] = useState(false)
+  const [isExportingCSV, setIsExportingCSV] = useState(false)
   const [isSendingTest, setIsSendingTest] = useState(false)
 
   // Stato locale preferenze notifiche
@@ -142,6 +143,50 @@ export default function SettingsPage() {
       showToast('Errore durante l\'esportazione', 'error')
     } finally {
       setIsExporting(false)
+    }
+  }
+
+  async function handleExportCSV() {
+    setIsExportingCSV(true)
+    try {
+      const [{ data: transactions }, { data: expCats }, { data: incCats }, { data: savCats }] = await Promise.all([
+        supabase.from('transactions').select('*').order('date', { ascending: false }),
+        supabase.from('expense_categories').select('id, name'),
+        supabase.from('income_categories').select('id, name'),
+        supabase.from('saving_categories').select('id, name'),
+      ])
+
+      const catMap: Record<string, string> = {}
+      ;[...(expCats ?? []), ...(incCats ?? []), ...(savCats ?? [])].forEach(c => { catMap[c.id] = c.name })
+
+      const TYPE_IT: Record<string, string> = {
+        income: 'Entrata', expense: 'Spesa', saving: 'Risparmio', debt: 'Debito',
+      }
+
+      const rows = [
+        ['Data', 'Tipo', 'Categoria', 'Importo', 'Descrizione', 'Metodo di pagamento'].join(';'),
+        ...(transactions ?? []).map(t => [
+          t.date,
+          TYPE_IT[t.type] ?? t.type,
+          t.category_id ? (catMap[t.category_id] ?? '') : 'Non categorizzato',
+          String(t.amount).replace('.', ','),
+          (t.description ?? '').replace(/;/g, ','),
+          t.payment_method ?? '',
+        ].join(';')),
+      ]
+
+      const blob = new Blob(['﻿' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `transazioni-${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      showToast('CSV esportato', 'success')
+    } catch {
+      showToast('Errore durante l\'esportazione CSV', 'error')
+    } finally {
+      setIsExportingCSV(false)
     }
   }
 
@@ -350,14 +395,24 @@ export default function SettingsPage() {
         <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-100 dark:border-zinc-700">
           <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-1 uppercase tracking-wide">Privacy & Dati</h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">Hai il diritto di esportare tutti i tuoi dati (GDPR Art. 20)</p>
-          <button
-            onClick={handleExport}
-            disabled={isExporting}
-            className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors"
-          >
-            <span>📥</span>
-            {isExporting ? 'Esportazione...' : 'Esporta tutti i dati (JSON)'}
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleExport}
+              disabled={isExporting}
+              className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors"
+            >
+              <span>📥</span>
+              {isExporting ? 'Esportazione...' : 'Esporta tutti i dati (JSON)'}
+            </button>
+            <button
+              onClick={handleExportCSV}
+              disabled={isExportingCSV}
+              className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors"
+            >
+              <span>📊</span>
+              {isExportingCSV ? 'Esportazione...' : 'Esporta transazioni (CSV)'}
+            </button>
+          </div>
         </div>
 
         {/* Danger zone */}
