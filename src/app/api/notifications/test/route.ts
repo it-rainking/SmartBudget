@@ -34,11 +34,14 @@ export async function POST() {
   try {
     const res = await fetch(`${origin}/api/notifications/send`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.CRON_SECRET}`,
+      },
       body: JSON.stringify({
         user_id: user.id,
         title: 'Test SmartBudget',
-        message: 'Le notifiche sono configurate correttamente! 🎉',
+        message: 'Le notifiche sono configurate correttamente!',
       }),
     })
     const data = await res.json()

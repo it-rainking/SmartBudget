@@ -26,8 +26,8 @@ Ultimo aggiornamento: 2026-06-06
 
 - [ ] **Notifiche dismiss non persiste**: le notifiche ricompaiono al refresh (stato in memoria, nessuna persistenza)
 - [x] **Import CSV**: le transazioni importate non hanno `category_id` — ora assegna automaticamente "Non categorizzato" se la categoria esiste
-- [x] **Calendario fatture**: fix overflow-x-auto su schermi < 360px
-- [x] **Dashboard Mensile**: delta% mostra null (non NaN) se nessuna transazione mese precedente
+- [x] **Calendario fatture**: fix overflow-x-auto + min-h ridotta a 40px su schermi < 360px
+- [x] **Dashboard Mensile**: delta% mostra null (non NaN) — fix isNaN + isFinite guard
 - [ ] **Budget**: la pagina non crea automaticamente il record `monthly_budgets` fino al primo salvataggio di un importo
 
 ---
@@ -40,6 +40,7 @@ Ultimo aggiornamento: 2026-06-06
 - [x] **Edit transazione**: modal modifica implementato
 - [x] **Edit fattura**: modal modifica implementato
 - [x] **Edit obiettivo**: modal modifica implementato
+- [x] **Pagina istruzioni**: guida utente integrata nell'app (`/istruzioni`)
 - [x] **Paginazione transazioni**: paginazione client-side 20 voci/pagina con Prev/Next
 - [x] **Ricerca transazioni**: campo di ricerca per descrizione implementato
 

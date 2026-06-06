@@ -437,7 +437,7 @@ export default function FatturePage() {
               <div className="grid grid-cols-7">
                 {/* Empty cells before first day */}
                 {Array.from({ length: calendarDays.startOffset }).map((_, i) => (
-                  <div key={`empty-${i}`} className="min-h-[60px] border-b border-r border-zinc-50 dark:border-zinc-700/50" />
+                  <div key={`empty-${i}`} className="min-h-[40px] sm:min-h-[60px] border-b border-r border-zinc-50 dark:border-zinc-700/50" />
                 ))}
 
                 {/* Day cells */}
@@ -452,7 +452,7 @@ export default function FatturePage() {
                     <div
                       key={day}
                       onClick={() => setSelectedDay(isSelected ? null : day)}
-                      className={`min-h-[60px] min-w-0 overflow-hidden border-b border-r border-zinc-50 dark:border-zinc-700/50 p-1 sm:p-1.5 cursor-pointer transition-colors ${
+                      className={`min-h-[40px] sm:min-h-[60px] min-w-0 overflow-hidden border-b border-r border-zinc-50 dark:border-zinc-700/50 p-1 sm:p-1.5 cursor-pointer transition-colors ${
                         isSelected ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'hover:bg-zinc-50 dark:hover:bg-zinc-700/30'
                       } ${col === 6 ? 'border-r-0' : ''}`}
                     >

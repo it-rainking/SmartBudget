@@ -18,6 +18,7 @@ const navigation = [
   { name: 'Fatture', href: '/fatture', icon: '🧾' },
   { name: 'Obiettivi', href: '/obiettivi', icon: '🎯' },
   { name: 'Impostazioni', href: '/settings', icon: '⚙️' },
+  { name: 'Istruzioni', href: '/istruzioni', icon: '📖' },
 ]
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
@@ -102,7 +103,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
         {/* Mobile Navigation */}
         <nav className="flex overflow-x-auto px-4 py-2 gap-2 border-t border-zinc-100 dark:border-zinc-700">
-          {navigation.slice(0, 5).map((item) => {
+          {navigation.map((item) => {
             const isActive = pathname.startsWith(item.href)
             return (
               <Link
