@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useTransactions, useCreateTransaction, useUpdateTransaction, useDeleteTransaction } from '@/hooks/useTransactions'
 import { useIncomeCategories, useExpenseCategories, useSavingCategories, useInitializeCategories } from '@/hooks/useCategories'
@@ -17,6 +17,8 @@ const PAYMENT_METHODS = [
   'Contanti', 'Carta di Credito', 'Carta di Debito', 'Bonifico', 'PayPal', 'Altro'
 ]
 
+const PAGE_SIZE = 20
+
 export default function TransazioniPage() {
   const currentDate = new Date()
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1)
@@ -25,7 +27,13 @@ export default function TransazioniPage() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [showImport, setShowImport] = useState(false)
   const [filterType, setFilterType] = useState<TransactionType | ''>('')
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState('')
+  const [filterMinAmount, setFilterMinAmount] = useState('')
+  const [filterMaxAmount, setFilterMaxAmount] = useState('')
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const { showToast } = useToast()
 
@@ -42,6 +50,7 @@ export default function TransazioniPage() {
     month: selectedMonth,
     year: selectedYear,
     type: filterType || undefined,
+    payment_method: filterPaymentMethod || undefined,
   })
   const { data: incomeCategories } = useIncomeCategories()
   const { data: expenseCategories } = useExpenseCategories()
@@ -53,14 +62,40 @@ export default function TransazioniPage() {
   const deleteTransaction = useDeleteTransaction()
   const initializeCategories = useInitializeCategories()
 
+  // Shortcut tastiera: Ctrl+N = nuova transazione, Esc = chiudi modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (confirmDeleteId) { setConfirmDeleteId(null); return }
+        if (showForm) { closeForm(); return }
+        if (showImport) setShowImport(false)
+      }
+      if (e.ctrlKey && e.key === 'n') {
+        e.preventDefault()
+        if (!showForm && !showImport) setShowForm(true)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showForm, showImport, confirmDeleteId])
+
   // Check if categories exist
   const hasCategories = (incomeCategories?.length || 0) > 0 ||
                         (expenseCategories?.length || 0) > 0 ||
                         (savingCategories?.length || 0) > 0
 
-  // Filtra le transazioni client-side per descrizione
-  const filteredTransactions = transactions?.filter(
-    (t) => !searchTerm || t.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  // Filtra client-side per descrizione e range importo
+  const filteredTransactions = transactions?.filter(t => {
+    if (searchTerm && !t.description?.toLowerCase().includes(searchTerm.toLowerCase())) return false
+    if (filterMinAmount && t.amount < parseFloat(filterMinAmount)) return false
+    if (filterMaxAmount && t.amount > parseFloat(filterMaxAmount)) return false
+    return true
+  })
+
+  const totalPages = Math.ceil((filteredTransactions?.length ?? 0) / PAGE_SIZE)
+  const paginatedTransactions = filteredTransactions?.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
   )
 
   const getCategories = () => {
@@ -229,7 +264,7 @@ export default function TransazioniPage() {
           <div className="flex items-center gap-2">
             <select
               value={selectedMonth}
-              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              onChange={(e) => { setSelectedMonth(Number(e.target.value)); setCurrentPage(1) }}
               className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
             >
               {MONTHS.map((month, i) => (
@@ -238,7 +273,7 @@ export default function TransazioniPage() {
             </select>
             <select
               value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              onChange={(e) => { setSelectedYear(Number(e.target.value)); setCurrentPage(1) }}
               className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
             >
               {[2024, 2025, 2026].map(year => (
@@ -249,7 +284,7 @@ export default function TransazioniPage() {
 
           <select
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value as TransactionType | '')}
+            onChange={(e) => { setFilterType(e.target.value as TransactionType | ''); setCurrentPage(1) }}
             className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
           >
             <option value="">Tutti i tipi</option>
@@ -264,9 +299,71 @@ export default function TransazioniPage() {
           type="text"
           placeholder="Cerca per descrizione..."
           value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
+          onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }}
           className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
         />
+
+        {/* Filtri avanzati */}
+        <div>
+          <button
+            onClick={() => setShowAdvancedFilters(v => !v)}
+            className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-1 transition-colors"
+          >
+            <span>{showAdvancedFilters ? '▲' : '▼'}</span> Filtri avanzati
+          </button>
+          {showAdvancedFilters && (
+            <div className="mt-3 flex flex-wrap gap-3 items-end">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-zinc-500 dark:text-zinc-400">Metodo pagamento</label>
+                <select
+                  value={filterPaymentMethod}
+                  onChange={e => { setFilterPaymentMethod(e.target.value); setCurrentPage(1) }}
+                  className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
+                >
+                  <option value="">Tutti</option>
+                  {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-zinc-500 dark:text-zinc-400">Importo min (€)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={filterMinAmount}
+                  onChange={e => { setFilterMinAmount(e.target.value); setCurrentPage(1) }}
+                  placeholder="0"
+                  className="w-28 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-zinc-500 dark:text-zinc-400">Importo max (€)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={filterMaxAmount}
+                  onChange={e => { setFilterMaxAmount(e.target.value); setCurrentPage(1) }}
+                  placeholder="∞"
+                  className="w-28 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
+                />
+              </div>
+              {(filterPaymentMethod || filterMinAmount || filterMaxAmount) && (
+                <button
+                  onClick={() => {
+                    setFilterPaymentMethod('')
+                    setFilterMinAmount('')
+                    setFilterMaxAmount('')
+                    setCurrentPage(1)
+                  }}
+                  className="px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-red-500 transition-colors"
+                >
+                  Azzera filtri
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Transactions List */}
         <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm overflow-hidden">
@@ -282,7 +379,7 @@ export default function TransazioniPage() {
             </div>
           ) : (
             <div className="divide-y divide-zinc-100 dark:divide-zinc-700">
-              {filteredTransactions?.map((transaction) => (
+              {paginatedTransactions?.map((transaction) => (
                 <div key={transaction.id} className="p-4 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
                   <div className="flex items-center gap-4">
                     <div className={`px-2 py-1 rounded text-xs font-medium ${getTypeColor(transaction.type)}`}>
@@ -316,10 +413,7 @@ export default function TransazioniPage() {
                       ✏️
                     </button>
                     <button
-                      onClick={() => {
-                        deleteTransaction.mutate(transaction.id)
-                        showToast('Transazione eliminata', 'info')
-                      }}
+                      onClick={() => setConfirmDeleteId(transaction.id)}
                       aria-label="Elimina transazione"
                       className="text-zinc-400 hover:text-red-500 transition-colors"
                     >
@@ -328,6 +422,32 @@ export default function TransazioniPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {!isLoading && totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-100 dark:border-zinc-700">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredTransactions?.length ?? 0)} di {filteredTransactions?.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  ‹ Prec.
+                </button>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">{currentPage} / {totalPages}</span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  Succ. ›
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -467,6 +587,34 @@ export default function TransazioniPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm delete modal */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
+            <h3 className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina transazione</h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Questa azione è irreversibile.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => {
+                  deleteTransaction.mutate(confirmDeleteId)
+                  showToast('Transazione eliminata', 'info')
+                  setConfirmDeleteId(null)
+                }}
+                className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors"
+              >
+                Elimina
+              </button>
+            </div>
           </div>
         </div>
       )}

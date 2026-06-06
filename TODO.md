@@ -1,6 +1,6 @@
 # TODO — SmartBudget
 
-Ultimo aggiornamento: 2026-05-21
+Ultimo aggiornamento: 2026-06-06
 
 ---
 
@@ -15,8 +15,8 @@ Ultimo aggiornamento: 2026-05-21
 | Phase 4 | Fatture + Calendario | ✅ Completato |
 | Phase 5 | Dashboard Annuale + Obiettivi | ✅ Completato |
 | Phase 6 | Import CSV + Notifiche in-app | ✅ Completato |
-| Phase 7 | Miglioramenti UX + Bug fix | 🔜 Prossimo |
-| Phase 8 | Notifiche Email/Telegram (v2) | 📋 Pianificato |
+| Phase 7 | Miglioramenti UX + Bug fix | ✅ Completato |
+| Phase 8 | Notifiche Email/Telegram (v2) | 🔄 In corso (API routes presenti) |
 | Phase 9 | Import OFX + Auto-categorizzazione AI | 📋 Pianificato |
 | Phase 10 | i18n (Inglese), Multi-account, Budget condivisi | 🔮 Futuro |
 
@@ -25,9 +25,9 @@ Ultimo aggiornamento: 2026-05-21
 ## Bug Noti
 
 - [ ] **Notifiche dismiss non persiste**: le notifiche ricompaiono al refresh (stato in memoria, nessuna persistenza)
-- [ ] **Import CSV**: le transazioni importate non hanno `category_id` — appaiono senza categoria nelle viste filtrate per categoria
-- [ ] **Calendario fatture**: su mobile il grid a 7 colonne può risultare troppo stretto su schermi < 360px
-- [ ] **Dashboard Mensile**: se non ci sono transazioni del mese precedente, il delta% mostra NaN
+- [x] **Import CSV**: le transazioni importate non hanno `category_id` — ora assegna automaticamente "Non categorizzato" se la categoria esiste
+- [x] **Calendario fatture**: fix overflow-x-auto su schermi < 360px
+- [x] **Dashboard Mensile**: delta% mostra null (non NaN) se nessuna transazione mese precedente
 - [ ] **Budget**: la pagina non crea automaticamente il record `monthly_budgets` fino al primo salvataggio di un importo
 
 ---
@@ -36,29 +36,29 @@ Ultimo aggiornamento: 2026-05-21
 
 ### Alta priorità
 
-- [ ] **Categoria "Non categorizzato"**: creare una categoria default per le transazioni importate da CSV
-- [ ] **Edit transazione**: aggiungere la possibilità di modificare una transazione esistente (attualmente solo delete)
-- [ ] **Edit fattura**: completare il flusso di modifica dati fattura (amount, name, periodicità)
-- [ ] **Edit obiettivo**: possibilità di modificare nome/target di un obiettivo esistente
-- [ ] **Paginazione transazioni**: la lista carica tutto il mese, aggiungere virtual scroll o paginazione per mesi con molte voci
-- [ ] **Ricerca transazioni**: campo di ricerca testo libero per descrizione
+- [x] **Categoria "Non categorizzato"**: import CSV ora assegna la categoria se presente
+- [x] **Edit transazione**: modal modifica implementato
+- [x] **Edit fattura**: modal modifica implementato
+- [x] **Edit obiettivo**: modal modifica implementato
+- [x] **Paginazione transazioni**: paginazione client-side 20 voci/pagina con Prev/Next
+- [x] **Ricerca transazioni**: campo di ricerca per descrizione implementato
 
 ### Media priorità
 
-- [ ] **Dark mode toggle**: attualmente il tema dark segue il sistema; aggiungere toggle manuale nelle impostazioni
+- [x] **Dark mode toggle**: toggle manuale nelle impostazioni implementato
 - [ ] **Onboarding**: aggiungere la gestione dei debiti iniziali al wizard
-- [ ] **Budget copia mese precedente**: pulsante "Copia budget da mese precedente" per non dover reinserire tutto
+- [x] **Budget copia mese precedente**: pulsante implementato
 - [ ] **Ricorrenza transazioni**: supporto a transazioni ricorrenti (is_recurring, recurring_id già presenti in DB)
-- [ ] **Grafici**: aggiungere tooltip con % del totale nel donut chart delle spese
+- [x] **Grafici**: tooltip con % del totale nel donut chart già implementato
 - [ ] **Fatture**: notifica via toast quando una fattura viene segnata come pagata con successo
-- [ ] **Obiettivi**: mostrare la proiezione "risparmia X/mese per raggiungere l'obiettivo entro la scadenza"
+- [x] **Obiettivi**: proiezione mensile già mostrata nelle card
 
 ### Bassa priorità
 
 - [ ] **Statistiche**: aggiungere una sezione statistiche multi-anno (confronto anno su anno)
-- [ ] **Export CSV**: possibilità di esportare le transazioni in CSV (oltre al JSON GDPR completo)
-- [ ] **Shortcut tastiera**: Ctrl+N per nuova transazione, Esc per chiudere modal
-- [ ] **Filtro avanzato**: filtro transazioni per range di importo, descrizione, metodo di pagamento
+- [x] **Export CSV**: pulsante "Esporta transazioni (CSV)" in Settings implementato
+- [x] **Shortcut tastiera**: Ctrl+N per nuova transazione, Esc per chiudere modal
+- [x] **Filtro avanzato**: filtro per range importo e metodo di pagamento implementato
 
 ---
 
@@ -106,7 +106,7 @@ Ultimo aggiornamento: 2026-05-21
 
 ## Tech Debt
 
-- [ ] Sostituire `confirm()` nativo (delete transazione, delete obiettivo) con modal di conferma custom
+- [x] Sostituire `confirm()` nativo (delete transazione, delete obiettivo) con modal di conferma custom
 - [ ] Aggiungere error boundary globale per i componenti chart
 - [ ] Testare e fissare il comportamento del middleware auth su deploy production (attualmente usa `proxy` deprecato)
 - [ ] Aggiungere test E2E con Playwright almeno per i flussi auth + onboarding

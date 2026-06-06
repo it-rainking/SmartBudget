@@ -57,6 +57,7 @@ export default function ObiettiviPage() {
   const [progressModal, setProgressModal] = useState<ProgressForm | null>(null)
   const [form, setForm] = useState<NewGoalForm>(emptyForm)
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all')
+  const [confirmDeleteGoalId, setConfirmDeleteGoalId] = useState<string | null>(null)
 
   const currency = settings?.currency || 'EUR'
   const fmt = (n: number) => formatCurrency(n, currency)
@@ -168,12 +169,13 @@ export default function ObiettiviPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Eliminare questo obiettivo?')) return
     try {
       await deleteGoal.mutateAsync(id)
       showToast('Obiettivo eliminato', 'info')
     } catch {
       showToast('Errore durante l\'eliminazione', 'error')
+    } finally {
+      setConfirmDeleteGoalId(null)
     }
   }
 
@@ -374,7 +376,7 @@ export default function ObiettiviPage() {
                         ✏️
                       </button>
                       <button
-                        onClick={() => handleDelete(goal.id)}
+                        onClick={() => setConfirmDeleteGoalId(goal.id)}
                         aria-label="Elimina obiettivo"
                         className="py-1.5 px-2.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-xs transition-colors"
                       >
@@ -391,7 +393,7 @@ export default function ObiettiviPage() {
                         ✏️
                       </button>
                       <button
-                        onClick={() => handleDelete(goal.id)}
+                        onClick={() => setConfirmDeleteGoalId(goal.id)}
                         aria-label="Elimina obiettivo"
                         className="py-1.5 px-2.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-xs transition-colors"
                       >
@@ -570,6 +572,31 @@ export default function ObiettiviPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm delete obiettivo */}
+      {confirmDeleteGoalId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
+            <h3 className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina obiettivo</h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Questa azione è irreversibile.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDeleteGoalId(null)}
+                className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => handleDelete(confirmDeleteGoalId)}
+                disabled={deleteGoal.isPending}
+                className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm font-medium transition-colors"
+              >
+                {deleteGoal.isPending ? 'Eliminazione...' : 'Elimina'}
+              </button>
+            </div>
           </div>
         </div>
       )}
