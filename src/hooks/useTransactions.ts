@@ -198,11 +198,9 @@ export function useMonthlyKPIs(month?: number, year?: number) {
       }
 
       if (kpis.prevMonthExpenses > 0) {
-        kpis.deltaExpensePercent = Math.round(
-          ((kpis.totalExpenses - kpis.prevMonthExpenses) / kpis.prevMonthExpenses) * 100
-        )
+        const raw = ((kpis.totalExpenses - kpis.prevMonthExpenses) / kpis.prevMonthExpenses) * 100
+        kpis.deltaExpensePercent = isNaN(raw) || !isFinite(raw) ? null : Math.round(raw)
       } else {
-        // Nessuna spesa nel mese precedente: delta non calcolabile
         kpis.deltaExpensePercent = null
       }
 

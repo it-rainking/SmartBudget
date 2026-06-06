@@ -111,12 +111,14 @@ export default function SettingsPage() {
   }
 
   async function handleExport() {
+    if (!user) return
     setIsExporting(true)
     try {
-      const { data: transactions } = await supabase.from('transactions').select('*').order('date', { ascending: false })
-      const { data: invoices } = await supabase.from('invoices').select('*')
-      const { data: goals } = await supabase.from('goals').select('*')
-      const { data: budgets } = await supabase.from('monthly_budgets').select('*, monthly_budget_items(*)')
+      const uid = user.id
+      const { data: transactions } = await supabase.from('transactions').select('*').eq('user_id', uid).order('date', { ascending: false })
+      const { data: invoices } = await supabase.from('invoices').select('*').eq('user_id', uid)
+      const { data: goals } = await supabase.from('goals').select('*').eq('user_id', uid)
+      const { data: budgets } = await supabase.from('monthly_budgets').select('*, monthly_budget_items(*)').eq('user_id', uid)
 
       const exportData = {
         exported_at: new Date().toISOString(),
@@ -144,13 +146,14 @@ export default function SettingsPage() {
   }
 
   async function handleDeleteAccount() {
-    if (deleteInput !== 'ELIMINA') return
+    if (deleteInput !== 'ELIMINA' || !user) return
     try {
-      await supabase.from('transactions').delete().neq('id', '')
-      await supabase.from('invoices').delete().neq('id', '')
-      await supabase.from('goals').delete().neq('id', '')
-      await supabase.from('monthly_budget_items').delete().neq('id', '')
-      await supabase.from('monthly_budgets').delete().neq('id', '')
+      const uid = user.id
+      await supabase.from('transactions').delete().eq('user_id', uid)
+      await supabase.from('invoices').delete().eq('user_id', uid)
+      await supabase.from('goals').delete().eq('user_id', uid)
+      await supabase.from('monthly_budget_items').delete().eq('user_id', uid)
+      await supabase.from('monthly_budgets').delete().eq('user_id', uid)
       await signOut()
       router.push('/login')
     } catch {

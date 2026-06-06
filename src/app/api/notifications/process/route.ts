@@ -31,8 +31,9 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, processed: sent })
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function processUserNotifications(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   userId: string,
   today: string
 ) {
@@ -100,7 +101,8 @@ async function processUserNotifications(
 
   const recentKeys = new Set(
     (recent ?? []).map(
-      (n) => `${n.type}:${(n.data as Record<string, unknown>)?.source_id ?? ''}`
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (n: any) => `${n.type}:${(n.data as Record<string, unknown>)?.source_id ?? ''}`
     )
   )
 

@@ -26,8 +26,8 @@ Ultimo aggiornamento: 2026-06-06
 
 - [ ] **Notifiche dismiss non persiste**: le notifiche ricompaiono al refresh (stato in memoria, nessuna persistenza)
 - [ ] **Import CSV**: le transazioni importate non hanno `category_id` — appaiono senza categoria nelle viste filtrate per categoria
-- [ ] **Calendario fatture**: su mobile il grid a 7 colonne può risultare troppo stretto su schermi < 360px
-- [ ] **Dashboard Mensile**: se non ci sono transazioni del mese precedente, il delta% mostra NaN
+- [x] **Calendario fatture**: su mobile il grid a 7 colonne può risultare troppo stretto su schermi < 360px ✅ (min-h ridotta a 40px su mobile)
+- [x] **Dashboard Mensile**: se non ci sono transazioni del mese precedente, il delta% mostra NaN ✅ (fix: isNaN + isFinite guard in useMonthlyKPIs)
 - [ ] **Budget**: la pagina non crea automaticamente il record `monthly_budgets` fino al primo salvataggio di un importo
 
 ---
@@ -41,7 +41,7 @@ Ultimo aggiornamento: 2026-06-06
 - [x] **Edit fattura**: completare il flusso di modifica dati fattura (amount, name, periodicità) ✅
 - [x] **Edit obiettivo**: possibilità di modificare nome/target di un obiettivo esistente ✅
 - [x] **Pagina istruzioni**: guida utente integrata nell'app (`/istruzioni`) ✅
-- [ ] **Paginazione transazioni**: la lista carica tutto il mese, aggiungere virtual scroll o paginazione per mesi con molte voci
+- [x] **Paginazione transazioni**: la lista carica tutto il mese, aggiungere virtual scroll o paginazione per mesi con molte voci ✅ (25 item/pagina con controlli prec/succ)
 - [ ] **Ricerca transazioni**: campo di ricerca testo libero per descrizione
 
 ### Media priorità
