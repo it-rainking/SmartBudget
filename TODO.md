@@ -1,6 +1,6 @@
 # TODO — SmartBudget
 
-Ultimo aggiornamento: 2026-05-21
+Ultimo aggiornamento: 2026-06-06
 
 ---
 
@@ -15,7 +15,7 @@ Ultimo aggiornamento: 2026-05-21
 | Phase 4 | Fatture + Calendario | ✅ Completato |
 | Phase 5 | Dashboard Annuale + Obiettivi | ✅ Completato |
 | Phase 6 | Import CSV + Notifiche in-app | ✅ Completato |
-| Phase 7 | Miglioramenti UX + Bug fix | 🔜 Prossimo |
+| Phase 7 | Miglioramenti UX + Bug fix | 🔄 In corso |
 | Phase 8 | Notifiche Email/Telegram (v2) | 📋 Pianificato |
 | Phase 9 | Import OFX + Auto-categorizzazione AI | 📋 Pianificato |
 | Phase 10 | i18n (Inglese), Multi-account, Budget condivisi | 🔮 Futuro |
@@ -37,9 +37,10 @@ Ultimo aggiornamento: 2026-05-21
 ### Alta priorità
 
 - [ ] **Categoria "Non categorizzato"**: creare una categoria default per le transazioni importate da CSV
-- [ ] **Edit transazione**: aggiungere la possibilità di modificare una transazione esistente (attualmente solo delete)
-- [ ] **Edit fattura**: completare il flusso di modifica dati fattura (amount, name, periodicità)
-- [ ] **Edit obiettivo**: possibilità di modificare nome/target di un obiettivo esistente
+- [x] **Edit transazione**: aggiungere la possibilità di modificare una transazione esistente ✅
+- [x] **Edit fattura**: completare il flusso di modifica dati fattura (amount, name, periodicità) ✅
+- [x] **Edit obiettivo**: possibilità di modificare nome/target di un obiettivo esistente ✅
+- [x] **Pagina istruzioni**: guida utente integrata nell'app (`/istruzioni`) ✅
 - [ ] **Paginazione transazioni**: la lista carica tutto il mese, aggiungere virtual scroll o paginazione per mesi con molte voci
 - [ ] **Ricerca transazioni**: campo di ricerca testo libero per descrizione
 

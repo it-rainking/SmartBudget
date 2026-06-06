@@ -18,6 +18,7 @@ const navigation = [
   { name: 'Fatture', href: '/fatture', icon: '🧾' },
   { name: 'Obiettivi', href: '/obiettivi', icon: '🎯' },
   { name: 'Impostazioni', href: '/settings', icon: '⚙️' },
+  { name: 'Istruzioni', href: '/istruzioni', icon: '📖' },
 ]
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
