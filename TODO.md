@@ -84,7 +84,7 @@ Ultimo aggiornamento: 2026-06-06
 
 ### Analisi AI
 
-- [ ] Insights mensili generati da AI: "Hai speso il 23% in più al ristorante rispetto al mese scorso"
+- [x] Insights mensili generati da AI: 3 insight personalizzati via Claude (`/api/ai/insights`) nella dashboard mensile
 - [ ] Suggerimenti budget: "In base alle tue abitudini, ti suggeriamo €X per la categoria Y"
 - [ ] Chat con i propri dati finanziari (Claude API)
 
@@ -96,7 +96,7 @@ Ultimo aggiornamento: 2026-06-06
 - [ ] **Multi-account**: gestire più conti correnti/carte separati
 - [ ] **Budget condivisi**: ruoli Viewer/Editor, collaborazione familiare
 - [ ] **Modulo investimenti**: portafoglio Azioni/ETF/Crypto, tracking rendimenti
-- [ ] **Debiti avanzati**: strategie Snowball / Avalanche con piano di rimborso
+- [x] **Debiti avanzati**: pagina `/debiti` con strategie Snowball / Avalanche e piano di rimborso
 - [ ] **Envelope system**: allocazione proattiva del reddito per categoria
 - [ ] **Report PDF**: generazione report mensile/annuale esportabile
 - [ ] **Sync Google Sheets**: export automatico verso Google Sheets
@@ -114,4 +114,4 @@ Ultimo aggiornamento: 2026-06-06
 - [ ] Aggiungere test E2E con Playwright almeno per i flussi auth + onboarding
 - [ ] Upgrade dipendenze: `baseline-browser-mapping` è outdated (warning a ogni build)
 - [ ] Valutare migrazione da Supabase client-side RLS a Server Actions per operazioni sensibili
-- [ ] Aggiungere `loading.tsx` e `error.tsx` per ogni route dell'App Router
+- [x] Aggiungere `loading.tsx` e `error.tsx` root-level per l'App Router

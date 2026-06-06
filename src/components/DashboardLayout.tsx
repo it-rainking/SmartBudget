@@ -17,6 +17,7 @@ const navigation = [
   { name: 'Budget', href: '/budget', icon: '📅' },
   { name: 'Fatture', href: '/fatture', icon: '🧾' },
   { name: 'Obiettivi', href: '/obiettivi', icon: '🎯' },
+  { name: 'Debiti', href: '/debiti', icon: '📉' },
   { name: 'Impostazioni', href: '/settings', icon: '⚙️' },
   { name: 'Istruzioni', href: '/istruzioni', icon: '📖' },
 ]
