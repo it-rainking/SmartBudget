@@ -16,8 +16,8 @@ Ultimo aggiornamento: 2026-06-06
 | Phase 5 | Dashboard Annuale + Obiettivi | ✅ Completato |
 | Phase 6 | Import CSV + Notifiche in-app | ✅ Completato |
 | Phase 7 | Miglioramenti UX + Bug fix | ✅ Completato |
-| Phase 8 | Notifiche Email/Telegram (v2) | 🔄 In corso (API routes presenti) |
-| Phase 9 | Import OFX + Auto-categorizzazione AI | 📋 Pianificato |
+| Phase 8 | Notifiche Email/Telegram (v2) | ✅ Completato (API routes + Vercel Cron) |
+| Phase 9 | Import OFX + Auto-categorizzazione AI | ✅ Completato |
 | Phase 10 | i18n (Inglese), Multi-account, Budget condivisi | 🔮 Futuro |
 
 ---
@@ -48,14 +48,14 @@ Ultimo aggiornamento: 2026-06-06
 - [x] **Dark mode toggle**: toggle manuale nelle impostazioni implementato
 - [ ] **Onboarding**: aggiungere la gestione dei debiti iniziali al wizard
 - [x] **Budget copia mese precedente**: pulsante implementato
-- [ ] **Ricorrenza transazioni**: supporto a transazioni ricorrenti (is_recurring, recurring_id già presenti in DB)
+- [x] **Ricorrenza transazioni**: toggle is_recurring nel form + badge 🔄 nella lista
 - [x] **Grafici**: tooltip con % del totale nel donut chart già implementato
 - [ ] **Fatture**: notifica via toast quando una fattura viene segnata come pagata con successo
 - [x] **Obiettivi**: proiezione mensile già mostrata nelle card
 
 ### Bassa priorità
 
-- [ ] **Statistiche**: aggiungere una sezione statistiche multi-anno (confronto anno su anno)
+- [x] **Statistiche**: sezione "Confronto con anno precedente" nella dashboard annuale
 - [x] **Export CSV**: pulsante "Esporta transazioni (CSV)" in Settings implementato
 - [x] **Shortcut tastiera**: Ctrl+N per nuova transazione, Esc per chiudere modal
 - [x] **Filtro avanzato**: filtro per range importo e metodo di pagamento implementato
@@ -66,18 +66,19 @@ Ultimo aggiornamento: 2026-06-06
 
 ### Notifiche Push / Email
 
-- [ ] Aggiungere tabella `notifications` al DB (id, user_id, type, title, body, read_at, created_at)
-- [ ] Persistere le notifiche nel DB invece che calcolarle in tempo reale
-- [ ] Integrazione email via Supabase Edge Functions + Resend/SendGrid
-- [ ] Webhook Telegram per notifiche budget/fatture
-- [ ] Preferenze notifiche: abilitare/disabilitare per canale e tipo nelle impostazioni
+- [x] Tabella `notifications` nel DB
+- [x] Notifiche persistite nel DB con deduplicazione 24h
+- [x] Integrazione email via Resend (`/api/notifications/send`)
+- [x] Webhook Telegram per notifiche budget/fatture
+- [x] Preferenze notifiche in Settings (email + Telegram + test)
+- [x] Vercel Cron: `/api/notifications/process` ogni giorno alle 08:00
 
 ### Import Avanzato
 
-- [ ] Import file OFX/QIF (formato bancario standard)
+- [x] Import file OFX/QFX (formato bancario standard)
 - [ ] Mapping colonne manuale nell'import CSV (drag-and-drop delle colonne)
-- [ ] Auto-categorizzazione AI tramite Claude API (descrizione → categoria suggerita)
-- [ ] Rilevamento duplicati nell'import (stessa data + importo + descrizione)
+- [x] Auto-categorizzazione AI tramite Claude API (`/api/ai/categorize`)
+- [x] Rilevamento duplicati nell'import (stessa data + importo + descrizione)
 - [ ] Import da Excel (.xlsx) oltre che CSV
 
 ### Analisi AI

@@ -9,7 +9,11 @@ export interface ParsedTransaction {
   amount: number
   description: string
   payment_method: string | null
+  category_id?: string | null
+  category_name?: string
 }
+
+// ─── CSV Parser ────────────────────────────────────────────────────────────────
 
 export function parseCSV(text: string): ParsedTransaction[] {
   const lines = text.trim().split('\n').filter(l => l.trim())
@@ -72,15 +76,63 @@ export function parseCSV(text: string): ParsedTransaction[] {
   return results
 }
 
+// ─── OFX Parser ────────────────────────────────────────────────────────────────
+
+const CREDIT_TYPES = new Set(['CREDIT', 'DEP', 'DIRECTDEP', 'INT', 'DIV', 'XFER'])
+
+export function parseOFX(text: string): ParsedTransaction[] {
+  const results: ParsedTransaction[] = []
+
+  // Split on <STMTTRN> to get individual transaction blocks (SGML format, no closing tags)
+  const blocks = text.split(/<STMTTRN>/i).slice(1)
+
+  for (const block of blocks) {
+    const get = (tag: string) => {
+      const m = block.match(new RegExp(`<${tag}>([^<\n\r]+)`, 'i'))
+      return m ? m[1].trim() : ''
+    }
+
+    const trnType  = get('TRNTYPE').toUpperCase()
+    const dtRaw    = get('DTPOSTED') || get('DTAVAIL')
+    const amtRaw   = get('TRNAMT')
+    const memo     = get('MEMO') || get('NAME') || ''
+
+    if (!dtRaw || !amtRaw) continue
+
+    const amt = parseFloat(amtRaw.replace(',', '.'))
+    if (isNaN(amt) || amt === 0) continue
+
+    // Date: YYYYMMDD[HHmmss[.xxx][TZ]]
+    const dateStr = dtRaw.replace(/[^\d]/g, '').substring(0, 8)
+    if (dateStr.length < 8) continue
+    const date = `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`
+
+    const isCredit = amt > 0 || CREDIT_TYPES.has(trnType)
+    const type: 'income' | 'expense' = isCredit ? 'income' : 'expense'
+
+    results.push({
+      date,
+      type,
+      amount: Math.abs(amt),
+      description: memo,
+      payment_method: null,
+    })
+  }
+
+  return results
+}
+
+// ─── Import Mutation ───────────────────────────────────────────────────────────
+
 export function useImportTransactions() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (rows: ParsedTransaction[]) => {
+    mutationFn: async (rows: ParsedTransaction[]): Promise<{ inserted: number; skipped: number }> => {
       const { data: auth } = await supabase.auth.getUser()
       if (!auth.user) throw new Error('Non autenticato')
 
-      // Cerca la categoria "Non categorizzato" tra le spese dell'utente
+      // Recupera la categoria "Non categorizzato" per le spese senza categoria
       const { data: uncatCategory } = await supabase
         .from('expense_categories')
         .select('id')
@@ -89,19 +141,48 @@ export function useImportTransactions() {
         .maybeSingle()
       const uncatId = uncatCategory?.id ?? null
 
-      const inserts = rows.map(r => ({
+      // Rilevamento duplicati: query transazioni esistenti nell'intervallo di date delle righe
+      const dates = rows.map(r => r.date)
+      const minDate = dates.reduce((a, b) => (a < b ? a : b))
+      const maxDate = dates.reduce((a, b) => (a > b ? a : b))
+
+      const { data: existing } = await supabase
+        .from('transactions')
+        .select('date, amount, description')
+        .eq('user_id', auth.user.id)
+        .gte('date', minDate)
+        .lte('date', maxDate)
+
+      const existingKeys = new Set(
+        (existing ?? []).map(t =>
+          `${t.date}|${t.amount}|${(t.description ?? '').toLowerCase().trim()}`
+        )
+      )
+
+      const unique = rows.filter(r => {
+        const key = `${r.date}|${r.amount}|${r.description.toLowerCase().trim()}`
+        return !existingKeys.has(key)
+      })
+
+      if (unique.length === 0) return { inserted: 0, skipped: rows.length }
+
+      const inserts = unique.map(r => ({
         user_id: auth.user!.id,
         date: r.date,
         type: r.type,
         amount: r.amount,
         description: r.description || null,
         payment_method: r.payment_method || null,
-        category_id: r.type === 'expense' ? uncatId : null,
+        // Usa category_id se fornita dall'AI, altrimenti fallback alla categoria default
+        category_id: r.category_id !== undefined
+          ? r.category_id
+          : (r.type === 'expense' ? uncatId : null),
       }))
 
       const { error } = await supabase.from('transactions').insert(inserts)
       if (error) throw error
-      return inserts.length
+
+      return { inserted: unique.length, skipped: rows.length - unique.length }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })

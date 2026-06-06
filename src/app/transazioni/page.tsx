@@ -44,6 +44,7 @@ export default function TransazioniPage() {
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0])
   const [formDescription, setFormDescription] = useState('')
   const [formPaymentMethod, setFormPaymentMethod] = useState('')
+  const [formIsRecurring, setFormIsRecurring] = useState(false)
 
   // Queries
   const { data: transactions, isLoading } = useTransactions({
@@ -137,6 +138,7 @@ export default function TransazioniPage() {
     setFormDate(transaction.date)
     setFormDescription(transaction.description || '')
     setFormPaymentMethod(transaction.payment_method || '')
+    setFormIsRecurring(transaction.is_recurring || false)
     setShowForm(true)
   }
 
@@ -147,6 +149,7 @@ export default function TransazioniPage() {
     setFormCategoryId('')
     setFormPaymentMethod('')
     setFormDate(new Date().toISOString().split('T')[0])
+    setFormIsRecurring(false)
     setEditingTransaction(null)
     setShowForm(false)
   }
@@ -161,6 +164,7 @@ export default function TransazioniPage() {
       date: formDate,
       description: formDescription || undefined,
       payment_method: formPaymentMethod || undefined,
+      is_recurring: formIsRecurring,
     }
 
     try {
@@ -395,9 +399,14 @@ export default function TransazioniPage() {
                           Non categorizzato
                         </span>
                       )}
-                      {transaction.description && (
-                        <p className="text-sm text-zinc-500 dark:text-zinc-400">{transaction.description}</p>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {transaction.description && (
+                          <p className="text-sm text-zinc-500 dark:text-zinc-400">{transaction.description}</p>
+                        )}
+                        {transaction.is_recurring && (
+                          <span title="Ricorrente" className="text-xs text-blue-400">🔄</span>
+                        )}
+                      </div>
                       <p className="text-xs text-zinc-400">{new Date(transaction.date).toLocaleDateString('it-IT')}</p>
                     </div>
                   </div>
@@ -567,6 +576,22 @@ export default function TransazioniPage() {
                     <option key={method} value={method}>{method}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Ricorrente */}
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Transazione ricorrente</p>
+                  <p className="text-xs text-zinc-400">Es. affitto, abbonamento mensile</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormIsRecurring(v => !v)}
+                  className={`relative w-11 h-6 rounded-full transition-colors focus:outline-none ${formIsRecurring ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}
+                  aria-pressed={formIsRecurring}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formIsRecurring ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
               </div>
 
               {/* Actions */}
