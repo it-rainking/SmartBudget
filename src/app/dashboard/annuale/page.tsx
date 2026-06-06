@@ -24,6 +24,7 @@ export default function DashboardAnnualePage() {
   const currentYear = new Date().getFullYear()
   const [year, setYear] = useState(currentYear)
   const { data, isLoading } = useAnnualData(year)
+  const { data: prevData } = useAnnualData(year - 1)
   const { data: settings } = useSettings()
 
   const currency = settings?.currency || 'EUR'
@@ -227,6 +228,50 @@ export default function DashboardAnnualePage() {
             </div>
           </div>
         )}
+
+        {/* Anno precedente: confronto delta */}
+        {!isLoading && hasData && prevData && (prevData.totals.income > 0 || prevData.totals.expenses > 0) && (() => {
+          const delta = (curr: number, prev: number) =>
+            prev > 0 ? Math.round(((curr - prev) / prev) * 100) : null
+
+          const items = [
+            { label: 'Entrate',  curr: data?.totals.income   ?? 0, prev: prevData.totals.income,   color: 'text-emerald-600' },
+            { label: 'Spese',    curr: data?.totals.expenses ?? 0, prev: prevData.totals.expenses, color: 'text-red-600' },
+            { label: 'Risparmi', curr: data?.totals.savings  ?? 0, prev: prevData.totals.savings,  color: 'text-blue-600' },
+            { label: 'Saldo',    curr: data?.totals.balance  ?? 0, prev: prevData.totals.balance,  color: 'text-zinc-700 dark:text-zinc-300' },
+          ]
+
+          return (
+            <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-100 dark:border-zinc-700 overflow-hidden">
+              <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-700">
+                <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                  Confronto con {year - 1}
+                </h3>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-zinc-100 dark:divide-zinc-700">
+                {items.map(item => {
+                  const d = delta(item.curr, item.prev)
+                  return (
+                    <div key={item.label} className="px-5 py-4">
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">{item.label}</p>
+                      <p className={`text-sm font-bold ${item.color}`}>{fmt(item.curr)}</p>
+                      <p className="text-xs text-zinc-400 mt-0.5">vs {fmt(item.prev)}</p>
+                      {d !== null && (
+                        <span className={`inline-block mt-1 text-xs font-semibold px-1.5 py-0.5 rounded-full ${
+                          d > 0
+                            ? item.label === 'Spese' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                            : item.label === 'Spese' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                        }`}>
+                          {d > 0 ? '▲' : '▼'} {Math.abs(d)}%
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Empty state */}
         {!isLoading && !hasData && (
