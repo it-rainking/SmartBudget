@@ -4,6 +4,25 @@ Guida passo-passo per il deploy di SmartBudget su piattaforme cloud.
 
 ---
 
+## Confronto Costi Piattaforme (2026)
+
+| Piattaforma | Piano gratuito | Piano base | Note |
+|-------------|:--------------:|:----------:|------|
+| **Vercel** | ✅ Hobby (gratis) | $20/mese (Pro) | Hobby è **solo uso non commerciale** |
+| **Railway** | Trial ($5 una tantum) | **$5/mese** (Hobby) | Pay-as-you-go; uso reale tipico $1–3/mese |
+| **Render** | ✅ Free (con sleep) | $7/mese (Starter) | Il piano free mette il servizio in sleep dopo 15 min di inattività |
+| **VPS self-hosted** | — | ~$5/mese (es. Hetzner CX22) | Massimo controllo, richiede gestione server |
+
+### Quale costa meno?
+
+- **Uso personale / non commerciale** → **Vercel Hobby è gratuito** ed è la scelta più economica.
+- **Uso commerciale o team** → **Railway Hobby a $5/mese** costa la metà di Vercel Pro ($20/mese); il costo reale è spesso inferiore grazie al modello pay-as-you-go.
+- **Massimo risparmio** → VPS self-hosted (es. Hetzner a ~$4/mese) se hai dimestichezza con Linux.
+
+> Per SmartBudget come progetto personale: **Vercel Hobby (gratis)** è la scelta consigliata. Per un deploy commerciale a basso traffico: **Railway Hobby ($5/mese)**.
+
+---
+
 ## Prerequisiti
 
 - Account [Supabase](https://supabase.com) (piano Free o Pro)
@@ -78,21 +97,55 @@ Dopo il primo deploy, torna su Supabase → **Authentication → URL Configurati
 
 ## 3. Deploy su Railway
 
+Railway è un'ottima alternativa a Vercel per progetti Next.js. Usa un modello **pay-as-you-go** (paghi solo le risorse consumate) ed è particolarmente conveniente per traffico basso/medio.
+
+### Piani disponibili (giugno 2026)
+
+| Piano | Costo | Crediti inclusi | Adatto a |
+|-------|-------|-----------------|----------|
+| Trial | Gratis | $5 una tantum, no carta | Test iniziale |
+| Hobby | $5/mese | $5/mese di risorse | Uso personale |
+| Pro | $20/mese | $20/mese di risorse | Team / produzione |
+
+> Il credito mensile copre CPU, RAM, storage e banda. Un'app Next.js leggera con traffico basso consuma di solito **$1–3/mese** di risorse effettive sul piano Hobby.
+
 ### 3.1 Crea un nuovo progetto
 
-1. Vai su [railway.app](https://railway.app) e crea un nuovo progetto.
-2. Seleziona **Deploy from GitHub repo** e scegli il repository.
+1. Vai su [railway.app](https://railway.app) e registrati (puoi usare GitHub).
+2. Clicca **New Project → Deploy from GitHub repo**.
+3. Seleziona il repository `smartbudget` e il branch `main`.
 
 ### 3.2 Configura le variabili d'ambiente
 
-In **Variables** aggiungi le stesse variabili elencate nella sezione Vercel (§ 2.2).
+In **Variables** aggiungi le stesse variabili elencate nella sezione Vercel (§ 2.2):
+
+| Variabile | Obbligatoria |
+|-----------|:---:|
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ |
+| `RESEND_API_KEY` | ⬜ |
+| `TELEGRAM_BOT_TOKEN` | ⬜ |
 
 ### 3.3 Configura il build
 
-In **Settings → Build**:
-- Build command: `npm run build`
-- Start command: `npm run start`
-- Port: `3000`
+In **Settings → Build & Deploy**:
+- **Build command**: `npm run build`
+- **Start command**: `npm run start`
+- **Watch paths**: lascia vuoto (Railway rileva i push automaticamente)
+
+In **Settings → Networking**:
+- Clicca **Generate Domain** per ottenere un URL pubblico gratuito (`*.up.railway.app`).
+- Porta: `3000` (Railway la rileva automaticamente da Next.js).
+
+### 3.4 Aggiorna il Site URL in Supabase
+
+Copia il dominio assegnato da Railway (es. `smartbudget.up.railway.app`) e aggiornalo in Supabase → **Authentication → URL Configuration**:
+- **Site URL**: `https://smartbudget.up.railway.app`
+- **Redirect URLs**: `https://smartbudget.up.railway.app/auth/callback`
+
+### 3.5 Deploy automatico
+
+Ogni push sul branch `main` avvia automaticamente una nuova build su Railway. Per forzare un re-deploy manuale: **Deployments → Redeploy**.
 
 ---
 
