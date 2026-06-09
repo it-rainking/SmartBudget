@@ -3,9 +3,9 @@ import { NextResponse } from 'next/server'
 
 // Cron worker server-side: calcola notifiche automatiche, deduplica, persiste e invia
 export async function POST(req: Request) {
-  // Controllo autorizzazione: solo chiamate con il secret cron sono ammesse
+  const cronSecret = process.env.CRON_SECRET
   const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -117,12 +117,17 @@ async function processUserNotifications(
     .insert(newNotifs.map((n) => ({ ...n, user_id: userId })))
 
   // 4. Invia ogni notifica tramite i canali configurati (email/Telegram)
-  const origin = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const origin = process.env.NEXT_PUBLIC_APP_URL
+  if (!origin) return
+  const secret = process.env.CRON_SECRET!
   await Promise.allSettled(
     newNotifs.map((n) =>
       fetch(`${origin}/api/notifications/send`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${secret}`,
+        },
         body: JSON.stringify({ user_id: userId, title: n.title, message: n.message }),
       })
     )

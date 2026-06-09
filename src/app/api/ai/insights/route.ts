@@ -1,9 +1,20 @@
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 // POST /api/ai/insights
 // Genera 3 insight personalizzati sui dati finanziari del mese usando Claude.
-// Richiede ANTHROPIC_API_KEY nell'ambiente server.
+// Richiede sessione autenticata e ANTHROPIC_API_KEY nell'ambiente server.
 export async function POST(req: Request) {
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+  )
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
   if (!ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'AI non configurata (manca ANTHROPIC_API_KEY)' }, { status: 503 })
@@ -34,6 +45,9 @@ export async function POST(req: Request) {
   }
 
   const { month, year, kpis, categoryBreakdown, categoryNames, currency } = body
+  if (!month || !year || !kpis) {
+    return NextResponse.json({ error: 'Dati mancanti' }, { status: 400 })
+  }
   const MONTHS_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre']
   const monthName = MONTHS_IT[month - 1] ?? `Mese ${month}`
 

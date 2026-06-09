@@ -249,7 +249,4 @@ CREATE POLICY "Users can delete own notifications"
     ON public.notifications FOR DELETE
     USING (auth.uid() = user_id);
 
--- System can insert notifications (via service role)
-CREATE POLICY "System can insert notifications"
-    ON public.notifications FOR INSERT
-    WITH CHECK (true);
+-- INSERT notifiche: solo service role (bypassa RLS). Nessuna policy client-side necessaria.

@@ -16,11 +16,9 @@ function escapeHtml(str: string): string {
 // Invia una notifica (email via Resend e/o Telegram) in base alle preferenze utente.
 // Endpoint server-side: usa la service role key, mai esposta al client.
 export async function POST(req: Request) {
-  // Autenticazione a due livelli:
-  // 1. Chiamate server-to-server (cron/test): Bearer CRON_SECRET
-  // 2. Chiamate dal client autenticato: verifica SSR session e user_id
   const authHeader = req.headers.get('authorization')
-  const isServerCall = authHeader === `Bearer ${process.env.CRON_SECRET}`
+  const cronSecret = process.env.CRON_SECRET
+  const isServerCall = cronSecret != null && authHeader === `Bearer ${cronSecret}`
 
   let body: { user_id?: string; title?: string; message?: string }
   try {
@@ -32,6 +30,9 @@ export async function POST(req: Request) {
   const { user_id, title, message } = body
   if (!user_id || !title || !message) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+  }
+  if (title.length > 255 || message.length > 1000) {
+    return NextResponse.json({ error: 'Fields too long' }, { status: 400 })
   }
 
   if (!isServerCall) {
@@ -93,7 +94,7 @@ async function sendEmail(to: string, subject: string, text: string) {
       body: JSON.stringify({
         from: 'SmartBudget <onboarding@resend.dev>',
         to,
-        subject: escapeHtml(subject),
+        subject,
         html: `<p>${escapeHtml(text)}</p>`,
       }),
     })

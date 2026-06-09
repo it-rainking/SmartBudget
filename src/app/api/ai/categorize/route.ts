@@ -1,9 +1,23 @@
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+
+const MAX_DESCRIPTIONS = 100
+const MAX_DESC_LENGTH = 200
 
 // POST /api/ai/categorize
 // Usa Claude per suggerire categorie di spesa/entrata a partire dalle descrizioni.
-// Richiede ANTHROPIC_API_KEY nell'ambiente server.
+// Richiede sessione autenticata e ANTHROPIC_API_KEY nell'ambiente server.
 export async function POST(req: Request) {
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+  )
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
   if (!ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'AI non configurata (manca ANTHROPIC_API_KEY)' }, { status: 503 })
@@ -16,10 +30,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'JSON non valido' }, { status: 400 })
   }
 
-  const { descriptions, categories } = body
+  let { descriptions, categories } = body
   if (!descriptions?.length || !categories?.length) {
     return NextResponse.json({ suggestions: [] })
   }
+  descriptions = descriptions.slice(0, MAX_DESCRIPTIONS).map(d => String(d).slice(0, MAX_DESC_LENGTH))
 
   const catList = categories.map(c => c.name).join(', ')
   const descList = descriptions.map((d, i) => `${i + 1}. "${d}"`).join('\n')
