@@ -79,15 +79,39 @@ export default function SettingsPage() {
   }
 
   // Invia una notifica di test tramite la route server-side
+  // Salva prima le preferenze correnti, così il test usa sempre la configurazione visualizzata
   async function handleSendTest() {
     setIsSendingTest(true)
     try {
+      await updateSettings.mutateAsync({
+        notify_email: notifyEmail,
+        notify_telegram: notifyTelegram,
+        telegram_chat_id: telegramChatId || null,
+        notification_email: notificationEmail || null,
+      })
+
       const res = await fetch('/api/notifications/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
-      if (!res.ok) throw new Error('Test failed')
-      showToast('Notifica di test inviata', 'info')
+      const data = await res.json()
+      if (!res.ok) {
+        showToast(data?.error || 'Errore nell\'invio della notifica di test', 'error')
+        return
+      }
+
+      const results = (data?.results ?? {}) as Record<string, { ok?: boolean } | undefined>
+      const failed: string[] = []
+      if (notifyTelegram && !results.telegram?.ok) failed.push('Telegram')
+      if (notifyEmail && !results.email?.ok) failed.push('Email')
+
+      if (failed.length > 0) {
+        showToast(`Invio non riuscito (${failed.join(', ')}). Verifica token/chat ID e che tu abbia avviato una chat con il bot.`, 'error')
+      } else if (!notifyTelegram && !notifyEmail) {
+        showToast('Attiva almeno un canale di notifica prima di testare', 'info')
+      } else {
+        showToast('Notifica di test inviata', 'success')
+      }
     } catch {
       showToast('Errore nell\'invio della notifica di test', 'error')
     } finally {
@@ -368,7 +392,10 @@ export default function SettingsPage() {
                   placeholder="123456789"
                   className="w-full px-3 py-2.5 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">Scrivi a @userinfobot su Telegram per ottenere il tuo Chat ID</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
+                  Apri prima una chat con il tuo bot (creato su @BotFather) e invia /start, altrimenti Telegram blocca i messaggi.
+                  Poi scrivi a @userinfobot per ottenere il tuo Chat ID.
+                </p>
               </div>
             )}
 
