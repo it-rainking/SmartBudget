@@ -106,6 +106,9 @@ async function sendEmail(to: string, subject: string, text: string) {
 
 // Invio messaggio tramite Telegram Bot API — senza parse_mode per evitare markdown injection
 async function sendTelegram(chat_id: string, title: string, text: string) {
+  if (!process.env.TELEGRAM_BOT_TOKEN) {
+    return { error: 'TELEGRAM_BOT_TOKEN not configured' }
+  }
   try {
     const res = await fetch(
       `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
@@ -118,7 +121,11 @@ async function sendTelegram(chat_id: string, title: string, text: string) {
         }),
       }
     )
-    return { status: res.status, ok: res.ok }
+    const data = await res.json()
+    if (!res.ok) {
+      return { status: res.status, ok: false, error: data?.description ?? 'Telegram send failed' }
+    }
+    return { status: res.status, ok: true }
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Telegram send failed' }
   }
