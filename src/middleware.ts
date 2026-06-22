@@ -32,11 +32,11 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Protected routes
-  const protectedPaths = ['/dashboard', '/budget', '/transazioni', '/fatture', '/obiettivi', '/settings', '/onboarding', '/istruzioni', '/debiti']
+  const protectedPaths = ['/dashboard', '/budget', '/transazioni', '/fatture', '/obiettivi', '/settings', '/onboarding', '/istruzioni', '/debiti', '/aggiorna-password']
   const isProtectedPath = protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))
 
   // Auth routes (redirect if already logged in)
-  const authPaths = ['/login', '/signup']
+  const authPaths = ['/login', '/signup', '/recupera-password']
   const isAuthPath = authPaths.some(path => request.nextUrl.pathname.startsWith(path))
 
   if (isProtectedPath && !user) {
