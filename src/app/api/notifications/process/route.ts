@@ -58,13 +58,19 @@ async function processUserNotifications(
   }> = []
 
   // Fatture in scadenza nei prossimi 3 giorni (escluse pagate/annullate)
-  const in3Days = new Date()
-  in3Days.setDate(in3Days.getDate() + 3)
+  // Confronto su stringhe YYYY-MM-DD per evitare problemi di timezone con new Date('YYYY-MM-DD')
+  const in3DaysStr = (() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 3)
+    return d.toISOString().split('T')[0]
+  })()
   for (const inv of (invoicesRes.data ?? []) as Array<Record<string, unknown>>) {
     if (inv.status === 'paid' || inv.status === 'cancelled') continue
-    const due = new Date(inv.due_date as string)
-    if (due <= in3Days && due >= new Date(today)) {
-      const daysLeft = Math.ceil((due.getTime() - Date.now()) / 86400000)
+    const dueStr = inv.due_date as string
+    if (dueStr >= today && dueStr <= in3DaysStr) {
+      // Normalizza a mezzogiorno per calcolare daysLeft senza edge case DST
+      const dueNoon = new Date(`${dueStr}T12:00:00`)
+      const daysLeft = Math.round((dueNoon.getTime() - Date.now()) / 86400000)
       notifications.push({
         type: 'bill_due',
         title: `Fattura in scadenza: ${inv.name}`,
