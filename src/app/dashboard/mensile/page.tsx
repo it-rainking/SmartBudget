@@ -79,10 +79,12 @@ export default function DashboardMensilePage() {
   const [aiInsights, setAiInsights] = useState<string[]>([])
   const [isLoadingAI, setIsLoadingAI] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
+  const [aiCostUsd, setAiCostUsd] = useState<number | null>(null)
 
   useEffect(() => {
     setAiInsights([])
     setAiError(null)
+    setAiCostUsd(null)
   }, [selectedMonth, selectedYear])
 
   async function handleAIInsights() {
@@ -116,6 +118,11 @@ export default function DashboardMensilePage() {
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       setAiInsights(data.insights ?? [])
+      if (data.usage) {
+        // claude-haiku-4-5: $0.80/MTok input, $4.00/MTok output
+        const cost = (data.usage.input_tokens / 1_000_000) * 0.80 + (data.usage.output_tokens / 1_000_000) * 4.00
+        setAiCostUsd(cost)
+      }
     } catch (e: unknown) {
       setAiError(e instanceof Error ? e.message : 'Errore sconosciuto')
     } finally {
@@ -486,6 +493,11 @@ export default function DashboardMensilePage() {
                     <p className="text-sm text-zinc-700 dark:text-zinc-300">{insight}</p>
                   </div>
                 ))}
+                {aiCostUsd !== null && (
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 text-right pt-1">
+                    Costo analisi: ~${aiCostUsd < 0.00001 ? '<0.00001' : aiCostUsd.toFixed(5)} USD
+                  </p>
+                )}
               </div>
             ) : !aiError && (
               <p className="text-sm text-zinc-400 text-center py-4">

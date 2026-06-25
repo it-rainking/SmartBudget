@@ -5,6 +5,12 @@ import { NextResponse } from 'next/server'
 const MAX_DESCRIPTIONS = 100
 const MAX_DESC_LENGTH = 200
 
+// Modello Claude da usare. Sovrascrivi con la variabile d'ambiente ANTHROPIC_MODEL.
+// claude-haiku-4-5-20251001  — veloce, economico ($0.80/$4.00 per MTok in/out)
+// claude-sonnet-4-6           — bilanciato ($3.00/$15.00 per MTok in/out)
+// claude-opus-4-8             — più capace ($15.00/$75.00 per MTok in/out)
+const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
+
 // POST /api/ai/categorize
 // Usa Claude per suggerire categorie di spesa/entrata a partire dalle descrizioni.
 // Richiede sessione autenticata e ANTHROPIC_API_KEY nell'ambiente server.
@@ -59,7 +65,7 @@ ${descList}`
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: process.env.ANTHROPIC_MODEL ?? DEFAULT_MODEL,
         max_tokens: 512,
         messages: [{ role: 'user', content: prompt }],
       }),
