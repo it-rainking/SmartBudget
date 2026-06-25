@@ -106,7 +106,8 @@ Esempio: ["Insight 1", "Insight 2", "Insight 3"]`
       insights = [text.trim()]
     }
 
-    return NextResponse.json({ insights })
+    const usage = data.usage ?? {}
+    return NextResponse.json({ insights, usage })
   } catch {
     return NextResponse.json({ error: 'Errore interno AI' }, { status: 500 })
   }
