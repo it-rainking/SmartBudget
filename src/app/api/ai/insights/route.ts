@@ -2,6 +2,12 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
+// Modello Claude da usare. Sovrascrivi con la variabile d'ambiente ANTHROPIC_MODEL.
+// claude-haiku-4-5-20251001  — veloce, economico ($0.80/$4.00 per MTok in/out)
+// claude-sonnet-4-6           — bilanciato ($3.00/$15.00 per MTok in/out)
+// claude-opus-4-8             — più capace ($15.00/$75.00 per MTok in/out)
+const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
+
 // POST /api/ai/insights
 // Genera 3 insight personalizzati sui dati finanziari del mese usando Claude.
 // Richiede sessione autenticata e ANTHROPIC_API_KEY nell'ambiente server.
@@ -84,7 +90,7 @@ Esempio: ["Insight 1", "Insight 2", "Insight 3"]`
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: process.env.ANTHROPIC_MODEL ?? DEFAULT_MODEL,
         max_tokens: 512,
         messages: [{ role: 'user', content: prompt }],
       }),
