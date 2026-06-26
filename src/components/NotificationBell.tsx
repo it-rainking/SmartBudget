@@ -112,7 +112,7 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 lg:right-auto lg:left-0 lg:bottom-full lg:top-auto lg:mb-2 lg:mt-0 w-72 sm:w-80 bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-700">
             <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
               Notifiche {count > 0 ? `(${count})` : ''}

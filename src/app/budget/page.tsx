@@ -224,6 +224,8 @@ export default function BudgetPage() {
 
         {/* Category Table */}
         <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+          <div className="min-w-[500px]">
           {/* Table Header */}
           <div className="grid grid-cols-12 gap-2 px-6 py-3 border-b border-zinc-100 dark:border-zinc-700 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             <div className="col-span-5">Categoria</div>
@@ -319,6 +321,8 @@ export default function BudgetPage() {
               </div>
             </div>
           )}
+          </div>{/* min-w */}
+          </div>{/* overflow-x-auto */}
         </div>
 
         <p className="text-xs text-zinc-400 text-center">

@@ -392,14 +392,14 @@ export default function TransazioniPage() {
           ) : (
             <div className="divide-y divide-zinc-100 dark:divide-zinc-700">
               {paginatedTransactions?.map((transaction) => (
-                <div key={transaction.id} className="p-4 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
-                  <div className="flex items-center gap-4">
-                    <div className={`px-2 py-1 rounded text-xs font-medium ${getTypeColor(transaction.type)}`}>
+                <div key={transaction.id} className="p-4 flex items-center justify-between gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
+                  <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                    <div className={`px-2 py-1 rounded text-xs font-medium shrink-0 ${getTypeColor(transaction.type)}`}>
                       {getTypeLabel(transaction.type)}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       {transaction.category_id ? (
-                        <p className="font-medium text-zinc-900 dark:text-white">
+                        <p className="font-medium text-zinc-900 dark:text-white truncate">
                           {getCategoryName(transaction.category_id, transaction.type)}
                         </p>
                       ) : (
@@ -409,17 +409,17 @@ export default function TransazioniPage() {
                       )}
                       <div className="flex items-center gap-1.5">
                         {transaction.description && (
-                          <p className="text-sm text-zinc-500 dark:text-zinc-400">{transaction.description}</p>
+                          <p className="text-sm text-zinc-500 dark:text-zinc-400 truncate max-w-[160px] sm:max-w-none">{transaction.description}</p>
                         )}
                         {transaction.is_recurring && (
-                          <span title="Ricorrente" className="text-xs text-blue-400">🔄</span>
+                          <span title="Ricorrente" className="text-xs text-blue-400 shrink-0">🔄</span>
                         )}
                       </div>
                       <p className="text-xs text-zinc-400">{(() => { const [y, m, d] = transaction.date.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('it-IT') })()}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className={`font-semibold ${transaction.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                    <span className={`font-semibold text-sm sm:text-base ${transaction.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
                       {transaction.type === 'income' ? '+' : '-'}{fmt(transaction.amount)}
                     </span>
                     <button

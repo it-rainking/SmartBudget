@@ -411,12 +411,12 @@ export default function DashboardMensilePage() {
                 },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-3">
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400 w-20 shrink-0">{item.label}</span>
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400 w-16 sm:w-20 shrink-0">{item.label}</span>
                   <div className="flex-1 h-2 bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden">
                     <div className={`h-full ${item.color} rounded-full transition-all duration-500`} style={{ width: `${item.pct}%` }} />
                   </div>
                   <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 w-10 text-right">{item.pct}%</span>
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400 w-24 text-right">{fmt(item.value)}</span>
+                  <span className="hidden sm:block text-xs text-zinc-500 dark:text-zinc-400 w-24 text-right">{fmt(item.value)}</span>
                 </div>
               ))}
             </div>

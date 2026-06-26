@@ -367,8 +367,8 @@ export default function FatturePage() {
                         </div>
 
                         {/* Right: amount + actions */}
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className={`font-bold text-base ${
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span className={`font-bold text-sm sm:text-base ${
                             inv.status === 'paid' ? 'text-emerald-600' :
                             inv.status === 'overdue' ? 'text-red-600' : 'text-zinc-800 dark:text-zinc-200'
                           }`}>
@@ -379,6 +379,7 @@ export default function FatturePage() {
                               <button
                                 onClick={() => handleMarkPaid(inv.id)}
                                 title="Segna come pagata"
+                                aria-label="Segna come pagata"
                                 className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors text-sm"
                               >
                                 ✓
