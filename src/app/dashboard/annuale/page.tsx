@@ -114,9 +114,9 @@ export default function DashboardAnnualePage() {
             <p className="text-zinc-600 dark:text-zinc-400">Panoramica dell&apos;anno {year}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setYear(y => y - 1)} className="px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 transition-colors">‹</button>
+            <button onClick={() => setYear(y => y - 1)} aria-label="Anno precedente" className="px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 transition-colors">‹</button>
             <span className="px-4 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-sm font-semibold text-zinc-800 dark:text-zinc-200 min-w-[70px] text-center">{year}</span>
-            <button onClick={() => setYear(y => y + 1)} disabled={year >= currentYear} className="px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">›</button>
+            <button onClick={() => setYear(y => y + 1)} disabled={year >= currentYear} aria-label="Anno successivo" className="px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">›</button>
           </div>
         </div>
 

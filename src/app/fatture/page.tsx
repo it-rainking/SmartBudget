@@ -48,6 +48,7 @@ export default function FatturePage() {
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all')
   const [showForm,     setShowForm]     = useState(false)
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [calMonth,     setCalMonth]     = useState(today.getMonth())
   const [calYear,      setCalYear]      = useState(today.getFullYear())
   const [selectedDay,  setSelectedDay]  = useState<number | null>(null)
@@ -173,6 +174,8 @@ export default function FatturePage() {
       showToast('Fattura eliminata', 'info')
     } catch {
       showToast('Errore', 'error')
+    } finally {
+      setConfirmDeleteId(null)
     }
   }
 
@@ -390,7 +393,7 @@ export default function FatturePage() {
                               ✏️
                             </button>
                             <button
-                              onClick={() => handleDelete(inv.id)}
+                              onClick={() => setConfirmDeleteId(inv.id)}
                               title="Elimina"
                               aria-label="Elimina fattura"
                               className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-xs"
@@ -533,6 +536,31 @@ export default function FatturePage() {
         )}
       </div>
 
+      {/* ─── MODAL: CONFERMA ELIMINAZIONE ─── */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-invoice-title">
+          <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
+            <h3 id="delete-invoice-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina fattura</h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Questa azione è irreversibile.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => handleDelete(confirmDeleteId)}
+                disabled={deleteInvoice.isPending}
+                className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm font-medium transition-colors"
+              >
+                {deleteInvoice.isPending ? 'Eliminazione...' : 'Elimina'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── MODAL: NUOVA FATTURA ─── */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="invoice-modal-title">
@@ -605,17 +633,20 @@ export default function FatturePage() {
                 />
               </div>
 
-              <label className="flex items-center gap-3 cursor-pointer">
-                <div className={`relative w-10 h-5 rounded-full transition-colors ${fAutoRenew ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}>
+              <button
+                type="button"
+                onClick={() => setFAutoRenew(v => !v)}
+                className="flex items-center gap-3 cursor-pointer"
+                aria-pressed={fAutoRenew}
+                aria-label="Rinnovo automatico"
+              >
+                <div className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${fAutoRenew ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}>
                   <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${fAutoRenew ? 'left-5' : 'left-0.5'}`} />
                 </div>
-                <span
-                  className="text-sm text-zinc-700 dark:text-zinc-300"
-                  onClick={() => setFAutoRenew(v => !v)}
-                >
+                <span className="text-sm text-zinc-700 dark:text-zinc-300">
                   Rinnovo automatico
                 </span>
-              </label>
+              </button>
 
               <div className="flex gap-3 pt-2">
                 <button

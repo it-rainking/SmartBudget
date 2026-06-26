@@ -11,6 +11,7 @@ import {
 } from '@/hooks/useBudget'
 import { useToast } from '@/components/Toast'
 import { useIncomeCategories, useExpenseCategories, useSavingCategories } from '@/hooks/useCategories'
+import { useSettings } from '@/hooks/useSettings'
 import { formatCurrency, formatMonth } from '@/lib/utils'
 
 const MONTHS = [
@@ -30,6 +31,9 @@ export default function BudgetPage() {
   const [copying, setCopying] = useState(false)
 
   const { showToast } = useToast()
+  const { data: settings } = useSettings()
+  const currency = settings?.currency || 'EUR'
+  const fmt = (n: number) => formatCurrency(n, currency)
 
   // Calcola mese/anno precedente
   const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1
@@ -185,8 +189,8 @@ export default function BudgetPage() {
             return (
               <div key={tab.key} className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm">
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">{tab.label}</p>
-                <p className={`text-xl font-bold ${tab.color}`}>{formatCurrency(actual)}</p>
-                <p className="text-xs text-zinc-400 mt-0.5">di {formatCurrency(planned)} pianificati</p>
+                <p className={`text-xl font-bold ${tab.color}`}>{fmt(actual)}</p>
+                <p className="text-xs text-zinc-400 mt-0.5">di {fmt(planned)} pianificati</p>
                 <div className="mt-3 h-1.5 bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
@@ -267,7 +271,7 @@ export default function BudgetPage() {
                     </div>
                     <div className="col-span-2 text-right">
                       <span className={`text-sm font-medium ${activeTabConfig.color}`}>
-                        {formatCurrency(actual)}
+                        {fmt(actual)}
                       </span>
                     </div>
                     <div className="col-span-2 text-right">
@@ -278,7 +282,7 @@ export default function BudgetPage() {
                           ? 'text-red-500'
                           : 'text-emerald-600'
                       }`}>
-                        {planned === 0 ? '—' : `${diff >= 0 ? '+' : ''}${formatCurrency(diff)}`}
+                        {planned === 0 ? '—' : `${diff >= 0 ? '+' : ''}${fmt(diff)}`}
                       </span>
                     </div>
                   </div>
@@ -292,11 +296,11 @@ export default function BudgetPage() {
             <div className="grid grid-cols-12 gap-2 px-6 py-4 border-t-2 border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-700/30">
               <div className="col-span-5 text-sm font-bold text-zinc-700 dark:text-zinc-300">Totale</div>
               <div className="col-span-3 text-right text-sm font-bold text-zinc-700 dark:text-zinc-300">
-                {formatCurrency(totalPlanned)}
+                {fmt(totalPlanned)}
               </div>
               <div className="col-span-2 text-right">
                 <span className={`text-sm font-bold ${activeTabConfig.color}`}>
-                  {formatCurrency(totalActual)}
+                  {fmt(totalActual)}
                 </span>
               </div>
               <div className="col-span-2 text-right">
@@ -308,7 +312,7 @@ export default function BudgetPage() {
                   }`}>
                     {(() => {
                       const d = activeTab === 'income' ? totalActual - totalPlanned : totalPlanned - totalActual
-                      return `${d >= 0 ? '+' : ''}${formatCurrency(d)}`
+                      return `${d >= 0 ? '+' : ''}${fmt(d)}`
                     })()}
                   </span>
                 )}

@@ -181,8 +181,11 @@ export default function ObiettiviPage() {
 
   function daysUntil(deadline: string | null): number | null {
     if (!deadline) return null
-    const diff = new Date(deadline).getTime() - new Date().getTime()
-    return Math.ceil(diff / 86400000)
+    const [y, m, d] = deadline.split('-').map(Number)
+    const deadlineDate = new Date(y, m - 1, d)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return Math.ceil((deadlineDate.getTime() - today.getTime()) / 86400000)
   }
 
   return (
@@ -326,7 +329,8 @@ export default function ObiettiviPage() {
                     {/* Proiezione mensile necessaria */}
                     {goal.deadline && goal.current_amount < goal.target_amount && (() => {
                       const today = new Date()
-                      const deadline = new Date(goal.deadline)
+                      const [dy, dm] = goal.deadline.split('-').map(Number)
+                      const deadline = new Date(dy, dm - 1, 1)
                       const monthsLeft = Math.max(1, (deadline.getFullYear() - today.getFullYear()) * 12 + (deadline.getMonth() - today.getMonth()))
                       const needed = (goal.target_amount - goal.current_amount) / monthsLeft
                       return (
@@ -344,7 +348,7 @@ export default function ObiettiviPage() {
                       <span>
                         {isUrgent && days !== null
                           ? `Scade tra ${days} giorni`
-                          : new Date(goal.deadline).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })
+                          : (() => { const [y, m, d] = goal.deadline.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' }) })()
                         }
                       </span>
                     </div>

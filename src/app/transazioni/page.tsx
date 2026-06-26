@@ -6,6 +6,8 @@ import { useTransactions, useCreateTransaction, useUpdateTransaction, useDeleteT
 import { useIncomeCategories, useExpenseCategories, useSavingCategories, useInitializeCategories } from '@/hooks/useCategories'
 import { useToast } from '@/components/Toast'
 import { ImportCSVModal } from '@/components/ImportCSVModal'
+import { useSettings } from '@/hooks/useSettings'
+import { formatCurrency } from '@/lib/utils'
 import type { TransactionType, Transaction } from '@/types'
 
 const MONTHS = [
@@ -36,6 +38,8 @@ export default function TransazioniPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const { showToast } = useToast()
+  const { data: settings } = useSettings()
+  const currency = settings?.currency || 'EUR'
 
   // Form state
   const [formType, setFormType] = useState<TransactionType>('expense')
@@ -197,9 +201,7 @@ export default function TransazioniPage() {
     }
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
-  }
+  const fmt = (amount: number) => formatCurrency(amount, currency)
 
   const getTypeColor = (type: TransactionType) => {
     switch (type) {
@@ -418,7 +420,7 @@ export default function TransazioniPage() {
                   </div>
                   <div className="flex items-center gap-4">
                     <span className={`font-semibold ${transaction.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                      {transaction.type === 'income' ? '+' : '-'}{fmt(transaction.amount)}
                     </span>
                     <button
                       onClick={() => openEditForm(transaction)}
