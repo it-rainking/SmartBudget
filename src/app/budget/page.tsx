@@ -161,7 +161,7 @@ export default function BudgetPage() {
               onChange={(e) => setSelectedYear(Number(e.target.value))}
               className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
             >
-              {[2024, 2025, 2026].map((y) => (
+              {Array.from({ length: 4 }, (_, i) => currentDate.getFullYear() - 1 + i).map((y) => (
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>

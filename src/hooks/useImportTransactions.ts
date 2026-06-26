@@ -15,11 +15,32 @@ export interface ParsedTransaction {
 
 // ─── CSV Parser ────────────────────────────────────────────────────────────────
 
+function splitCSVLine(line: string, sep: string): string[] {
+  const result: string[] = []
+  let current = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+      else inQuotes = !inQuotes
+    } else if (ch === sep && !inQuotes) {
+      result.push(current)
+      current = ''
+    } else {
+      current += ch
+    }
+  }
+  result.push(current)
+  return result
+}
+
 export function parseCSV(text: string): ParsedTransaction[] {
   const lines = text.trim().split('\n').filter(l => l.trim())
   if (lines.length < 2) return []
 
-  const header = lines[0].split(/[,;]/).map(h => h.trim().toLowerCase().replace(/['"]/g, ''))
+  const separator = lines[0].includes(';') ? ';' : ','
+  const header = splitCSVLine(lines[0], separator).map(h => h.trim().toLowerCase().replace(/['"]/g, ''))
 
   const colIndex = (names: string[]) => {
     for (const name of names) {
@@ -46,7 +67,7 @@ export function parseCSV(text: string): ParsedTransaction[] {
   const results: ParsedTransaction[] = []
 
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(/[,;]/).map(c => c.trim().replace(/^["']|["']$/g, ''))
+    const cols = splitCSVLine(lines[i], separator).map(c => c.trim().replace(/^["']|["']$/g, ''))
     const raw = {
       date: cols[dateCol] ?? '',
       type: cols[typeCol]?.toLowerCase() ?? 'expense',
@@ -63,6 +84,12 @@ export function parseCSV(text: string): ParsedTransaction[] {
       const [d, m, y] = date.split(/[\/\-]/)
       date = `${y}-${m}-${d}`
     }
+
+    // Validate resulting date is a real calendar date
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
+    const [y, m, d] = date.split('-').map(Number)
+    const parsed = new Date(y, m - 1, d)
+    if (parsed.getFullYear() !== y || parsed.getMonth() + 1 !== m || parsed.getDate() !== d) continue
 
     results.push({
       date,

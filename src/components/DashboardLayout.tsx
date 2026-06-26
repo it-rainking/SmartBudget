@@ -73,6 +73,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <NotificationBell />
             <button
               onClick={signOut}
+              aria-label="Esci dall'account"
               className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
               title="Esci"
             >

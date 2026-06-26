@@ -157,10 +157,16 @@ export default function TransazioniPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    const amount = parseFloat(formAmount)
+    if (isNaN(amount) || amount <= 0) {
+      showToast('Inserisci un importo valido maggiore di zero', 'error')
+      return
+    }
+
     const payload = {
       type: formType,
-      category_id: formCategoryId,
-      amount: parseFloat(formAmount),
+      category_id: formCategoryId || undefined,
+      amount,
       date: formDate,
       description: formDescription || undefined,
       payment_method: formPaymentMethod || undefined,
@@ -280,7 +286,7 @@ export default function TransazioniPage() {
               onChange={(e) => { setSelectedYear(Number(e.target.value)); setCurrentPage(1) }}
               className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
             >
-              {[2024, 2025, 2026].map(year => (
+              {Array.from({ length: 4 }, (_, i) => currentDate.getFullYear() - 1 + i).map(year => (
                 <option key={year} value={year}>{year}</option>
               ))}
             </select>
@@ -407,7 +413,7 @@ export default function TransazioniPage() {
                           <span title="Ricorrente" className="text-xs text-blue-400">🔄</span>
                         )}
                       </div>
-                      <p className="text-xs text-zinc-400">{new Date(transaction.date).toLocaleDateString('it-IT')}</p>
+                      <p className="text-xs text-zinc-400">{(() => { const [y, m, d] = transaction.date.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('it-IT') })()}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
@@ -464,10 +470,10 @@ export default function TransazioniPage() {
 
       {/* Add Transaction Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="transaction-modal-title">
           <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md">
             <div className="p-6 border-b border-zinc-200 dark:border-zinc-700">
-              <h2 className="text-xl font-bold text-zinc-900 dark:text-white">{editingTransaction ? 'Modifica Transazione' : 'Nuova Transazione'}</h2>
+              <h2 id="transaction-modal-title" className="text-xl font-bold text-zinc-900 dark:text-white">{editingTransaction ? 'Modifica Transazione' : 'Nuova Transazione'}</h2>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -618,9 +624,9 @@ export default function TransazioniPage() {
 
       {/* Confirm delete modal */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-tx-title">
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
-            <h3 className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina transazione</h3>
+            <h3 id="delete-tx-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina transazione</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Questa azione è irreversibile.</p>
             <div className="flex gap-3">
               <button

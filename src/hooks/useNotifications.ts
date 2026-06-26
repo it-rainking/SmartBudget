@@ -59,7 +59,7 @@ export function useNotifications() {
 
     // Obiettivi quasi completati (>= 90%)
     goals?.filter(g => !g.is_completed).forEach(g => {
-      const pct = g.current_amount / g.target_amount
+      const pct = g.target_amount > 0 ? g.current_amount / g.target_amount : 0
       if (pct >= 0.9) {
         items.push({
           id: `goal-near-${g.id}`,

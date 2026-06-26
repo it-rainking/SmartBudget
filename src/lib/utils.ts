@@ -6,7 +6,8 @@ export function formatCurrency(amount: number, currency = 'EUR', locale = 'it-IT
 }
 
 export function formatDate(dateStr: string, locale = 'it-IT'): string {
-  return new Date(dateStr).toLocaleDateString(locale, {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString(locale, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

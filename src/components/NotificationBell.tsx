@@ -97,12 +97,15 @@ export function NotificationBell() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
+        aria-label={count > 0 ? `Notifiche (${count} non lette)` : 'Notifiche'}
+        aria-expanded={open}
+        aria-haspopup="true"
         className="relative p-2 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
         title="Notifiche"
       >
-        <span className="text-xl">🔔</span>
+        <span className="text-xl" aria-hidden="true">🔔</span>
         {count > 0 && (
-          <span className="absolute top-1 right-1 h-4 w-4 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">
+          <span aria-hidden="true" className="absolute top-1 right-1 h-4 w-4 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">
             {count > 9 ? '9+' : count}
           </span>
         )}
@@ -138,6 +141,7 @@ export function NotificationBell() {
                     </div>
                     <button
                       onClick={() => dismiss(n.id)}
+                      aria-label={`Segna come letta: ${n.title}`}
                       className="text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 text-xs flex-shrink-0 transition-colors"
                     >
                       ✕

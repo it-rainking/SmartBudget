@@ -65,12 +65,20 @@ export default function SettingsPage() {
 
   // Salva preferenze notifiche
   async function saveNotificationSettings() {
+    if (notifyTelegram && telegramChatId && !/^-?\d+$/.test(telegramChatId.trim())) {
+      showToast('Chat ID Telegram non valido: deve essere un numero intero', 'error')
+      return
+    }
+    if (notifyEmail && notificationEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notificationEmail.trim())) {
+      showToast('Indirizzo email non valido', 'error')
+      return
+    }
     try {
       await updateSettings.mutateAsync({
         notify_email: notifyEmail,
         notify_telegram: notifyTelegram,
-        telegram_chat_id: telegramChatId || null,
-        notification_email: notificationEmail || null,
+        telegram_chat_id: telegramChatId.trim() || null,
+        notification_email: notificationEmail.trim() || null,
       })
       showToast('Preferenze notifiche salvate', 'success')
     } catch {
@@ -81,13 +89,21 @@ export default function SettingsPage() {
   // Invia una notifica di test tramite la route server-side
   // Salva prima le preferenze correnti, così il test usa sempre la configurazione visualizzata
   async function handleSendTest() {
+    if (notifyTelegram && telegramChatId && !/^-?\d+$/.test(telegramChatId.trim())) {
+      showToast('Chat ID Telegram non valido: deve essere un numero intero', 'error')
+      return
+    }
+    if (notifyEmail && notificationEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notificationEmail.trim())) {
+      showToast('Indirizzo email non valido', 'error')
+      return
+    }
     setIsSendingTest(true)
     try {
       await updateSettings.mutateAsync({
         notify_email: notifyEmail,
         notify_telegram: notifyTelegram,
-        telegram_chat_id: telegramChatId || null,
-        notification_email: notificationEmail || null,
+        telegram_chat_id: telegramChatId.trim() || null,
+        notification_email: notificationEmail.trim() || null,
       })
 
       const res = await fetch('/api/notifications/test', {
@@ -173,11 +189,12 @@ export default function SettingsPage() {
   async function handleExportCSV() {
     setIsExportingCSV(true)
     try {
+      if (!user) return
       const [{ data: transactions }, { data: expCats }, { data: incCats }, { data: savCats }] = await Promise.all([
-        supabase.from('transactions').select('*').order('date', { ascending: false }),
-        supabase.from('expense_categories').select('id, name'),
-        supabase.from('income_categories').select('id, name'),
-        supabase.from('saving_categories').select('id, name'),
+        supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
+        supabase.from('expense_categories').select('id, name').eq('user_id', user.id),
+        supabase.from('income_categories').select('id, name').eq('user_id', user.id),
+        supabase.from('saving_categories').select('id, name').eq('user_id', user.id),
       ])
 
       const catMap: Record<string, string> = {}
@@ -218,11 +235,21 @@ export default function SettingsPage() {
     if (deleteInput !== 'ELIMINA' || !user) return
     try {
       const uid = user.id
-      await supabase.from('transactions').delete().eq('user_id', uid)
-      await supabase.from('invoices').delete().eq('user_id', uid)
-      await supabase.from('goals').delete().eq('user_id', uid)
+      await Promise.all([
+        supabase.from('transactions').delete().eq('user_id', uid),
+        supabase.from('invoices').delete().eq('user_id', uid),
+        supabase.from('goals').delete().eq('user_id', uid),
+        supabase.from('notifications').delete().eq('user_id', uid),
+      ])
       await supabase.from('monthly_budget_items').delete().eq('user_id', uid)
       await supabase.from('monthly_budgets').delete().eq('user_id', uid)
+      await Promise.all([
+        supabase.from('expense_subcategories').delete().eq('user_id', uid),
+        supabase.from('income_categories').delete().eq('user_id', uid),
+        supabase.from('expense_categories').delete().eq('user_id', uid),
+        supabase.from('saving_categories').delete().eq('user_id', uid),
+      ])
+      await supabase.from('settings').delete().eq('user_id', uid)
       await signOut()
       router.push('/login')
     } catch {
@@ -467,11 +494,11 @@ export default function SettingsPage() {
 
       {/* Delete confirm modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="delete-account-title">
           <div className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl p-6">
             <div className="text-center mb-4">
               <div className="text-4xl mb-2">⚠️</div>
-              <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Eliminare tutti i dati?</h2>
+              <h2 id="delete-account-title" className="text-lg font-bold text-zinc-900 dark:text-white">Eliminare tutti i dati?</h2>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
                 Questa azione eliminerà permanentemente tutte le tue transazioni, fatture, obiettivi e budget.
               </p>
