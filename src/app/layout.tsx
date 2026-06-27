@@ -7,6 +7,19 @@ const themeScript = `(function(){var t=localStorage.getItem('theme');var d=docum
 export const metadata: Metadata = {
   title: "SmartBudget - Gestione Finanze Personali",
   description: "Piattaforma completa per la gestione di budget, entrate, spese, risparmi e fatture.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "SmartBudget",
+  },
+  icons: {
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+    icon: [
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+  },
 };
 
 export default function RootLayout({
