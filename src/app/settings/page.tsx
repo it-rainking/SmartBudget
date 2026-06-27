@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Sun, Moon, Monitor, Download, BarChart3, LogOut, Trash2, AlertTriangle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useSettings, useUpdateSettings } from '@/hooks/useSettings'
@@ -334,20 +335,21 @@ export default function SettingsPage() {
                 <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-2">Tema</label>
                 <div className="flex gap-2">
                   {([
-                    { value: 'light', label: '☀️ Chiaro' },
-                    { value: 'dark', label: '🌙 Scuro' },
-                    { value: 'system', label: '💻 Sistema' },
+                    { value: 'light', label: 'Chiaro', Icon: Sun },
+                    { value: 'dark',  label: 'Scuro',  Icon: Moon },
+                    { value: 'system',label: 'Sistema',Icon: Monitor },
                   ] as const).map((opt) => (
                     <button
                       key={opt.value}
                       type="button"
                       onClick={() => setTheme(opt.value)}
-                      className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm font-medium transition-colors ${
                         theme === opt.value
                           ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
                           : 'border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700'
                       }`}
                     >
+                      <opt.Icon size={14} />
                       {opt.label}
                     </button>
                   ))}
@@ -455,7 +457,7 @@ export default function SettingsPage() {
               disabled={isExporting}
               className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors"
             >
-              <span>📥</span>
+              <Download size={15} />
               {isExporting ? 'Esportazione...' : 'Esporta tutti i dati (JSON)'}
             </button>
             <button
@@ -463,7 +465,7 @@ export default function SettingsPage() {
               disabled={isExportingCSV}
               className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors"
             >
-              <span>📊</span>
+              <BarChart3 size={15} />
               {isExportingCSV ? 'Esportazione...' : 'Esporta transazioni (CSV)'}
             </button>
           </div>
@@ -479,13 +481,13 @@ export default function SettingsPage() {
               onClick={() => signOut()}
               className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
             >
-              <span>🚪</span> Esci dall&apos;account
+              <LogOut size={15} /> Esci dall&apos;account
             </button>
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="flex items-center gap-2 px-4 py-2 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
             >
-              <span>🗑️</span> Elimina tutti i dati
+              <Trash2 size={15} /> Elimina tutti i dati
             </button>
           </div>
         </div>
@@ -497,7 +499,7 @@ export default function SettingsPage() {
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="delete-account-title">
           <div className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl p-6">
             <div className="text-center mb-4">
-              <div className="text-4xl mb-2">⚠️</div>
+              <AlertTriangle size={44} className="text-amber-500 mx-auto mb-2" />
               <h2 id="delete-account-title" className="text-lg font-bold text-zinc-900 dark:text-white">Eliminare tutti i dati?</h2>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
                 Questa azione eliminerà permanentemente tutte le tue transazioni, fatture, obiettivi e budget.

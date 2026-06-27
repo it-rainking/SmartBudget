@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Calendar, Target, X, Pencil, Trash2 } from 'lucide-react'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useGoals, useCreateGoal, useUpdateGoal, useAddGoalProgress, useCompleteGoal, useDeleteGoal } from '@/hooks/useGoals'
 import { useSettings } from '@/hooks/useSettings'
@@ -344,7 +345,7 @@ export default function ObiettiviPage() {
                   {/* Deadline */}
                   {goal.deadline && (
                     <div className={`flex items-center gap-1.5 mb-2 text-xs ${isUrgent ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-zinc-500 dark:text-zinc-400'}`}>
-                      <span>📅</span>
+                      <Calendar size={12} />
                       <span>
                         {isUrgent && days !== null
                           ? `Scade tra ${days} giorni`
@@ -375,16 +376,16 @@ export default function ObiettiviPage() {
                       <button
                         onClick={() => openEditForm(goal)}
                         aria-label="Modifica obiettivo"
-                        className="py-1.5 px-2.5 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg text-xs transition-colors"
+                        className="py-1.5 px-2.5 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
                       >
-                        ✏️
+                        <Pencil size={14} />
                       </button>
                       <button
                         onClick={() => setConfirmDeleteGoalId(goal.id)}
                         aria-label="Elimina obiettivo"
-                        className="py-1.5 px-2.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-xs transition-colors"
+                        className="py-1.5 px-2.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                       >
-                        🗑️
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   ) : (
@@ -392,16 +393,16 @@ export default function ObiettiviPage() {
                       <button
                         onClick={() => openEditForm(goal)}
                         aria-label="Modifica obiettivo"
-                        className="py-1.5 px-2.5 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg text-xs transition-colors"
+                        className="py-1.5 px-2.5 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
                       >
-                        ✏️
+                        <Pencil size={14} />
                       </button>
                       <button
                         onClick={() => setConfirmDeleteGoalId(goal.id)}
                         aria-label="Elimina obiettivo"
-                        className="py-1.5 px-2.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-xs transition-colors"
+                        className="py-1.5 px-2.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                       >
-                        🗑️
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   )}
@@ -411,7 +412,7 @@ export default function ObiettiviPage() {
           </div>
         ) : (
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-12 shadow-sm border border-zinc-100 dark:border-zinc-700 text-center">
-            <div className="text-4xl mb-4">🎯</div>
+            <Target size={44} className="text-zinc-300 dark:text-zinc-600 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
               {filter === 'completed' ? 'Nessun obiettivo completato' : filter === 'active' ? 'Nessun obiettivo attivo' : 'Nessun obiettivo'}
             </h3>
@@ -437,7 +438,7 @@ export default function ObiettiviPage() {
           <div className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-700">
               <h2 id="goal-modal-title" className="text-lg font-semibold text-zinc-900 dark:text-white">{editingGoal ? 'Modifica Obiettivo' : 'Nuovo Obiettivo'}</h2>
-              <button onClick={closeModal} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
+              <button onClick={closeModal} className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
               <div>
@@ -541,7 +542,7 @@ export default function ObiettiviPage() {
           <div className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-700">
               <h2 id="progress-modal-title" className="text-lg font-semibold text-zinc-900 dark:text-white">Aggiungi Progresso</h2>
-              <button onClick={() => setProgressModal(null)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
+              <button onClick={() => setProgressModal(null)} className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
             </div>
             <form onSubmit={handleAddProgress} className="p-6 space-y-4">
               <div>

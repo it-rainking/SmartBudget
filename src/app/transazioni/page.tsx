@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Upload, Pencil, Trash2, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useTransactions, useCreateTransaction, useUpdateTransaction, useDeleteTransaction } from '@/hooks/useTransactions'
 import { useIncomeCategories, useExpenseCategories, useSavingCategories, useInitializeCategories } from '@/hooks/useCategories'
@@ -239,14 +240,14 @@ export default function TransazioniPage() {
               onClick={() => setShowImport(true)}
               className="inline-flex items-center gap-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
             >
-              <span>📥</span>
+              <Upload size={15} />
               Importa CSV
             </button>
             <button
               onClick={() => setShowForm(true)}
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
             >
-              <span>+</span>
+              <Plus size={15} />
               Nuova Transazione
             </button>
           </div>
@@ -425,16 +426,16 @@ export default function TransazioniPage() {
                     <button
                       onClick={() => openEditForm(transaction)}
                       aria-label="Modifica transazione"
-                      className="text-zinc-400 hover:text-emerald-600 transition-colors"
+                      className="p-1 rounded-lg text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                     >
-                      ✏️
+                      <Pencil size={14} />
                     </button>
                     <button
                       onClick={() => setConfirmDeleteId(transaction.id)}
                       aria-label="Elimina transazione"
-                      className="text-zinc-400 hover:text-red-500 transition-colors"
+                      className="p-1 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
-                      🗑️
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
@@ -454,7 +455,7 @@ export default function TransazioniPage() {
                   disabled={currentPage === 1}
                   className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
                 >
-                  ‹ Prec.
+                  <ChevronLeft size={14} className="inline" /> Prec.
                 </button>
                 <span className="text-xs text-zinc-500 dark:text-zinc-400">{currentPage} / {totalPages}</span>
                 <button
@@ -462,7 +463,7 @@ export default function TransazioniPage() {
                   disabled={currentPage === totalPages}
                   className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
                 >
-                  Succ. ›
+                  Succ. <ChevronRight size={14} className="inline" />
                 </button>
               </div>
             </div>

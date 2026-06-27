@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { ChevronLeft, ChevronRight, TrendingUp, PiggyBank, Wallet, CalendarDays, BarChart3, Trophy } from 'lucide-react'
 import {
   Chart as ChartJS,
   ArcElement,
@@ -154,9 +155,9 @@ export default function DashboardMensilePage() {
             <button
               onClick={goToPrevMonth}
               aria-label="Mese precedente"
-              className="px-2 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 transition-colors text-sm"
+              className="p-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 transition-colors"
             >
-              ‹
+              <ChevronLeft size={16} />
             </button>
             <select
               value={selectedMonth}
@@ -176,9 +177,9 @@ export default function DashboardMensilePage() {
               onClick={goToNextMonth}
               disabled={isCurrentMonth}
               aria-label="Mese successivo"
-              className="px-2 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm"
+              className="p-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              ›
+              <ChevronRight size={16} />
             </button>
           </div>
         </div>
@@ -190,7 +191,7 @@ export default function DashboardMensilePage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Entrate</span>
-              <span className="text-lg">📈</span>
+              <TrendingUp size={16} className="text-emerald-500" />
             </div>
             {isLoading
               ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
@@ -225,7 +226,7 @@ export default function DashboardMensilePage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Risparmi</span>
-              <span className="text-lg">🏦</span>
+              <PiggyBank size={16} className="text-blue-500" />
             </div>
             {isLoading
               ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
@@ -240,7 +241,7 @@ export default function DashboardMensilePage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Saldo netto</span>
-              <span className="text-lg">💰</span>
+              <Wallet size={16} className="text-zinc-400" />
             </div>
             {isLoading
               ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
@@ -255,8 +256,8 @@ export default function DashboardMensilePage() {
         {!isLoading && hasData && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center text-2xl shrink-0">
-                📅
+              <div className="h-12 w-12 rounded-xl bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center shrink-0">
+                <CalendarDays size={22} className="text-orange-500" />
               </div>
               <div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">Media giornaliera</p>
@@ -265,8 +266,8 @@ export default function DashboardMensilePage() {
             </div>
 
             <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center text-2xl shrink-0">
-                📊
+              <div className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
+                <BarChart3 size={22} className="text-blue-500" />
               </div>
               <div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">Tasso di risparmio</p>
@@ -275,8 +276,10 @@ export default function DashboardMensilePage() {
             </div>
 
             <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center text-2xl shrink-0">
-                {topCategory?.icon || '🏆'}
+              <div className="h-12 w-12 rounded-xl bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center shrink-0">
+                {topCategory?.icon
+                  ? <span className="text-2xl">{topCategory.icon}</span>
+                  : <Trophy size={22} className="text-purple-500" />}
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">Categoria top</p>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { Receipt, Check, CheckCircle, XCircle, AlertTriangle, Pencil, X, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useToast } from '@/components/Toast'
 import {
@@ -316,7 +317,7 @@ export default function FatturePage() {
                 <div className="p-8 text-center text-zinc-500">Caricamento...</div>
               ) : filteredList.length === 0 ? (
                 <div className="p-10 text-center">
-                  <div className="text-3xl mb-3">🧾</div>
+                  <Receipt size={36} className="text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
                   <p className="text-zinc-500 dark:text-zinc-400 text-sm">
                     {statusFilter === 'all' ? 'Nessuna fattura. Aggiungine una!' : 'Nessuna fattura con questo stato.'}
                   </p>
@@ -336,7 +337,13 @@ export default function FatturePage() {
                           inv.status === 'overdue' ? 'bg-red-100 dark:bg-red-900/20' :
                           'bg-amber-100 dark:bg-amber-900/20'
                         }`}>
-                          {inv.status === 'paid' ? '✅' : inv.status === 'overdue' ? '🔴' : isToday ? '⚠️' : '🧾'}
+                          {inv.status === 'paid'
+                            ? <CheckCircle size={18} className="text-emerald-500" />
+                            : inv.status === 'overdue'
+                            ? <XCircle size={18} className="text-red-500" />
+                            : isToday
+                            ? <AlertTriangle size={18} className="text-amber-500" />
+                            : <Receipt size={18} className="text-zinc-400" />}
                         </div>
 
                         {/* Center: info */}
@@ -345,8 +352,8 @@ export default function FatturePage() {
                             <span className="font-semibold text-zinc-900 dark:text-white text-sm">{inv.name}</span>
                             <StatusBadge status={inv.status} />
                             {inv.recurrence && inv.recurrence !== 'once' && (
-                              <span className="text-xs text-zinc-400 bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">
-                                🔄 {RECURRENCE_LABELS[inv.recurrence]}
+                              <span className="inline-flex items-center gap-1 text-xs text-zinc-400 bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">
+                                <RefreshCw size={10} /> {RECURRENCE_LABELS[inv.recurrence]}
                               </span>
                             )}
                           </div>
@@ -380,26 +387,26 @@ export default function FatturePage() {
                                 onClick={() => handleMarkPaid(inv.id)}
                                 title="Segna come pagata"
                                 aria-label="Segna come pagata"
-                                className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors text-sm"
+                                className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                               >
-                                ✓
+                                <Check size={14} />
                               </button>
                             )}
                             <button
                               onClick={() => openEditForm(inv)}
                               title="Modifica"
                               aria-label="Modifica fattura"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors text-xs"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                             >
-                              ✏️
+                              <Pencil size={14} />
                             </button>
                             <button
                               onClick={() => setConfirmDeleteId(inv.id)}
                               title="Elimina"
                               aria-label="Elimina fattura"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-xs"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                             >
-                              ✕
+                              <X size={14} />
                             </button>
                           </div>
                         </div>
@@ -418,11 +425,11 @@ export default function FatturePage() {
             {/* Month navigation */}
             <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-100 dark:border-zinc-700 overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-700">
-                <button onClick={prevCalMonth} className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors">‹</button>
+                <button onClick={prevCalMonth} className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><ChevronLeft size={18} /></button>
                 <h3 className="font-semibold text-zinc-800 dark:text-zinc-200">
                   {MONTHS_IT[calMonth]} {calYear}
                 </h3>
-                <button onClick={nextCalMonth} className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors">›</button>
+                <button onClick={nextCalMonth} className="w-8 h-8 flex items-center justify-center rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><ChevronRight size={18} /></button>
               </div>
 
               {/* Day headers + grid wrapped for xs overflow */}
@@ -568,7 +575,7 @@ export default function FatturePage() {
           <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-700">
               <h2 id="invoice-modal-title" className="text-lg font-bold text-zinc-900 dark:text-white">{editingInvoice ? 'Modifica fattura' : 'Nuova fattura'}</h2>
-              <button onClick={closeForm} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-xl leading-none">✕</button>
+              <button onClick={closeForm} className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
             </div>
 
             <form onSubmit={handleCreate} className="p-6 space-y-4">
