@@ -41,7 +41,7 @@ export async function middleware(request: NextRequest) {
   const isAuthPath = authPaths.some(path => request.nextUrl.pathname.startsWith(path))
 
   // Stale refresh token: clear auth cookies and redirect to login to stop repeated errors
-  if (error?.code === 'refresh_token_not_found' || (error?.status === 400 && error?.__isAuthError)) {
+  if (error?.code === 'refresh_token_not_found') {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     const redirectResponse = NextResponse.redirect(url)
