@@ -17,7 +17,7 @@ const MONTHS = [
 ]
 
 const PAYMENT_METHODS = [
-  'Contanti', 'Carta di Credito', 'Carta di Debito', 'Bonifico', 'PayPal', 'Altro'
+  'Contanti', 'Carta', 'Bonifico', 'PayPal', 'Altro'
 ]
 
 const PAGE_SIZE = 20
