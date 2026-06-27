@@ -145,13 +145,13 @@ export function ImportCSVModal({ onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
       <div className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-700 flex-shrink-0">
           <div>
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Importa transazioni</h2>
+            <h2 id="import-modal-title" className="text-lg font-semibold text-zinc-900 dark:text-white">Importa transazioni</h2>
             {step === 'preview' && (
               <p className="text-xs text-zinc-500 dark:text-zinc-400">{fileName} — {rows.length} righe trovate</p>
             )}

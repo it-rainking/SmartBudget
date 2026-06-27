@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import Link from 'next/link'
+import { ChevronLeft, ChevronRight, TrendingUp, PiggyBank, Wallet, CalendarDays, BarChart3, Trophy } from 'lucide-react'
 import {
   Chart as ChartJS,
   ArcElement,
@@ -35,6 +37,20 @@ export default function DashboardMensilePage() {
 
   const currency = settings?.currency || 'EUR'
   const fmt = (n: number) => formatCurrency(n, currency)
+
+  const isCurrentMonth = selectedMonth === currentDate.getMonth() + 1 && selectedYear === currentDate.getFullYear()
+
+  const goToPrevMonth = useCallback(() => {
+    const d = new Date(selectedYear, selectedMonth - 2, 1)
+    setSelectedMonth(d.getMonth() + 1)
+    setSelectedYear(d.getFullYear())
+  }, [selectedMonth, selectedYear])
+
+  const goToNextMonth = useCallback(() => {
+    const d = new Date(selectedYear, selectedMonth, 1)
+    setSelectedMonth(d.getMonth() + 1)
+    setSelectedYear(d.getFullYear())
+  }, [selectedMonth, selectedYear])
 
   // Build expense breakdown by category (sorted by amount desc)
   const categoryBreakdown = useMemo(() => {
@@ -79,12 +95,10 @@ export default function DashboardMensilePage() {
   const [aiInsights, setAiInsights] = useState<string[]>([])
   const [isLoadingAI, setIsLoadingAI] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
-  const [aiCostUsd, setAiCostUsd] = useState<number | null>(null)
 
   useEffect(() => {
     setAiInsights([])
     setAiError(null)
-    setAiCostUsd(null)
   }, [selectedMonth, selectedYear])
 
   async function handleAIInsights() {
@@ -118,11 +132,6 @@ export default function DashboardMensilePage() {
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       setAiInsights(data.insights ?? [])
-      if (data.usage) {
-        // claude-haiku-4-5: $0.80/MTok input, $4.00/MTok output
-        const cost = (data.usage.input_tokens / 1_000_000) * 0.80 + (data.usage.output_tokens / 1_000_000) * 4.00
-        setAiCostUsd(cost)
-      }
     } catch (e: unknown) {
       setAiError(e instanceof Error ? e.message : 'Errore sconosciuto')
     } finally {
@@ -144,14 +153,11 @@ export default function DashboardMensilePage() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                const d = new Date(selectedYear, selectedMonth - 2, 1)
-                setSelectedMonth(d.getMonth() + 1)
-                setSelectedYear(d.getFullYear())
-              }}
-              className="px-2 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 transition-colors text-sm"
+              onClick={goToPrevMonth}
+              aria-label="Mese precedente"
+              className="p-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 transition-colors"
             >
-              ‹
+              <ChevronLeft size={16} />
             </button>
             <select
               value={selectedMonth}
@@ -165,17 +171,15 @@ export default function DashboardMensilePage() {
               onChange={(e) => setSelectedYear(Number(e.target.value))}
               className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
             >
-              {[2024, 2025, 2026].map((y) => <option key={y} value={y}>{y}</option>)}
+              {Array.from({ length: 4 }, (_, i) => currentDate.getFullYear() - 1 + i).map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
             <button
-              onClick={() => {
-                const d = new Date(selectedYear, selectedMonth, 1)
-                setSelectedMonth(d.getMonth() + 1)
-                setSelectedYear(d.getFullYear())
-              }}
-              className="px-2 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 transition-colors text-sm"
+              onClick={goToNextMonth}
+              disabled={isCurrentMonth}
+              aria-label="Mese successivo"
+              className="p-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              ›
+              <ChevronRight size={16} />
             </button>
           </div>
         </div>
@@ -187,7 +191,7 @@ export default function DashboardMensilePage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Entrate</span>
-              <span className="text-lg">📈</span>
+              <TrendingUp size={16} className="text-emerald-500" />
             </div>
             {isLoading
               ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
@@ -222,7 +226,7 @@ export default function DashboardMensilePage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Risparmi</span>
-              <span className="text-lg">🏦</span>
+              <PiggyBank size={16} className="text-blue-500" />
             </div>
             {isLoading
               ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
@@ -237,7 +241,7 @@ export default function DashboardMensilePage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Saldo netto</span>
-              <span className="text-lg">💰</span>
+              <Wallet size={16} className="text-zinc-400" />
             </div>
             {isLoading
               ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
@@ -252,8 +256,8 @@ export default function DashboardMensilePage() {
         {!isLoading && hasData && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center text-2xl shrink-0">
-                📅
+              <div className="h-12 w-12 rounded-xl bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center shrink-0">
+                <CalendarDays size={22} className="text-orange-500" />
               </div>
               <div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">Media giornaliera</p>
@@ -262,8 +266,8 @@ export default function DashboardMensilePage() {
             </div>
 
             <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center text-2xl shrink-0">
-                📊
+              <div className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
+                <BarChart3 size={22} className="text-blue-500" />
               </div>
               <div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">Tasso di risparmio</p>
@@ -272,8 +276,10 @@ export default function DashboardMensilePage() {
             </div>
 
             <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center text-2xl shrink-0">
-                {topCategory?.icon || '🏆'}
+              <div className="h-12 w-12 rounded-xl bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center shrink-0">
+                {topCategory?.icon
+                  ? <span className="text-2xl">{topCategory.icon}</span>
+                  : <Trophy size={22} className="text-purple-500" />}
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">Categoria top</p>
@@ -408,12 +414,12 @@ export default function DashboardMensilePage() {
                 },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-3">
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400 w-20 shrink-0">{item.label}</span>
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400 w-16 sm:w-20 shrink-0">{item.label}</span>
                   <div className="flex-1 h-2 bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden">
                     <div className={`h-full ${item.color} rounded-full transition-all duration-500`} style={{ width: `${item.pct}%` }} />
                   </div>
                   <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 w-10 text-right">{item.pct}%</span>
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400 w-24 text-right">{fmt(item.value)}</span>
+                  <span className="hidden sm:block text-xs text-zinc-500 dark:text-zinc-400 w-24 text-right">{fmt(item.value)}</span>
                 </div>
               ))}
             </div>
@@ -493,11 +499,6 @@ export default function DashboardMensilePage() {
                     <p className="text-sm text-zinc-700 dark:text-zinc-300">{insight}</p>
                   </div>
                 ))}
-                {aiCostUsd !== null && (
-                  <p className="text-xs text-zinc-400 dark:text-zinc-500 text-right pt-1">
-                    Costo analisi: ~${aiCostUsd < 0.00001 ? '<0.00001' : aiCostUsd.toFixed(5)} USD
-                  </p>
-                )}
               </div>
             ) : !aiError && (
               <p className="text-sm text-zinc-400 text-center py-4">
@@ -517,12 +518,12 @@ export default function DashboardMensilePage() {
             <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-6">
               Aggiungi le tue prime transazioni per visualizzare le statistiche
             </p>
-            <a
+            <Link
               href="/transazioni"
               className="inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-5 rounded-lg text-sm transition-colors"
             >
               Aggiungi transazione
-            </a>
+            </Link>
           </div>
         )}
 

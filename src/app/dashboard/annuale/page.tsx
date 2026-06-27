@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, PiggyBank, Wallet, Trophy, AlertTriangle, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -114,24 +115,24 @@ export default function DashboardAnnualePage() {
             <p className="text-zinc-600 dark:text-zinc-400">Panoramica dell&apos;anno {year}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setYear(y => y - 1)} className="px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 transition-colors">‹</button>
+            <button onClick={() => setYear(y => y - 1)} aria-label="Anno precedente" className="p-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 transition-colors"><ChevronLeft size={16} /></button>
             <span className="px-4 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-sm font-semibold text-zinc-800 dark:text-zinc-200 min-w-[70px] text-center">{year}</span>
-            <button onClick={() => setYear(y => y + 1)} disabled={year >= currentYear} className="px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">›</button>
+            <button onClick={() => setYear(y => y + 1)} disabled={year >= currentYear} aria-label="Anno successivo" className="p-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"><ChevronRight size={16} /></button>
           </div>
         </div>
 
         {/* Annual KPI cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: 'Entrate totali',  value: data?.totals.income   ?? 0, color: 'text-emerald-600', icon: '📈' },
-            { label: 'Spese totali',    value: data?.totals.expenses ?? 0, color: 'text-red-600',     icon: '📉' },
-            { label: 'Risparmi totali', value: data?.totals.savings  ?? 0, color: 'text-blue-600',    icon: '🏦' },
-            { label: 'Saldo netto',     value: data?.totals.balance  ?? 0, color: (data?.totals.balance ?? 0) >= 0 ? 'text-zinc-900 dark:text-white' : 'text-red-600', icon: '💰' },
+            { label: 'Entrate totali',  value: data?.totals.income   ?? 0, color: 'text-emerald-600', Icon: TrendingUp,   iconColor: 'text-emerald-500' },
+            { label: 'Spese totali',    value: data?.totals.expenses ?? 0, color: 'text-red-600',     Icon: TrendingDown, iconColor: 'text-red-500' },
+            { label: 'Risparmi totali', value: data?.totals.savings  ?? 0, color: 'text-blue-600',    Icon: PiggyBank,    iconColor: 'text-blue-500' },
+            { label: 'Saldo netto',     value: data?.totals.balance  ?? 0, color: (data?.totals.balance ?? 0) >= 0 ? 'text-zinc-900 dark:text-white' : 'text-red-600', Icon: Wallet, iconColor: 'text-zinc-400' },
           ].map(card => (
             <div key={card.label} className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide leading-tight">{card.label}</span>
-                <span className="text-lg">{card.icon}</span>
+                <card.Icon size={16} className={card.iconColor} />
               </div>
               {isLoading
                 ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
@@ -145,14 +146,14 @@ export default function DashboardAnnualePage() {
         {!isLoading && hasData && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: 'Mese migliore',    value: data?.bestMonth,  color: 'text-emerald-600', icon: '🏆', field: 'balance' as const },
-              { label: 'Mese peggiore',    value: data?.worstMonth, color: 'text-red-600',     icon: '⚠️', field: 'balance' as const },
-              { label: 'Picco entrate',    value: data?.topIncome,  color: 'text-emerald-600', icon: '💚', field: 'income'  as const },
-              { label: 'Picco spese',      value: data?.topExpense, color: 'text-red-600',     icon: '🔴', field: 'expenses' as const },
+              { label: 'Mese migliore',    value: data?.bestMonth,  color: 'text-emerald-600', Icon: Trophy,          iconColor: 'text-emerald-500', field: 'balance' as const },
+              { label: 'Mese peggiore',    value: data?.worstMonth, color: 'text-red-600',     Icon: AlertTriangle,   iconColor: 'text-amber-500',   field: 'balance' as const },
+              { label: 'Picco entrate',    value: data?.topIncome,  color: 'text-emerald-600', Icon: ArrowUpCircle,   iconColor: 'text-emerald-500', field: 'income'  as const },
+              { label: 'Picco spese',      value: data?.topExpense, color: 'text-red-600',     Icon: ArrowDownCircle, iconColor: 'text-red-500',     field: 'expenses' as const },
             ].map(item => (
               <div key={item.label} className="bg-white dark:bg-zinc-800 rounded-xl p-4 shadow-sm border border-zinc-100 dark:border-zinc-700">
                 <div className="flex items-center gap-2 mb-2">
-                  <span>{item.icon}</span>
+                  <item.Icon size={14} className={item.iconColor} />
                   <span className="text-xs text-zinc-500 dark:text-zinc-400">{item.label}</span>
                 </div>
                 <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">{item.value?.label}</p>
@@ -276,7 +277,7 @@ export default function DashboardAnnualePage() {
         {/* Empty state */}
         {!isLoading && !hasData && (
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-12 shadow-sm border border-zinc-100 dark:border-zinc-700 text-center">
-            <div className="text-4xl mb-4">📈</div>
+            <TrendingUp size={44} className="text-zinc-300 dark:text-zinc-600 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-zinc-700 dark:text-zinc-300 mb-2">Nessun dato per il {year}</h3>
             <p className="text-zinc-500 dark:text-zinc-400 text-sm">Aggiungi transazioni per vedere le statistiche annuali</p>
           </div>

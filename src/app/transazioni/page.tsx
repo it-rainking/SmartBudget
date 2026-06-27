@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Upload, Pencil, Trash2, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useTransactions, useCreateTransaction, useUpdateTransaction, useDeleteTransaction } from '@/hooks/useTransactions'
 import { useIncomeCategories, useExpenseCategories, useSavingCategories, useInitializeCategories } from '@/hooks/useCategories'
 import { useToast } from '@/components/Toast'
 import { ImportCSVModal } from '@/components/ImportCSVModal'
+import { useSettings } from '@/hooks/useSettings'
+import { formatCurrency } from '@/lib/utils'
 import type { TransactionType, Transaction } from '@/types'
 
 const MONTHS = [
@@ -14,7 +17,7 @@ const MONTHS = [
 ]
 
 const PAYMENT_METHODS = [
-  'Contanti', 'Carta di Credito', 'Carta di Debito', 'Bonifico', 'PayPal', 'Altro'
+  'Contanti', 'Carta', 'Bonifico', 'PayPal', 'Altro'
 ]
 
 const PAGE_SIZE = 20
@@ -36,6 +39,8 @@ export default function TransazioniPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const { showToast } = useToast()
+  const { data: settings } = useSettings()
+  const currency = settings?.currency || 'EUR'
 
   // Form state
   const [formType, setFormType] = useState<TransactionType>('expense')
@@ -157,10 +162,16 @@ export default function TransazioniPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    const amount = parseFloat(formAmount)
+    if (isNaN(amount) || amount <= 0) {
+      showToast('Inserisci un importo valido maggiore di zero', 'error')
+      return
+    }
+
     const payload = {
       type: formType,
-      category_id: formCategoryId,
-      amount: parseFloat(formAmount),
+      category_id: formCategoryId || undefined,
+      amount,
       date: formDate,
       description: formDescription || undefined,
       payment_method: formPaymentMethod || undefined,
@@ -191,9 +202,7 @@ export default function TransazioniPage() {
     }
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
-  }
+  const fmt = (amount: number) => formatCurrency(amount, currency)
 
   const getTypeColor = (type: TransactionType) => {
     switch (type) {
@@ -231,14 +240,14 @@ export default function TransazioniPage() {
               onClick={() => setShowImport(true)}
               className="inline-flex items-center gap-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
             >
-              <span>📥</span>
+              <Upload size={15} />
               Importa CSV
             </button>
             <button
               onClick={() => setShowForm(true)}
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
             >
-              <span>+</span>
+              <Plus size={15} />
               Nuova Transazione
             </button>
           </div>
@@ -280,7 +289,7 @@ export default function TransazioniPage() {
               onChange={(e) => { setSelectedYear(Number(e.target.value)); setCurrentPage(1) }}
               className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
             >
-              {[2024, 2025, 2026].map(year => (
+              {Array.from({ length: 4 }, (_, i) => currentDate.getFullYear() - 1 + i).map(year => (
                 <option key={year} value={year}>{year}</option>
               ))}
             </select>
@@ -384,14 +393,14 @@ export default function TransazioniPage() {
           ) : (
             <div className="divide-y divide-zinc-100 dark:divide-zinc-700">
               {paginatedTransactions?.map((transaction) => (
-                <div key={transaction.id} className="p-4 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
-                  <div className="flex items-center gap-4">
-                    <div className={`px-2 py-1 rounded text-xs font-medium ${getTypeColor(transaction.type)}`}>
+                <div key={transaction.id} className="p-4 flex items-center justify-between gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
+                  <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                    <div className={`px-2 py-1 rounded text-xs font-medium shrink-0 ${getTypeColor(transaction.type)}`}>
                       {getTypeLabel(transaction.type)}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       {transaction.category_id ? (
-                        <p className="font-medium text-zinc-900 dark:text-white">
+                        <p className="font-medium text-zinc-900 dark:text-white truncate">
                           {getCategoryName(transaction.category_id, transaction.type)}
                         </p>
                       ) : (
@@ -401,32 +410,32 @@ export default function TransazioniPage() {
                       )}
                       <div className="flex items-center gap-1.5">
                         {transaction.description && (
-                          <p className="text-sm text-zinc-500 dark:text-zinc-400">{transaction.description}</p>
+                          <p className="text-sm text-zinc-500 dark:text-zinc-400 truncate max-w-[160px] sm:max-w-none">{transaction.description}</p>
                         )}
                         {transaction.is_recurring && (
-                          <span title="Ricorrente" className="text-xs text-blue-400">🔄</span>
+                          <span title="Ricorrente" className="text-xs text-blue-400 shrink-0">🔄</span>
                         )}
                       </div>
-                      <p className="text-xs text-zinc-400">{new Date(transaction.date).toLocaleDateString('it-IT')}</p>
+                      <p className="text-xs text-zinc-400">{(() => { const [y, m, d] = transaction.date.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('it-IT') })()}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className={`font-semibold ${transaction.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                  <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                    <span className={`font-semibold text-sm sm:text-base ${transaction.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {transaction.type === 'income' ? '+' : '-'}{fmt(transaction.amount)}
                     </span>
                     <button
                       onClick={() => openEditForm(transaction)}
                       aria-label="Modifica transazione"
-                      className="text-zinc-400 hover:text-emerald-600 transition-colors"
+                      className="p-1 rounded-lg text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                     >
-                      ✏️
+                      <Pencil size={14} />
                     </button>
                     <button
                       onClick={() => setConfirmDeleteId(transaction.id)}
                       aria-label="Elimina transazione"
-                      className="text-zinc-400 hover:text-red-500 transition-colors"
+                      className="p-1 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
-                      🗑️
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
@@ -446,7 +455,7 @@ export default function TransazioniPage() {
                   disabled={currentPage === 1}
                   className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
                 >
-                  ‹ Prec.
+                  <ChevronLeft size={14} className="inline" /> Prec.
                 </button>
                 <span className="text-xs text-zinc-500 dark:text-zinc-400">{currentPage} / {totalPages}</span>
                 <button
@@ -454,7 +463,7 @@ export default function TransazioniPage() {
                   disabled={currentPage === totalPages}
                   className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
                 >
-                  Succ. ›
+                  Succ. <ChevronRight size={14} className="inline" />
                 </button>
               </div>
             </div>
@@ -464,10 +473,10 @@ export default function TransazioniPage() {
 
       {/* Add Transaction Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="transaction-modal-title">
           <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md">
             <div className="p-6 border-b border-zinc-200 dark:border-zinc-700">
-              <h2 className="text-xl font-bold text-zinc-900 dark:text-white">{editingTransaction ? 'Modifica Transazione' : 'Nuova Transazione'}</h2>
+              <h2 id="transaction-modal-title" className="text-xl font-bold text-zinc-900 dark:text-white">{editingTransaction ? 'Modifica Transazione' : 'Nuova Transazione'}</h2>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -618,9 +627,9 @@ export default function TransazioniPage() {
 
       {/* Confirm delete modal */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-tx-title">
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
-            <h3 className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina transazione</h3>
+            <h3 id="delete-tx-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina transazione</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Questa azione è irreversibile.</p>
             <div className="flex gap-3">
               <button

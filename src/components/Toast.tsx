@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import { CheckCircle, XCircle, Info } from 'lucide-react'
 
 type ToastType = 'success' | 'error' | 'info'
 
@@ -20,6 +21,12 @@ export function useToast() {
   return useContext(ToastContext)
 }
 
+const ICONS = {
+  success: CheckCircle,
+  error: XCircle,
+  info: Info,
+}
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
 
@@ -33,20 +40,24 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ showToast }}>
       {children}
       <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 items-center pointer-events-none">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={`px-5 py-2.5 rounded-full text-sm font-medium text-white shadow-lg whitespace-nowrap transition-opacity ${
-              toast.type === 'error'
-                ? 'bg-red-600'
-                : toast.type === 'info'
-                ? 'bg-zinc-700'
-                : 'bg-emerald-600'
-            }`}
-          >
-            {toast.message}
-          </div>
-        ))}
+        {toasts.map((toast) => {
+          const Icon = ICONS[toast.type]
+          return (
+            <div
+              key={toast.id}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium text-white shadow-lg whitespace-nowrap transition-opacity ${
+                toast.type === 'error'
+                  ? 'bg-red-600'
+                  : toast.type === 'info'
+                  ? 'bg-zinc-700'
+                  : 'bg-emerald-600'
+              }`}
+            >
+              <Icon size={15} className="shrink-0" />
+              {toast.message}
+            </div>
+          )
+        })}
       </div>
     </ToastContext.Provider>
   )

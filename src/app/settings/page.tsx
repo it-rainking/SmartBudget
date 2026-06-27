@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Sun, Moon, Monitor, Download, BarChart3, LogOut, Trash2, AlertTriangle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useSettings, useUpdateSettings } from '@/hooks/useSettings'
@@ -65,12 +66,20 @@ export default function SettingsPage() {
 
   // Salva preferenze notifiche
   async function saveNotificationSettings() {
+    if (notifyTelegram && telegramChatId && !/^-?\d+$/.test(telegramChatId.trim())) {
+      showToast('Chat ID Telegram non valido: deve essere un numero intero', 'error')
+      return
+    }
+    if (notifyEmail && notificationEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notificationEmail.trim())) {
+      showToast('Indirizzo email non valido', 'error')
+      return
+    }
     try {
       await updateSettings.mutateAsync({
         notify_email: notifyEmail,
         notify_telegram: notifyTelegram,
-        telegram_chat_id: telegramChatId || null,
-        notification_email: notificationEmail || null,
+        telegram_chat_id: telegramChatId.trim() || null,
+        notification_email: notificationEmail.trim() || null,
       })
       showToast('Preferenze notifiche salvate', 'success')
     } catch {
@@ -81,13 +90,21 @@ export default function SettingsPage() {
   // Invia una notifica di test tramite la route server-side
   // Salva prima le preferenze correnti, così il test usa sempre la configurazione visualizzata
   async function handleSendTest() {
+    if (notifyTelegram && telegramChatId && !/^-?\d+$/.test(telegramChatId.trim())) {
+      showToast('Chat ID Telegram non valido: deve essere un numero intero', 'error')
+      return
+    }
+    if (notifyEmail && notificationEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notificationEmail.trim())) {
+      showToast('Indirizzo email non valido', 'error')
+      return
+    }
     setIsSendingTest(true)
     try {
       await updateSettings.mutateAsync({
         notify_email: notifyEmail,
         notify_telegram: notifyTelegram,
-        telegram_chat_id: telegramChatId || null,
-        notification_email: notificationEmail || null,
+        telegram_chat_id: telegramChatId.trim() || null,
+        notification_email: notificationEmail.trim() || null,
       })
 
       const res = await fetch('/api/notifications/test', {
@@ -173,11 +190,12 @@ export default function SettingsPage() {
   async function handleExportCSV() {
     setIsExportingCSV(true)
     try {
+      if (!user) return
       const [{ data: transactions }, { data: expCats }, { data: incCats }, { data: savCats }] = await Promise.all([
-        supabase.from('transactions').select('*').order('date', { ascending: false }),
-        supabase.from('expense_categories').select('id, name'),
-        supabase.from('income_categories').select('id, name'),
-        supabase.from('saving_categories').select('id, name'),
+        supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
+        supabase.from('expense_categories').select('id, name').eq('user_id', user.id),
+        supabase.from('income_categories').select('id, name').eq('user_id', user.id),
+        supabase.from('saving_categories').select('id, name').eq('user_id', user.id),
       ])
 
       const catMap: Record<string, string> = {}
@@ -218,11 +236,21 @@ export default function SettingsPage() {
     if (deleteInput !== 'ELIMINA' || !user) return
     try {
       const uid = user.id
-      await supabase.from('transactions').delete().eq('user_id', uid)
-      await supabase.from('invoices').delete().eq('user_id', uid)
-      await supabase.from('goals').delete().eq('user_id', uid)
+      await Promise.all([
+        supabase.from('transactions').delete().eq('user_id', uid),
+        supabase.from('invoices').delete().eq('user_id', uid),
+        supabase.from('goals').delete().eq('user_id', uid),
+        supabase.from('notifications').delete().eq('user_id', uid),
+      ])
       await supabase.from('monthly_budget_items').delete().eq('user_id', uid)
       await supabase.from('monthly_budgets').delete().eq('user_id', uid)
+      await Promise.all([
+        supabase.from('expense_subcategories').delete().eq('user_id', uid),
+        supabase.from('income_categories').delete().eq('user_id', uid),
+        supabase.from('expense_categories').delete().eq('user_id', uid),
+        supabase.from('saving_categories').delete().eq('user_id', uid),
+      ])
+      await supabase.from('settings').delete().eq('user_id', uid)
       await signOut()
       router.push('/login')
     } catch {
@@ -307,20 +335,21 @@ export default function SettingsPage() {
                 <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-2">Tema</label>
                 <div className="flex gap-2">
                   {([
-                    { value: 'light', label: '☀️ Chiaro' },
-                    { value: 'dark', label: '🌙 Scuro' },
-                    { value: 'system', label: '💻 Sistema' },
+                    { value: 'light', label: 'Chiaro', Icon: Sun },
+                    { value: 'dark',  label: 'Scuro',  Icon: Moon },
+                    { value: 'system',label: 'Sistema',Icon: Monitor },
                   ] as const).map((opt) => (
                     <button
                       key={opt.value}
                       type="button"
                       onClick={() => setTheme(opt.value)}
-                      className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm font-medium transition-colors ${
                         theme === opt.value
                           ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
                           : 'border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700'
                       }`}
                     >
+                      <opt.Icon size={14} />
                       {opt.label}
                     </button>
                   ))}
@@ -428,7 +457,7 @@ export default function SettingsPage() {
               disabled={isExporting}
               className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors"
             >
-              <span>📥</span>
+              <Download size={15} />
               {isExporting ? 'Esportazione...' : 'Esporta tutti i dati (JSON)'}
             </button>
             <button
@@ -436,7 +465,7 @@ export default function SettingsPage() {
               disabled={isExportingCSV}
               className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors"
             >
-              <span>📊</span>
+              <BarChart3 size={15} />
               {isExportingCSV ? 'Esportazione...' : 'Esporta transazioni (CSV)'}
             </button>
           </div>
@@ -452,13 +481,13 @@ export default function SettingsPage() {
               onClick={() => signOut()}
               className="flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
             >
-              <span>🚪</span> Esci dall&apos;account
+              <LogOut size={15} /> Esci dall&apos;account
             </button>
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="flex items-center gap-2 px-4 py-2 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
             >
-              <span>🗑️</span> Elimina tutti i dati
+              <Trash2 size={15} /> Elimina tutti i dati
             </button>
           </div>
         </div>
@@ -467,11 +496,11 @@ export default function SettingsPage() {
 
       {/* Delete confirm modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="delete-account-title">
           <div className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl p-6">
             <div className="text-center mb-4">
-              <div className="text-4xl mb-2">⚠️</div>
-              <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Eliminare tutti i dati?</h2>
+              <AlertTriangle size={44} className="text-amber-500 mx-auto mb-2" />
+              <h2 id="delete-account-title" className="text-lg font-bold text-zinc-900 dark:text-white">Eliminare tutti i dati?</h2>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
                 Questa azione eliminerà permanentemente tutte le tue transazioni, fatture, obiettivi e budget.
               </p>

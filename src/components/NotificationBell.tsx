@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { Bell, X, CheckCircle, AlertTriangle, Calendar, Trophy, TrendingUp, Info } from 'lucide-react'
 import {
   useNotifications,
   usePersistedNotifications,
@@ -8,7 +9,6 @@ import {
   type AppNotification,
 } from '@/hooks/useNotifications'
 
-// Mappa i tipi notifica del DB ai tipi visivi del bell
 const DB_TYPE_MAP: Record<string, AppNotification['type']> = {
   budget_exceeded: 'warning',
   bill_due: 'warning',
@@ -16,12 +16,17 @@ const DB_TYPE_MAP: Record<string, AppNotification['type']> = {
   goal_progress: 'info',
   system: 'info',
 }
-const DB_TYPE_ICON: Record<string, string> = {
-  budget_exceeded: '📊',
-  bill_due: '📅',
-  goal_achieved: '🏆',
-  goal_progress: '📈',
-  system: 'ℹ️',
+
+function NotifIcon({ dbType, type }: { dbType?: string; type: AppNotification['type'] }) {
+  const cls = 'shrink-0'
+  if (dbType === 'budget_exceeded') return <AlertTriangle size={15} className={`${cls} text-amber-500`} />
+  if (dbType === 'bill_due')        return <Calendar      size={15} className={`${cls} text-amber-500`} />
+  if (dbType === 'goal_achieved')   return <Trophy        size={15} className={`${cls} text-emerald-500`} />
+  if (dbType === 'goal_progress')   return <TrendingUp    size={15} className={`${cls} text-blue-500`} />
+  if (dbType === 'system')          return <Info          size={15} className={`${cls} text-blue-500`} />
+  if (type === 'warning')  return <AlertTriangle size={15} className={`${cls} text-amber-500`} />
+  if (type === 'success')  return <CheckCircle   size={15} className={`${cls} text-emerald-500`} />
+  return <Info size={15} className={`${cls} text-blue-500`} />
 }
 
 const TYPE_BG = {
@@ -40,6 +45,10 @@ const TYPE_BODY = {
   success: 'text-emerald-600 dark:text-emerald-400',
 }
 
+interface ExtendedNotification extends AppNotification {
+  dbType?: string
+}
+
 export function NotificationBell() {
   const computed = useNotifications()
   const { data: persistedNotifications } = usePersistedNotifications()
@@ -48,12 +57,12 @@ export function NotificationBell() {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const ref = useRef<HTMLDivElement>(null)
 
-  // Merge notifiche calcolate + DB, deduplicando per id
-  const notifications = useMemo<AppNotification[]>(() => {
-    const dbNotifs: AppNotification[] = (persistedNotifications ?? []).map(n => ({
+  const notifications = useMemo<ExtendedNotification[]>(() => {
+    const dbNotifs: ExtendedNotification[] = (persistedNotifications ?? []).map(n => ({
       id: n.id,
       type: DB_TYPE_MAP[n.type] ?? 'info',
-      icon: DB_TYPE_ICON[n.type] ?? 'ℹ️',
+      icon: n.type,
+      dbType: n.type,
       title: n.title,
       body: n.message,
     }))
@@ -77,7 +86,6 @@ export function NotificationBell() {
   }, [])
 
   function dismiss(id: string) {
-    // Se è una notifica persistita nel DB, segnala come letta; altrimenti dismiss in-memory
     if (persistedNotifications?.some(n => n.id === id)) {
       markRead.mutate(id)
     }
@@ -85,7 +93,6 @@ export function NotificationBell() {
   }
 
   function dismissAll() {
-    // Segna come lette tutte le notifiche DB visibili
     persistedNotifications?.forEach(n => {
       if (!dismissed.has(n.id)) markRead.mutate(n.id)
     })
@@ -97,19 +104,22 @@ export function NotificationBell() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
+        aria-label={count > 0 ? `Notifiche (${count} non lette)` : 'Notifiche'}
+        aria-expanded={open}
+        aria-haspopup="true"
         className="relative p-2 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
         title="Notifiche"
       >
-        <span className="text-xl">🔔</span>
+        <Bell size={18} />
         {count > 0 && (
-          <span className="absolute top-1 right-1 h-4 w-4 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">
+          <span aria-hidden="true" className="absolute top-1 right-1 h-4 w-4 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">
             {count > 9 ? '9+' : count}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 lg:right-auto lg:left-0 lg:bottom-full lg:top-auto lg:mb-2 lg:mt-0 w-72 sm:w-80 bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-700">
             <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
               Notifiche {count > 0 ? `(${count})` : ''}
@@ -124,26 +134,32 @@ export function NotificationBell() {
           <div className="max-h-80 overflow-y-auto">
             {visible.length === 0 ? (
               <div className="px-4 py-8 text-center">
-                <div className="text-3xl mb-2">✅</div>
+                <CheckCircle size={32} className="text-emerald-400 mx-auto mb-2" />
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">Nessuna notifica</p>
               </div>
             ) : (
               <div className="p-2 space-y-1.5">
-                {visible.map(n => (
-                  <div key={n.id} className={`flex items-start gap-3 p-3 rounded-lg border ${TYPE_BG[n.type]}`}>
-                    <span className="text-lg flex-shrink-0 mt-0.5">{n.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-semibold ${TYPE_TITLE[n.type]}`}>{n.title}</p>
-                      <p className={`text-xs mt-0.5 truncate ${TYPE_BODY[n.type]}`}>{n.body}</p>
+                {visible.map(n => {
+                  const ext = n as ExtendedNotification
+                  return (
+                    <div key={n.id} className={`flex items-start gap-3 p-3 rounded-lg border ${TYPE_BG[n.type]}`}>
+                      <span className="flex-shrink-0 mt-0.5">
+                        <NotifIcon dbType={ext.dbType} type={n.type} />
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-semibold ${TYPE_TITLE[n.type]}`}>{n.title}</p>
+                        <p className={`text-xs mt-0.5 truncate ${TYPE_BODY[n.type]}`}>{n.body}</p>
+                      </div>
+                      <button
+                        onClick={() => dismiss(n.id)}
+                        aria-label={`Segna come letta: ${n.title}`}
+                        className="text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 flex-shrink-0 transition-colors mt-0.5"
+                      >
+                        <X size={14} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => dismiss(n.id)}
-                      className="text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 text-xs flex-shrink-0 transition-colors"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>

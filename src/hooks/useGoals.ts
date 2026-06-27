@@ -46,7 +46,8 @@ export function useAddGoalProgress() {
 
   return useMutation({
     mutationFn: async ({ id, amount, currentAmount }: { id: string; amount: number; currentAmount: number }) => {
-      const newAmount = currentAmount + amount
+      if (isNaN(amount) || amount === 0) throw new Error('Importo non valido')
+      const newAmount = Math.max(0, currentAmount + amount)
       const { data, error } = await supabase
         .from('goals')
         .update({ current_amount: newAmount })

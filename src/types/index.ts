@@ -190,7 +190,7 @@ export interface MonthlyKPIs {
 // Form types
 export interface TransactionFormData {
   type: TransactionType
-  category_id: string
+  category_id?: string
   subcategory_id?: string
   amount: number
   date: string

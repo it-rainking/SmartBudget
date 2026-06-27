@@ -177,7 +177,9 @@ export function useMonthlyKPIs(month?: number, year?: number) {
           case 'income':  kpis.totalIncome += amt; break
           case 'expense':
             kpis.totalExpenses += amt
-            categoryBreakdown[t.category_id] = (categoryBreakdown[t.category_id] || 0) + amt
+            if (t.category_id) {
+              categoryBreakdown[t.category_id] = (categoryBreakdown[t.category_id] || 0) + amt
+            }
             break
           case 'saving':  kpis.totalSavings += amt; break
           case 'debt':    kpis.totalDebts += amt; break
