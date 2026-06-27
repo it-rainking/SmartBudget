@@ -29,6 +29,7 @@ export async function middleware(request: NextRequest) {
 
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser()
 
   // Protected routes
@@ -38,6 +39,17 @@ export async function middleware(request: NextRequest) {
   // Auth routes (redirect if already logged in)
   const authPaths = ['/login', '/signup', '/recupera-password']
   const isAuthPath = authPaths.some(path => request.nextUrl.pathname.startsWith(path))
+
+  // Stale refresh token: clear auth cookies and redirect to login to stop repeated errors
+  if (error?.code === 'refresh_token_not_found' || (error?.status === 400 && error?.__isAuthError)) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    const redirectResponse = NextResponse.redirect(url)
+    request.cookies.getAll()
+      .filter(cookie => cookie.name.startsWith('sb-'))
+      .forEach(cookie => redirectResponse.cookies.delete(cookie.name))
+    return redirectResponse
+  }
 
   if (isProtectedPath && !user) {
     const url = request.nextUrl.clone()
