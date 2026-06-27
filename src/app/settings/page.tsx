@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Sun, Moon, Monitor, Download, BarChart3, LogOut, Trash2, AlertTriangle } from 'lucide-react'
+import { AiCategorySuggestionsPanel } from '@/components/AiCategorySuggestionsPanel'
 import { useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useSettings, useUpdateSettings } from '@/hooks/useSettings'
@@ -446,6 +447,9 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {/* AI Ottimizzazione Categorie */}
+        <AiCategorySuggestionsPanel />
 
         {/* GDPR / Export */}
         <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-100 dark:border-zinc-700">
