@@ -9,13 +9,4 @@ export function createClient() {
 }
 
 // Singleton instance for client-side
-let supabaseInstance: ReturnType<typeof createClient> | null = null
-
-export function getSupabase() {
-  if (!supabaseInstance) {
-    supabaseInstance = createClient()
-  }
-  return supabaseInstance
-}
-
 export const supabase = createClient()

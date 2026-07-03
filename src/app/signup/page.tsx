@@ -22,8 +22,8 @@ export default function SignupPage() {
       return
     }
 
-    if (password.length < 6) {
-      setError('La password deve essere di almeno 6 caratteri')
+    if (password.length < 8) {
+      setError('La password deve essere di almeno 8 caratteri')
       return
     }
 
@@ -143,9 +143,9 @@ export default function SignupPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
+                minLength={8}
                 className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors"
-                placeholder="Minimo 6 caratteri"
+                placeholder="Minimo 8 caratteri"
               />
             </div>
 

@@ -33,24 +33,33 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 /                         → redirect a /login o /dashboard/mensile
 /login                    → Supabase email/password auth
 /signup                   → Registrazione
+/recupera-password        → Richiesta reset password
+/aggiorna-password        → Imposta nuova password (dopo link email)
 /onboarding               → Wizard 3-step primo accesso
 /dashboard/mensile        → KPI mensili + grafici
 /dashboard/annuale        → Trend 12 mesi + grafici annuali
-/transazioni              → CRUD transazioni + import CSV
+/transazioni              → CRUD transazioni + import CSV/OFX
 /budget                   → Budget previsto vs effettivo
 /fatture                  → Fatture/abbonamenti + calendario
 /obiettivi                → Obiettivi finanziari con progress bar
+/debiti                   → Debiti: strategie snowball/avalanche, piano di rimborso
+/istruzioni               → Guida utente
 /settings                 → Preferenze, export GDPR, danger zone
 /auth/callback            → Callback OAuth Supabase
+/api/account/delete       → POST: elimina dati utente + account Auth (GDPR)
 /api/notifications/send   → POST: invio email/Telegram
 /api/notifications/process → POST: job processor notifiche
 /api/notifications/test   → POST: test endpoint notifiche
+/api/ai/categorize        → POST: suggerimenti categoria via Claude
+/api/ai/insights          → POST: insight finanziari mensili via Claude
+/api/ai/simplify-categories → POST: suggerimenti di semplificazione categorie
+/api/health               → GET: health check
 ```
 
 ### Middleware (`src/middleware.ts`)
 
 Gestisce redirect auth su ogni request:
-- **Route protette** (`/dashboard`, `/budget`, `/transazioni`, `/fatture`, `/obiettivi`, `/settings`, `/onboarding`): redirect a `/login` se non autenticato
+- **Route protette** (`/dashboard`, `/budget`, `/transazioni`, `/fatture`, `/obiettivi`, `/debiti`, `/settings`, `/istruzioni`, `/onboarding`, `/aggiorna-password`): redirect a `/login` se non autenticato
 - **Route auth** (`/login`, `/signup`): redirect a `/dashboard/mensile` se già autenticato
 - Rinnova la sessione Supabase SSR ad ogni request
 
@@ -68,7 +77,7 @@ Tutte le tabelle usano RLS con policy `user_id = auth.uid()`.
 | `expense_categories` | name, icon, color, sort_order, is_active | |
 | `expense_subcategories` | category_id (FK→expense_categories), name, icon | |
 | `saving_categories` | name, icon, color, sort_order, is_active | |
-| `debt_items` | total_amount, remaining_amount, interest_rate, monthly_payment, ... | Non ancora usati in UI |
+| `debt_items` | total_amount, remaining_amount, interest_rate, monthly_payment, ... | UI in `/debiti` (strategie snowball/avalanche) |
 | `monthly_budgets` | month, year, notes | Header budget |
 | `monthly_budget_items` | budget_id, category_type, category_id, planned_amount | Dettaglio per categoria |
 | `transactions` | type (income/expense/saving/debt), category_id?, subcategory_id?, amount, date, description, payment_method, tags[], notes, is_recurring, recurring_id | category_id nullable (import CSV) |
@@ -278,22 +287,23 @@ npm run lint   # eslint
 | Phase 10 — i18n, Multi-account | 🔮 Futuro |
 
 ### Bug noti
-- Notifiche computed dismiss non persiste al refresh (stato locale)
-- Transazioni CSV importate senza `category_id` → non filtrabili per categoria
-- Delta% dashboard mensile mostra `NaN` se nessuna transazione mese precedente
-- Calendario fatture: grid 7-col troppo stretto su schermi < 360px
+- Notifiche computed dismiss non persiste al refresh (stato locale in `NotificationBell.tsx`; solo le notifiche persistite nel DB sopravvivono al refresh)
 
 ### Feature implementate in Phase 7 (completate)
 - ✅ Edit transazione (`useUpdateTransaction`)
 - ✅ Edit fattura (`useUpdateInvoice`)
 - ✅ Edit obiettivo (`useUpdateGoal`)
+- ✅ Dark mode (toggle manuale in Settings + rilevamento `prefers-color-scheme`, `ThemeProvider.tsx`)
+- ✅ Categoria "Non categorizzato" per import CSV/OFX senza categoria riconosciuta
+- ✅ Paginazione transazioni (`PAGE_SIZE` in `transazioni/page.tsx`)
+- ✅ `debt_items` — UI completa in `/debiti`
+- ✅ Import OFX/QFX oltre a CSV (`parseOFX` in `useImportTransactions.ts`)
+- ✅ Suggerimenti AI per categorizzazione/insight/semplificazione categorie (`/api/ai/*`, richiede `ANTHROPIC_API_KEY`)
+- ✅ Budget: copia da mese precedente (`handleCopyFromPrevMonth` in `budget/page.tsx`)
+- ✅ Filtro per categoria nella lista transazioni
 
-### Priority backlog (Phase 7)
-- Categoria "Non categorizzato" per import CSV
-- Paginazione/virtual scroll transazioni
-- Budget: copia da mese precedente
-- Dark mode toggle manuale in Settings
-- `debt_items` — UI non ancora implementata
+### Priority backlog
+- Aggregazione annuale lato SQL (view/RPC) invece di fetch raw + riduzione client-side (`useAnnualData.ts`)
 
 ---
 

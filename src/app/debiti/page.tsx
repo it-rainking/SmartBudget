@@ -5,6 +5,7 @@ import { DashboardLayout } from '@/components/DashboardLayout'
 import { useDebtItems, useCreateDebtItem, useUpdateDebtItem, useDeleteDebtItem, monthsToPayoff, totalInterest, type DebtItemFormData } from '@/hooks/useDebtItems'
 import { useSettings } from '@/hooks/useSettings'
 import { useToast } from '@/components/Toast'
+import { useModalA11y } from '@/hooks/useModalA11y'
 import { formatCurrency } from '@/lib/utils'
 import type { DebtItem } from '@/types'
 
@@ -119,6 +120,9 @@ export default function DebitiPage() {
     return isFinite(i) ? fmt(i) : 'N/D'
   }
 
+  const formModalRef = useModalA11y<HTMLDivElement>(showForm, closeForm)
+  const deleteModalRef = useModalA11y<HTMLDivElement>(!!confirmDeleteId, () => setConfirmDeleteId(null))
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -197,7 +201,7 @@ export default function DebitiPage() {
 
         {/* Debt list */}
         {isLoading ? (
-          <div className="bg-white dark:bg-zinc-800 rounded-xl p-12 shadow-sm border border-zinc-100 dark:border-zinc-700 text-center text-zinc-400">
+          <div className="bg-white dark:bg-zinc-800 rounded-xl p-12 shadow-sm border border-zinc-100 dark:border-zinc-700 text-center text-zinc-500 dark:text-zinc-400">
             Caricamento...
           </div>
         ) : sortedDebts.length === 0 ? (
@@ -291,14 +295,14 @@ export default function DebitiPage() {
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => openEdit(debt)}
-                        className="text-zinc-400 hover:text-emerald-600 transition-colors text-sm"
+                        className="text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 transition-colors text-sm"
                         aria-label="Modifica"
                       >
                         ✏️
                       </button>
                       <button
                         onClick={() => setConfirmDeleteId(debt.id)}
-                        className="text-zinc-400 hover:text-red-500 transition-colors text-sm"
+                        className="text-zinc-500 dark:text-zinc-400 hover:text-red-500 transition-colors text-sm"
                         aria-label="Elimina"
                       >
                         🗑️
@@ -315,12 +319,12 @@ export default function DebitiPage() {
       {/* Add/Edit modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="debt-modal-title">
-          <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-700">
               <h2 id="debt-modal-title" className="text-lg font-bold text-zinc-900 dark:text-white">
                 {editingDebt ? 'Modifica debito' : 'Aggiungi debito'}
               </h2>
-              <button onClick={closeForm} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
+              <button onClick={closeForm} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
@@ -435,7 +439,7 @@ export default function DebitiPage() {
       {/* Confirm delete */}
       {confirmDeleteId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-debt-title">
-          <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
+          <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
             <h3 id="delete-debt-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Rimuovi debito</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Il debito verrà archiviato e non sarà più visibile.</p>
             <div className="flex gap-3">

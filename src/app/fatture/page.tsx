@@ -11,7 +11,9 @@ import {
   useMarkAsPaid,
   useDeleteInvoice,
 } from '@/hooks/useInvoices'
-import { formatCurrency } from '@/lib/utils'
+import { useSettings } from '@/hooks/useSettings'
+import { useModalA11y } from '@/hooks/useModalA11y'
+import { formatCurrency, getLocalDateString } from '@/lib/utils'
 import type { Invoice, InvoiceStatus, InvoiceRecurrence } from '@/types'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -38,7 +40,9 @@ const DAYS_IT   = ['Lun','Mar','Mer','Gio','Ven','Sab','Dom']
 
 export default function FatturePage() {
   const today = new Date()
+  const todayS = getLocalDateString(today)
   const { data: invoices = [], isLoading } = useInvoices()
+  const { data: settings } = useSettings()
   const createInvoice = useCreateInvoice()
   const updateInvoice = useUpdateInvoice()
   const markAsPaid    = useMarkAsPaid()
@@ -57,7 +61,7 @@ export default function FatturePage() {
   // Form state
   const [fName,        setFName]        = useState('')
   const [fAmount,      setFAmount]      = useState('')
-  const [fDueDate,     setFDueDate]     = useState(today.toISOString().split('T')[0])
+  const [fDueDate,     setFDueDate]     = useState(getLocalDateString(today))
   const [fRecurrence,  setFRecurrence]  = useState<InvoiceRecurrence>('once')
   const [fDescription, setFDescription] = useState('')
   const [fAutoRenew,   setFAutoRenew]   = useState(false)
@@ -71,17 +75,17 @@ export default function FatturePage() {
 
   const summary = useMemo(() => {
     const in30 = new Date(); in30.setDate(in30.getDate() + 30)
-    const in30s = in30.toISOString().split('T')[0]
-    const todayS = today.toISOString().split('T')[0]
+    const in30s = getLocalDateString(in30)
+    const currentMonthPrefix = todayS.slice(0, 7)
     return {
       upcoming: invoices.filter(i => i.status === 'pending' && i.due_date <= in30s).reduce((s, i) => s + i.amount, 0),
       overdue:  invoices.filter(i => i.status === 'overdue').reduce((s, i) => s + i.amount, 0),
-      paidMonth: invoices.filter(i => i.status === 'paid' && i.paid_date?.startsWith(`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`)).reduce((s, i) => s + i.amount, 0),
+      paidMonth: invoices.filter(i => i.status === 'paid' && i.paid_date?.startsWith(currentMonthPrefix)).reduce((s, i) => s + i.amount, 0),
       overdueCount: invoices.filter(i => i.status === 'overdue').length,
       upcomingCount: invoices.filter(i => i.status === 'pending' && i.due_date <= in30s).length,
       todayCount: invoices.filter(i => i.due_date === todayS && i.status !== 'paid' && i.status !== 'cancelled').length,
     }
-  }, [invoices, today])
+  }, [invoices, todayS])
 
   // Invoices indexed by day-of-month for calendar
   const calInvoices = useMemo(() => {
@@ -118,7 +122,7 @@ export default function FatturePage() {
     setShowForm(false)
     setEditingInvoice(null)
     setFName(''); setFAmount(''); setFDescription('')
-    setFDueDate(today.toISOString().split('T')[0])
+    setFDueDate(getLocalDateString(today))
     setFRecurrence('once'); setFAutoRenew(false)
   }
 
@@ -193,7 +197,7 @@ export default function FatturePage() {
 
   // ─── Render helpers ────────────────────────────────────────────────────────
 
-  const fmt = (n: number) => formatCurrency(n)
+  const fmt = (n: number) => formatCurrency(n, settings?.currency || 'EUR')
 
   const StatusBadge = ({ status }: { status: InvoiceStatus }) => (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_CONFIG[status].color}`}>
@@ -213,7 +217,8 @@ export default function FatturePage() {
     return { startOffset, daysInMonth }
   }, [calMonth, calYear])
 
-  const todayS = today.toISOString().split('T')[0]
+  const deleteModalRef = useModalA11y<HTMLDivElement>(!!confirmDeleteId, () => setConfirmDeleteId(null))
+  const formModalRef = useModalA11y<HTMLDivElement>(showForm, closeForm)
 
   // ─── JSX ──────────────────────────────────────────────────────────────────
 
@@ -256,7 +261,7 @@ export default function FatturePage() {
                 </span>
               )}
             </div>
-            <p className={`text-2xl font-bold ${summary.overdue > 0 ? 'text-red-600' : 'text-zinc-400 dark:text-zinc-500'}`}>
+            <p className={`text-2xl font-bold ${summary.overdue > 0 ? 'text-red-600' : 'text-zinc-500 dark:text-zinc-400'}`}>
               {fmt(summary.overdue)}
             </p>
           </div>
@@ -343,7 +348,7 @@ export default function FatturePage() {
                             ? <XCircle size={18} className="text-red-500" />
                             : isToday
                             ? <AlertTriangle size={18} className="text-amber-500" />
-                            : <Receipt size={18} className="text-zinc-400" />}
+                            : <Receipt size={18} className="text-zinc-500 dark:text-zinc-400" />}
                         </div>
 
                         {/* Center: info */}
@@ -352,7 +357,7 @@ export default function FatturePage() {
                             <span className="font-semibold text-zinc-900 dark:text-white text-sm">{inv.name}</span>
                             <StatusBadge status={inv.status} />
                             {inv.recurrence && inv.recurrence !== 'once' && (
-                              <span className="inline-flex items-center gap-1 text-xs text-zinc-400 bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">
+                              <span className="inline-flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">
                                 <RefreshCw size={10} /> {RECURRENCE_LABELS[inv.recurrence]}
                               </span>
                             )}
@@ -396,7 +401,7 @@ export default function FatturePage() {
                               onClick={() => openEditForm(inv)}
                               title="Modifica"
                               aria-label="Modifica fattura"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                             >
                               <Pencil size={14} />
                             </button>
@@ -404,7 +409,7 @@ export default function FatturePage() {
                               onClick={() => setConfirmDeleteId(inv.id)}
                               title="Elimina"
                               aria-label="Elimina fattura"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                             >
                               <X size={14} />
                             </button>
@@ -437,7 +442,7 @@ export default function FatturePage() {
               <div className="min-w-[280px]">
               <div className="grid grid-cols-7 border-b border-zinc-100 dark:border-zinc-700">
                 {DAYS_IT.map(d => (
-                  <div key={d} className="text-center text-[10px] sm:text-xs font-medium text-zinc-400 py-2 min-w-0 truncate">
+                  <div key={d} className="text-center text-[10px] sm:text-xs font-medium text-zinc-500 dark:text-zinc-400 py-2 min-w-0 truncate">
                     <span className="sm:hidden">{d.charAt(0)}</span>
                     <span className="hidden sm:inline">{d}</span>
                   </div>
@@ -462,8 +467,13 @@ export default function FatturePage() {
                   return (
                     <div
                       key={day}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isSelected}
+                      aria-label={`Giorno ${day}${dayInvoices.length ? `, ${dayInvoices.length} fattur${dayInvoices.length > 1 ? 'e' : 'a'}` : ''}`}
                       onClick={() => setSelectedDay(isSelected ? null : day)}
-                      className={`min-h-[40px] sm:min-h-[60px] min-w-0 overflow-hidden border-b border-r border-zinc-50 dark:border-zinc-700/50 p-1 sm:p-1.5 cursor-pointer transition-colors ${
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDay(isSelected ? null : day) } }}
+                      className={`min-h-[40px] sm:min-h-[60px] min-w-0 overflow-hidden border-b border-r border-zinc-50 dark:border-zinc-700/50 p-1 sm:p-1.5 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 ${
                         isSelected ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'hover:bg-zinc-50 dark:hover:bg-zinc-700/30'
                       } ${col === 6 ? 'border-r-0' : ''}`}
                     >
@@ -481,7 +491,7 @@ export default function FatturePage() {
                           />
                         ))}
                         {dayInvoices.length > 3 && (
-                          <span className="text-[9px] text-zinc-400">+{dayInvoices.length - 3}</span>
+                          <span className="text-[9px] text-zinc-500 dark:text-zinc-400">+{dayInvoices.length - 3}</span>
                         )}
                       </div>
                     </div>
@@ -511,7 +521,7 @@ export default function FatturePage() {
                   </h3>
                 </div>
                 {selectedDayInvoices.length === 0 ? (
-                  <p className="text-sm text-zinc-400 text-center py-6">Nessuna fattura in questa data</p>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-6">Nessuna fattura in questa data</p>
                 ) : (
                   <div className="divide-y divide-zinc-50 dark:divide-zinc-700/50">
                     {selectedDayInvoices.map(inv => (
@@ -520,7 +530,7 @@ export default function FatturePage() {
                           <StatusBadge status={inv.status} />
                           <span className="text-sm text-zinc-800 dark:text-zinc-200">{inv.name}</span>
                           {inv.recurrence && inv.recurrence !== 'once' && (
-                            <span className="text-xs text-zinc-400">🔄 {RECURRENCE_LABELS[inv.recurrence]}</span>
+                            <span className="text-xs text-zinc-500 dark:text-zinc-400">🔄 {RECURRENCE_LABELS[inv.recurrence]}</span>
                           )}
                         </div>
                         <div className="flex items-center gap-3">
@@ -547,7 +557,7 @@ export default function FatturePage() {
       {/* ─── MODAL: CONFERMA ELIMINAZIONE ─── */}
       {confirmDeleteId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-invoice-title">
-          <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
+          <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
             <h3 id="delete-invoice-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina fattura</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Questa azione è irreversibile.</p>
             <div className="flex gap-3">
@@ -572,10 +582,10 @@ export default function FatturePage() {
       {/* ─── MODAL: NUOVA FATTURA ─── */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="invoice-modal-title">
-          <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md">
+          <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-700">
               <h2 id="invoice-modal-title" className="text-lg font-bold text-zinc-900 dark:text-white">{editingInvoice ? 'Modifica fattura' : 'Nuova fattura'}</h2>
-              <button onClick={closeForm} className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
+              <button onClick={closeForm} aria-label="Chiudi" className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
             </div>
 
             <form onSubmit={handleCreate} className="p-6 space-y-4">

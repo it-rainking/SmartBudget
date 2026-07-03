@@ -153,15 +153,14 @@ export function useDeleteCategory() {
 
   return useMutation({
     mutationFn: async ({ type, id }: { type: 'income' | 'expense' | 'saving' | 'subcategory'; id: string }) => {
-      const table = type === 'income' ? 'income_categories'
-        : type === 'expense' ? 'expense_categories'
-        : type === 'saving' ? 'saving_categories'
-        : 'expense_subcategories'
-
-      const { error } = await supabase
-        .from(table)
-        .update({ is_active: false } as never)
-        .eq('id', id)
+      // Branched per-table (rather than a dynamic `.from(table)`) so each
+      // `.update()` call keeps its real column types instead of needing an
+      // `as never` cast to satisfy the union of all four tables' Update types.
+      const { error } =
+        type === 'income' ? await supabase.from('income_categories').update({ is_active: false }).eq('id', id)
+        : type === 'expense' ? await supabase.from('expense_categories').update({ is_active: false }).eq('id', id)
+        : type === 'saving' ? await supabase.from('saving_categories').update({ is_active: false }).eq('id', id)
+        : await supabase.from('expense_subcategories').update({ is_active: false }).eq('id', id)
 
       if (error) throw error
     },

@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { secretsMatch } from '@/lib/security'
 
 function escapeHtml(str: string): string {
   return str
@@ -18,7 +19,7 @@ function escapeHtml(str: string): string {
 export async function POST(req: Request) {
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
-  const isServerCall = cronSecret != null && authHeader === `Bearer ${cronSecret}`
+  const isServerCall = cronSecret != null && !!authHeader && secretsMatch(authHeader, `Bearer ${cronSecret}`)
 
   let body: { user_id?: string; title?: string; message?: string }
   try {

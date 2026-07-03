@@ -218,7 +218,7 @@ export default function DashboardMensilePage() {
               : <p className="text-2xl font-bold text-red-600">{fmt(kpis?.totalExpenses ?? 0)}</p>
             }
             {!isLoading && kpis?.prevMonthExpenses !== undefined && kpis.prevMonthExpenses > 0 && (
-              <p className="text-xs text-zinc-400 mt-1">Mese prec. {fmt(kpis.prevMonthExpenses)}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Mese prec. {fmt(kpis.prevMonthExpenses)}</p>
             )}
           </div>
 
@@ -233,7 +233,7 @@ export default function DashboardMensilePage() {
               : <p className="text-2xl font-bold text-blue-600">{fmt(kpis?.totalSavings ?? 0)}</p>
             }
             {!isLoading && (kpis?.savingsPercent ?? 0) > 0 && (
-              <p className="text-xs text-zinc-400 mt-1">{kpis?.savingsPercent}% delle entrate</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{kpis?.savingsPercent}% delle entrate</p>
             )}
           </div>
 
@@ -241,7 +241,7 @@ export default function DashboardMensilePage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Saldo netto</span>
-              <Wallet size={16} className="text-zinc-400" />
+              <Wallet size={16} className="text-zinc-500 dark:text-zinc-400" />
             </div>
             {isLoading
               ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
@@ -287,7 +287,7 @@ export default function DashboardMensilePage() {
                   {topCategory ? topCategory.name : '—'}
                 </p>
                 {topCategory && kpis?.topCategoryId && (
-                  <p className="text-xs text-zinc-400">{fmt(kpis.categoryBreakdown[kpis.topCategoryId])}</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">{fmt(kpis.categoryBreakdown[kpis.topCategoryId])}</p>
                 )}
               </div>
             </div>
@@ -348,12 +348,12 @@ export default function DashboardMensilePage() {
                       )
                     })}
                     {categoryBreakdown.length > 5 && (
-                      <p className="text-xs text-zinc-400">+{categoryBreakdown.length - 5} altre</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">+{categoryBreakdown.length - 5} altre</p>
                     )}
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-zinc-400 text-center py-8">Nessuna spesa registrata</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-8">Nessuna spesa registrata</p>
               )}
             </div>
 
@@ -457,7 +457,7 @@ export default function DashboardMensilePage() {
                         />
                       </div>
                     </div>
-                    <span className="text-xs text-zinc-400 w-8 text-right shrink-0">{pct}%</span>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400 w-8 text-right shrink-0">{pct}%</span>
                   </div>
                 )
               })}
@@ -501,8 +501,8 @@ export default function DashboardMensilePage() {
                 ))}
               </div>
             ) : !aiError && (
-              <p className="text-sm text-zinc-400 text-center py-4">
-                Premi "Analizza con AI" per ottenere 3 insight personalizzati sul mese selezionato.
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-4">
+                Premi &quot;Analizza con AI&quot; per ottenere 3 insight personalizzati sul mese selezionato.
               </p>
             )}
           </div>

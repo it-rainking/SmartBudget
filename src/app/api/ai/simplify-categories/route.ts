@@ -1,10 +1,13 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { checkRateLimit } from '@/lib/rateLimit'
 
 const MAX_DESCS_PER_CAT = 8
 const LOOKBACK_DAYS = 90
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
+const RATE_LIMIT = 10
+const RATE_WINDOW_MS = 10 * 60 * 1000
 
 // POST /api/ai/simplify-categories
 // Analizza le categorie e le transazioni recenti dell'utente e restituisce
@@ -19,6 +22,10 @@ export async function POST() {
   )
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+
+  if (!checkRateLimit(`ai:simplify-categories:${user.id}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+    return NextResponse.json({ error: 'Troppe richieste, riprova più tardi' }, { status: 429 })
+  }
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
   if (!ANTHROPIC_API_KEY) {

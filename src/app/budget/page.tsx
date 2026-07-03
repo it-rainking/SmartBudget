@@ -75,7 +75,7 @@ export default function BudgetPage() {
     }
   }
 
-  const getPlanned = (categoryId: string) => parseFloat(editingValues[categoryId] || '0') || 0
+  const getPlanned = (categoryId: string) => Math.max(0, parseFloat(editingValues[categoryId] || '0') || 0)
   const getActual = (categoryId: string) => actuals?.[categoryId] || 0
 
   const totalPlanned = getCategories().reduce((sum, cat) => sum + getPlanned(cat.id), 0)
@@ -97,6 +97,8 @@ export default function BudgetPage() {
         categoryId,
         plannedAmount: getPlanned(categoryId),
       })
+    } catch {
+      showToast('Errore durante il salvataggio del budget', 'error')
     } finally {
       setSavingId(null)
     }
@@ -187,10 +189,10 @@ export default function BudgetPage() {
             const actual = cats.reduce((sum, cat) => sum + (actuals?.[cat.id] || 0), 0)
             const pct = planned > 0 ? Math.min(Math.round((actual / planned) * 100), 100) : 0
             return (
-              <div key={tab.key} className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm">
+              <div key={tab.key} className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">{tab.label}</p>
                 <p className={`text-xl font-bold ${tab.color}`}>{fmt(actual)}</p>
-                <p className="text-xs text-zinc-400 mt-0.5">di {fmt(planned)} pianificati</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">di {fmt(planned)} pianificati</p>
                 <div className="mt-3 h-1.5 bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
@@ -199,7 +201,7 @@ export default function BudgetPage() {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <p className="text-xs text-zinc-400 mt-1">{pct}%</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{pct}%</p>
               </div>
             )
           })}
@@ -223,7 +225,7 @@ export default function BudgetPage() {
         </div>
 
         {/* Category Table */}
-        <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm overflow-hidden border border-zinc-100 dark:border-zinc-700">
           <div className="overflow-x-auto">
           <div className="min-w-[500px]">
           {/* Table Header */}
@@ -267,7 +269,7 @@ export default function BudgetPage() {
                           placeholder="0"
                         />
                         {savingId === cat.id && (
-                          <span className="text-xs text-zinc-400">...</span>
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400">...</span>
                         )}
                       </div>
                     </div>
@@ -279,7 +281,7 @@ export default function BudgetPage() {
                     <div className="col-span-2 text-right">
                       <span className={`text-sm font-semibold ${
                         planned === 0
-                          ? 'text-zinc-400'
+                          ? 'text-zinc-500 dark:text-zinc-400'
                           : isOver
                           ? 'text-red-500'
                           : 'text-emerald-600'
@@ -325,7 +327,7 @@ export default function BudgetPage() {
           </div>{/* overflow-x-auto */}
         </div>
 
-        <p className="text-xs text-zinc-400 text-center">
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 text-center">
           I valori pianificati vengono salvati automaticamente quando esci dal campo
         </p>
       </div>

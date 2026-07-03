@@ -2,7 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { Invoice, InvoiceStatus } from '@/types'
+import { getLocalDateString } from '@/lib/utils'
+import type { Invoice } from '@/types'
 
 export function useInvoices() {
   return useQuery({
@@ -45,7 +46,7 @@ export function useMarkAsPaid() {
 
   return useMutation({
     mutationFn: async ({ id, paidAmount }: { id: string; paidAmount?: number }) => {
-      const today = new Date().toISOString().split('T')[0]
+      const today = getLocalDateString()
       const { data, error } = await supabase
         .from('invoices')
         .update({ status: 'paid', paid_date: today, paid_amount: paidAmount ?? null })
@@ -93,7 +94,7 @@ export function useDeleteInvoice() {
 
 function applyDynamicStatus(invoice: Invoice): Invoice {
   if (invoice.status === 'paid' || invoice.status === 'cancelled') return invoice
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDateString()
   if (invoice.due_date < today) return { ...invoice, status: 'overdue' }
   return invoice
 }

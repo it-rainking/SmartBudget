@@ -79,7 +79,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <button
               onClick={signOut}
               aria-label="Esci dall'account"
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+              className="p-2.5 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
               title="Esci"
             >
               <LogOut size={16} />
@@ -102,7 +102,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <button
               onClick={signOut}
               aria-label="Esci dall'account"
-              className="p-2 rounded-lg text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+              className="p-2.5 rounded-lg text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
             >
               <LogOut size={16} />
             </button>
@@ -110,29 +110,33 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
 
         {/* Mobile Navigation */}
-        <nav className="flex overflow-x-auto px-3 pb-2 pt-1 gap-1 border-t border-zinc-100 dark:border-zinc-700">
-          {navigation.map((item) => {
-            const isActive = pathname.startsWith(item.href)
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                  isActive
-                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
-                    : 'text-zinc-600 dark:text-zinc-400'
-                }`}
-              >
-                <item.Icon size={13} className="shrink-0" />
-                {item.name}
-              </Link>
-            )
-          })}
-        </nav>
+        <div className="relative border-t border-zinc-100 dark:border-zinc-700">
+          <nav className="flex overflow-x-auto px-3 pb-2 pt-1 gap-1">
+            {navigation.map((item) => {
+              const isActive = pathname.startsWith(item.href)
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                    isActive
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
+                      : 'text-zinc-600 dark:text-zinc-400'
+                  }`}
+                >
+                  <item.Icon size={13} className="shrink-0" />
+                  {item.name}
+                </Link>
+              )
+            })}
+          </nav>
+          {/* Indica che la barra di navigazione scorre orizzontalmente */}
+          <div className="pointer-events-none absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-white dark:from-zinc-800 to-transparent" />
+        </div>
       </header>
 
       {/* Main Content */}
-      <main className="lg:pl-60 pt-28 lg:pt-0">
+      <main className="lg:pl-60 pt-32 lg:pt-0">
         <div className="p-4 sm:p-6 lg:p-8">
           <ToastProvider>
             {children}

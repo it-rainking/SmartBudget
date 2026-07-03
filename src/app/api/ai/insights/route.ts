@@ -1,6 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { checkRateLimit } from '@/lib/rateLimit'
+
+const RATE_LIMIT = 20
+const RATE_WINDOW_MS = 10 * 60 * 1000
 
 // Modello Claude da usare. Sovrascrivi con la variabile d'ambiente ANTHROPIC_MODEL.
 // claude-haiku-4-5-20251001  — veloce, economico ($0.80/$4.00 per MTok in/out)
@@ -20,6 +24,10 @@ export async function POST(req: Request) {
   )
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+
+  if (!checkRateLimit(`ai:insights:${user.id}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+    return NextResponse.json({ error: 'Troppe richieste, riprova più tardi' }, { status: 429 })
+  }
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
   if (!ANTHROPIC_API_KEY) {

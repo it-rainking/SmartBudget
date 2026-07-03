@@ -39,7 +39,7 @@ const PRIORITY_LABELS: Record<string, string> = {
 const PRIORITY_COLORS: Record<string, string> = {
   high: 'text-red-600 dark:text-red-400',
   medium: 'text-amber-600 dark:text-amber-400',
-  low: 'text-zinc-400 dark:text-zinc-500',
+  low: 'text-zinc-500 dark:text-zinc-400',
 }
 
 const CAT_TYPE_LABELS: Record<string, string> = {
@@ -63,7 +63,7 @@ function SuggestionCard({
             {TYPE_ICONS[suggestion.type]}
             {TYPE_LABELS[suggestion.type]}
           </span>
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">{CAT_TYPE_LABELS[suggestion.category_type]}</span>
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">{CAT_TYPE_LABELS[suggestion.category_type]}</span>
           <span className={`text-xs font-medium ${PRIORITY_COLORS[suggestion.priority]}`}>
             · {PRIORITY_LABELS[suggestion.priority]}
           </span>
@@ -78,7 +78,7 @@ function SuggestionCard({
 
       <button
         onClick={onDismiss}
-        className="flex-shrink-0 mt-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+        className="flex-shrink-0 mt-0.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
         aria-label="Ignora suggerimento"
       >
         <X size={15} />
@@ -110,7 +110,7 @@ function SuggestionDetail({ suggestion }: { suggestion: CategorySuggestion }) {
     case 'rename':
       return (
         <p className="text-sm text-zinc-700 dark:text-zinc-200">
-          <span className="font-medium line-through text-zinc-400">&quot;{suggestion.current_name}&quot;</span>
+          <span className="font-medium line-through text-zinc-500 dark:text-zinc-400">&quot;{suggestion.current_name}&quot;</span>
           {' → '}
           <span className="font-medium text-amber-600 dark:text-amber-400">&quot;{suggestion.suggested_name}&quot;</span>
           {suggestion.suggested_icon && ` ${suggestion.suggested_icon}`}
@@ -142,7 +142,7 @@ function SuggestionDetail({ suggestion }: { suggestion: CategorySuggestion }) {
             </span>
           </p>
           {suggestion.example_descriptions?.length ? (
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
               Es: {suggestion.example_descriptions.slice(0, 3).map(d => `"${d}"`).join(', ')}
             </p>
           ) : null}
@@ -211,7 +211,7 @@ export function AiCategorySuggestionsPanel() {
       {hasResult && !mutation.isPending && (
         <>
           {mutation.data && (
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-3">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3">
               Analizzate {mutation.data.analyzed_transactions} transazioni su {mutation.data.analyzed_categories} categorie
             </p>
           )}
@@ -229,7 +229,7 @@ export function AiCategorySuggestionsPanel() {
               )}
             </div>
           ) : (
-            <div className="text-center py-6 text-zinc-400 dark:text-zinc-500">
+            <div className="text-center py-6 text-zinc-500 dark:text-zinc-400">
               <Wand2 size={24} className="mx-auto mb-2 opacity-40" />
               <p className="text-sm">
                 {suggestions.length === 0

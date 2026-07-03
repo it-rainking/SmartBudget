@@ -7,6 +7,7 @@ import { useInvoices } from '@/hooks/useInvoices'
 import { useGoals } from '@/hooks/useGoals'
 import { useMonthlyKPIs } from '@/hooks/useTransactions'
 import { useMonthlyBudget } from '@/hooks/useBudget'
+import { getLocalDateString, daysBetween } from '@/lib/utils'
 
 export interface AppNotification {
   id: string
@@ -20,6 +21,7 @@ export function useNotifications() {
   const today = new Date()
   const month = today.getMonth() + 1
   const year = today.getFullYear()
+  const todayStr = getLocalDateString(today)
 
   const { data: invoices } = useInvoices()
   const { data: goals } = useGoals()
@@ -28,12 +30,11 @@ export function useNotifications() {
 
   const notifications = useMemo<AppNotification[]>(() => {
     const items: AppNotification[] = []
-    const todayStr = today.toISOString().split('T')[0]
 
     // Fatture in scadenza nei prossimi 7 giorni
     invoices?.forEach(inv => {
       if (inv.status === 'paid' || inv.status === 'cancelled') return
-      const diff = Math.ceil((new Date(inv.due_date).getTime() - today.getTime()) / 86400000)
+      const diff = daysBetween(todayStr, inv.due_date)
       if (diff >= 0 && diff <= 7) {
         items.push({
           id: `inv-due-${inv.id}`,
@@ -98,9 +99,8 @@ export function useNotifications() {
       })
     }
 
-    void todayStr
     return items
-  }, [invoices, goals, kpis, budget])
+  }, [invoices, goals, kpis, budget, todayStr])
 
   return notifications
 }

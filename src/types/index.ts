@@ -117,7 +117,7 @@ export interface Transaction {
   id: string
   user_id: string
   type: TransactionType
-  category_id: string
+  category_id: string | null
   subcategory_id: string | null
   amount: number
   date: string

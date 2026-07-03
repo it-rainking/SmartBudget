@@ -1,6 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { checkRateLimit } from '@/lib/rateLimit'
+
+const RATE_LIMIT = 5
+const RATE_WINDOW_MS = 60 * 60 * 1000
 
 // POST /api/notifications/test
 // Invia una notifica di test all'utente autenticato.
@@ -27,6 +31,10 @@ export async function POST() {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  if (!checkRateLimit(`notifications:test:${user.id}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+    return NextResponse.json({ error: 'Troppe richieste, riprova più tardi' }, { status: 429 })
   }
 
   // Inoltra a /api/notifications/send con un messaggio di test fisso

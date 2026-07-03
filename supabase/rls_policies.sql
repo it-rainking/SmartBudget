@@ -237,6 +237,12 @@ CREATE POLICY "Users can delete own goals"
 -- ============================================
 -- NOTIFICATIONS POLICIES
 -- ============================================
+-- Idempotent cleanup: an earlier schema version created a permissive INSERT
+-- policy on this table that let any authenticated user insert fake
+-- notifications. Drop it on every (re-)apply so upgraded projects can't be
+-- left with it active.
+DROP POLICY IF EXISTS "System can insert notifications" ON public.notifications;
+
 CREATE POLICY "Users can view own notifications"
     ON public.notifications FOR SELECT
     USING (auth.uid() = user_id);

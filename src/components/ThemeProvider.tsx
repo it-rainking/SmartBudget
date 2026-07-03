@@ -15,12 +15,11 @@ const ThemeContext = createContext<ThemeContextValue>({
 })
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('system')
-
-  useEffect(() => {
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return 'system'
     const stored = localStorage.getItem('theme') as Theme | null
-    if (stored === 'light' || stored === 'dark') setThemeState(stored)
-  }, [])
+    return stored === 'light' || stored === 'dark' ? stored : 'system'
+  })
 
   useEffect(() => {
     const root = document.documentElement

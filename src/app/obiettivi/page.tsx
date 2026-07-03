@@ -6,6 +6,7 @@ import { DashboardLayout } from '@/components/DashboardLayout'
 import { useGoals, useCreateGoal, useUpdateGoal, useAddGoalProgress, useCompleteGoal, useDeleteGoal } from '@/hooks/useGoals'
 import { useSettings } from '@/hooks/useSettings'
 import { useToast } from '@/components/Toast'
+import { useModalA11y } from '@/hooks/useModalA11y'
 import { formatCurrency } from '@/lib/utils'
 import type { GoalType, Goal } from '@/types'
 
@@ -189,6 +190,10 @@ export default function ObiettiviPage() {
     return Math.ceil((deadlineDate.getTime() - today.getTime()) / 86400000)
   }
 
+  const formModalRef = useModalA11y<HTMLDivElement>(showModal, closeModal)
+  const progressModalRef = useModalA11y<HTMLDivElement>(!!progressModal, () => setProgressModal(null))
+  const deleteModalRef = useModalA11y<HTMLDivElement>(!!confirmDeleteGoalId, () => setConfirmDeleteGoalId(null))
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -332,11 +337,18 @@ export default function ObiettiviPage() {
                       const today = new Date()
                       const [dy, dm] = goal.deadline.split('-').map(Number)
                       const deadline = new Date(dy, dm - 1, 1)
-                      const monthsLeft = Math.max(1, (deadline.getFullYear() - today.getFullYear()) * 12 + (deadline.getMonth() - today.getMonth()))
-                      const needed = (goal.target_amount - goal.current_amount) / monthsLeft
+                      const rawMonthsLeft = (deadline.getFullYear() - today.getFullYear()) * 12 + (deadline.getMonth() - today.getMonth())
+                      if (rawMonthsLeft <= 0) {
+                        return (
+                          <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+                            Scadenza superata: obiettivo non ancora raggiunto
+                          </p>
+                        )
+                      }
+                      const needed = (goal.target_amount - goal.current_amount) / rawMonthsLeft
                       return (
-                        <p className="text-xs text-zinc-400 mt-1">
-                          Risparmia {formatCurrency(needed, settings?.currency || 'EUR')}/mese per raggiungere l&apos;obiettivo
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                          Risparmia {fmt(needed)}/mese per raggiungere l&apos;obiettivo
                         </p>
                       )
                     })()}
@@ -376,14 +388,14 @@ export default function ObiettiviPage() {
                       <button
                         onClick={() => openEditForm(goal)}
                         aria-label="Modifica obiettivo"
-                        className="py-1.5 px-2.5 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
+                        className="py-1.5 px-2.5 text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         onClick={() => setConfirmDeleteGoalId(goal.id)}
                         aria-label="Elimina obiettivo"
-                        className="py-1.5 px-2.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        className="py-1.5 px-2.5 text-zinc-500 dark:text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -393,14 +405,14 @@ export default function ObiettiviPage() {
                       <button
                         onClick={() => openEditForm(goal)}
                         aria-label="Modifica obiettivo"
-                        className="py-1.5 px-2.5 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
+                        className="py-1.5 px-2.5 text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         onClick={() => setConfirmDeleteGoalId(goal.id)}
                         aria-label="Elimina obiettivo"
-                        className="py-1.5 px-2.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        className="py-1.5 px-2.5 text-zinc-500 dark:text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -435,10 +447,10 @@ export default function ObiettiviPage() {
       {/* New Goal Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="goal-modal-title">
-          <div className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-md shadow-2xl">
+          <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-700">
               <h2 id="goal-modal-title" className="text-lg font-semibold text-zinc-900 dark:text-white">{editingGoal ? 'Modifica Obiettivo' : 'Nuovo Obiettivo'}</h2>
-              <button onClick={closeModal} className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
+              <button onClick={closeModal} aria-label="Chiudi" className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
               <div>
@@ -539,10 +551,10 @@ export default function ObiettiviPage() {
       {/* Add Progress Modal */}
       {progressModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="progress-modal-title">
-          <div className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl">
+          <div ref={progressModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-700">
               <h2 id="progress-modal-title" className="text-lg font-semibold text-zinc-900 dark:text-white">Aggiungi Progresso</h2>
-              <button onClick={() => setProgressModal(null)} className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
+              <button onClick={() => setProgressModal(null)} aria-label="Chiudi" className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
             </div>
             <form onSubmit={handleAddProgress} className="p-6 space-y-4">
               <div>
@@ -584,7 +596,7 @@ export default function ObiettiviPage() {
       {/* Confirm delete obiettivo */}
       {confirmDeleteGoalId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-goal-title">
-          <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
+          <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
             <h3 id="delete-goal-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina obiettivo</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Questa azione è irreversibile.</p>
             <div className="flex gap-3">

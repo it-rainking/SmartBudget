@@ -15,6 +15,29 @@ export interface ParsedTransaction {
 
 // ─── CSV Parser ────────────────────────────────────────────────────────────────
 
+// Parses a locale-formatted amount string, handling both European
+// (1.234,56 — dot=thousands, comma=decimal) and US (1,234.56 —
+// comma=thousands, dot=decimal) conventions. A naive `.replace(',', '.')`
+// mangles either format's thousands separator into a bogus decimal point
+// (e.g. "1.234,56" -> 1.234 instead of 1234.56).
+function parseLocaleAmount(raw: string): number {
+  const s = raw.trim()
+  if (!s) return NaN
+  if (/^-?\d{1,3}(\.\d{3})+,\d+$/.test(s)) {
+    return parseFloat(s.replace(/\./g, '').replace(',', '.'))
+  }
+  if (/^-?\d{1,3}(,\d{3})+\.\d+$/.test(s)) {
+    return parseFloat(s.replace(/,/g, ''))
+  }
+  if (/^-?\d{1,3}(,\d{3})+$/.test(s)) {
+    return parseFloat(s.replace(/,/g, ''))
+  }
+  if (/^-?\d+,\d{1,2}$/.test(s)) {
+    return parseFloat(s.replace(',', '.'))
+  }
+  return parseFloat(s.replace(',', '.'))
+}
+
 function splitCSVLine(line: string, sep: string): string[] {
   const result: string[] = []
   let current = ''
@@ -71,12 +94,16 @@ export function parseCSV(text: string): ParsedTransaction[] {
     const raw = {
       date: cols[dateCol] ?? '',
       type: cols[typeCol]?.toLowerCase() ?? 'expense',
-      amount: parseFloat(cols[amountCol]?.replace(',', '.') ?? '0'),
+      amount: parseLocaleAmount(cols[amountCol] ?? '0'),
       description: descCol !== -1 ? (cols[descCol] ?? '') : '',
       method: methodCol !== -1 ? (cols[methodCol] ?? null) : null,
     }
 
-    if (!raw.date || isNaN(raw.amount) || raw.amount <= 0) continue
+    // Bank exports commonly encode expenses as negative amounts — take the
+    // magnitude instead of silently discarding the row (only drop rows with
+    // no date or a genuinely unparseable/zero amount).
+    if (!raw.date || isNaN(raw.amount) || raw.amount === 0) continue
+    raw.amount = Math.abs(raw.amount)
 
     // Normalize date: try YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY
     let date = raw.date

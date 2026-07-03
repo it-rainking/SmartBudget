@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/Toast'
 import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/components/ThemeProvider'
+import { useModalA11y } from '@/hooks/useModalA11y'
 
 const CURRENCIES = [
   { code: 'EUR', label: 'Euro (€)' },
@@ -206,15 +207,21 @@ export default function SettingsPage() {
         income: 'Entrata', expense: 'Spesa', saving: 'Risparmio', debt: 'Debito',
       }
 
+      // Prefissa con un apice i campi che iniziano con =, +, -, @, tab o CR:
+      // impedisce che un foglio di calcolo (Excel/Sheets) li interpreti come formule
+      // (CSV/formula injection) quando il file esportato viene riaperto.
+      const escapeCsvFormula = (value: string) =>
+        /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+
       const rows = [
         ['Data', 'Tipo', 'Categoria', 'Importo', 'Descrizione', 'Metodo di pagamento'].join(';'),
         ...(transactions ?? []).map(t => [
           t.date,
           TYPE_IT[t.type] ?? t.type,
-          t.category_id ? (catMap[t.category_id] ?? '') : 'Non categorizzato',
+          escapeCsvFormula(t.category_id ? (catMap[t.category_id] ?? '') : 'Non categorizzato'),
           String(t.amount).replace('.', ','),
-          (t.description ?? '').replace(/;/g, ','),
-          t.payment_method ?? '',
+          escapeCsvFormula((t.description ?? '').replace(/;/g, ',')),
+          escapeCsvFormula(t.payment_method ?? ''),
         ].join(';')),
       ]
 
@@ -236,28 +243,19 @@ export default function SettingsPage() {
   async function handleDeleteAccount() {
     if (deleteInput !== 'ELIMINA' || !user) return
     try {
-      const uid = user.id
-      await Promise.all([
-        supabase.from('transactions').delete().eq('user_id', uid),
-        supabase.from('invoices').delete().eq('user_id', uid),
-        supabase.from('goals').delete().eq('user_id', uid),
-        supabase.from('notifications').delete().eq('user_id', uid),
-      ])
-      await supabase.from('monthly_budget_items').delete().eq('user_id', uid)
-      await supabase.from('monthly_budgets').delete().eq('user_id', uid)
-      await Promise.all([
-        supabase.from('expense_subcategories').delete().eq('user_id', uid),
-        supabase.from('income_categories').delete().eq('user_id', uid),
-        supabase.from('expense_categories').delete().eq('user_id', uid),
-        supabase.from('saving_categories').delete().eq('user_id', uid),
-      ])
-      await supabase.from('settings').delete().eq('user_id', uid)
+      const res = await fetch('/api/account/delete', { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error ?? 'Errore durante l\'eliminazione')
+      }
       await signOut()
       router.push('/login')
     } catch {
       showToast('Errore durante l\'eliminazione', 'error')
     }
   }
+
+  const deleteModalRef = useModalA11y<HTMLDivElement>(showDeleteConfirm, () => { setShowDeleteConfirm(false); setDeleteInput('') })
 
   return (
     <DashboardLayout>
@@ -281,7 +279,7 @@ export default function SettingsPage() {
                 {user?.user_metadata?.full_name || 'Utente'}
               </p>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">{user?.email}</p>
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
                 Account creato il {user?.created_at ? new Date(user.created_at).toLocaleDateString('it-IT') : '—'}
               </p>
             </div>
@@ -329,7 +327,7 @@ export default function SettingsPage() {
                   onChange={e => { setInitialBalance(e.target.value); markDirty() }}
                   className="w-full px-3 py-2.5 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">Saldo di partenza usato come base per i calcoli</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Saldo di partenza usato come base per i calcoli</p>
               </div>
 
               <div>
@@ -422,7 +420,7 @@ export default function SettingsPage() {
                   placeholder="123456789"
                   className="w-full px-3 py-2.5 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
                   Apri prima una chat con il tuo bot (creato su @BotFather) e invia /start, altrimenti Telegram blocca i messaggi.
                   Poi scrivi a @userinfobot per ottenere il tuo Chat ID.
                 </p>
@@ -501,7 +499,7 @@ export default function SettingsPage() {
       {/* Delete confirm modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="delete-account-title">
-          <div className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl p-6">
+          <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl p-6">
             <div className="text-center mb-4">
               <AlertTriangle size={44} className="text-amber-500 mx-auto mb-2" />
               <h2 id="delete-account-title" className="text-lg font-bold text-zinc-900 dark:text-white">Eliminare tutti i dati?</h2>
