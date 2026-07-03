@@ -5,6 +5,7 @@ import { parseCSV, parseOFX, useImportTransactions, type ParsedTransaction } fro
 import { useToast } from '@/components/Toast'
 import { useSettings } from '@/hooks/useSettings'
 import { useExpenseCategories, useIncomeCategories } from '@/hooks/useCategories'
+import { useModalA11y } from '@/hooks/useModalA11y'
 import { formatCurrency } from '@/lib/utils'
 
 const TYPE_LABELS = { income: 'Entrata', expense: 'Spesa', saving: 'Risparmio' }
@@ -37,6 +38,8 @@ export function ImportCSVModal({ onClose }: Props) {
 
   const currency = settings?.currency || 'EUR'
   const fmt = (n: number) => formatCurrency(n, currency)
+
+  const modalRef = useModalA11y<HTMLDivElement>(true, onClose)
 
   function handleFile(file: File) {
     setParseError(null)
@@ -146,7 +149,7 @@ export function ImportCSVModal({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
-      <div className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+      <div ref={modalRef} className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-700 flex-shrink-0">
@@ -156,7 +159,7 @@ export function ImportCSVModal({ onClose }: Props) {
               <p className="text-xs text-zinc-500 dark:text-zinc-400">{fileName} — {rows.length} righe trovate</p>
             )}
           </div>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
+          <button onClick={onClose} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -166,10 +169,14 @@ export function ImportCSVModal({ onClose }: Props) {
             <div className="p-6 space-y-4">
               {/* Drop zone */}
               <div
+                role="button"
+                tabIndex={0}
+                aria-label="Seleziona un file da importare"
                 onDragOver={e => e.preventDefault()}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-zinc-300 dark:border-zinc-600 rounded-xl p-10 text-center cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-colors"
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
+                className="border-2 border-dashed border-zinc-300 dark:border-zinc-600 rounded-xl p-10 text-center cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
               >
                 <div className="text-4xl mb-3">📂</div>
                 <p className="font-medium text-zinc-700 dark:text-zinc-300">Trascina qui il file</p>
@@ -267,7 +274,7 @@ export function ImportCSVModal({ onClose }: Props) {
                               ✨ {row.category_name}
                             </span>
                           ) : (
-                            <span className="text-xs text-zinc-400">—</span>
+                            <span className="text-xs text-zinc-500 dark:text-zinc-400">—</span>
                           )}
                         </td>
                         <td className="px-3 py-2">

@@ -144,6 +144,7 @@ export function useActualAmountsByCategory(month: number, year: number) {
 
       const actuals: Record<string, number> = {}
       data?.forEach((t) => {
+        if (!t.category_id) return
         actuals[t.category_id] = (actuals[t.category_id] || 0) + Number(t.amount)
       })
       return actuals

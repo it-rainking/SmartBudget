@@ -8,7 +8,8 @@ import { useIncomeCategories, useExpenseCategories, useSavingCategories, useInit
 import { useToast } from '@/components/Toast'
 import { ImportCSVModal } from '@/components/ImportCSVModal'
 import { useSettings } from '@/hooks/useSettings'
-import { formatCurrency } from '@/lib/utils'
+import { useModalA11y } from '@/hooks/useModalA11y'
+import { formatCurrency, getLocalDateString } from '@/lib/utils'
 import type { TransactionType, Transaction } from '@/types'
 
 const MONTHS = [
@@ -21,6 +22,7 @@ const PAYMENT_METHODS = [
 ]
 
 const PAGE_SIZE = 20
+const UNCATEGORIZED = '__uncategorized__'
 
 export default function TransazioniPage() {
   const currentDate = new Date()
@@ -30,6 +32,7 @@ export default function TransazioniPage() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [showImport, setShowImport] = useState(false)
   const [filterType, setFilterType] = useState<TransactionType | ''>('')
+  const [filterCategoryId, setFilterCategoryId] = useState('')
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('')
   const [filterMinAmount, setFilterMinAmount] = useState('')
   const [filterMaxAmount, setFilterMaxAmount] = useState('')
@@ -46,7 +49,7 @@ export default function TransazioniPage() {
   const [formType, setFormType] = useState<TransactionType>('expense')
   const [formCategoryId, setFormCategoryId] = useState('')
   const [formAmount, setFormAmount] = useState('')
-  const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0])
+  const [formDate, setFormDate] = useState(getLocalDateString())
   const [formDescription, setFormDescription] = useState('')
   const [formPaymentMethod, setFormPaymentMethod] = useState('')
   const [formIsRecurring, setFormIsRecurring] = useState(false)
@@ -58,9 +61,10 @@ export default function TransazioniPage() {
     type: filterType || undefined,
     payment_method: filterPaymentMethod || undefined,
   })
-  const { data: incomeCategories } = useIncomeCategories()
-  const { data: expenseCategories } = useExpenseCategories()
-  const { data: savingCategories } = useSavingCategories()
+  const { data: incomeCategories, isLoading: incomeCategoriesLoading } = useIncomeCategories()
+  const { data: expenseCategories, isLoading: expenseCategoriesLoading } = useExpenseCategories()
+  const { data: savingCategories, isLoading: savingCategoriesLoading } = useSavingCategories()
+  const categoriesLoading = incomeCategoriesLoading || expenseCategoriesLoading || savingCategoriesLoading
 
   // Mutations
   const createTransaction = useCreateTransaction()
@@ -68,14 +72,9 @@ export default function TransazioniPage() {
   const deleteTransaction = useDeleteTransaction()
   const initializeCategories = useInitializeCategories()
 
-  // Shortcut tastiera: Ctrl+N = nuova transazione, Esc = chiudi modal
+  // Shortcut tastiera: Ctrl+N = nuova transazione (Esc è gestito per-modal da useModalA11y)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (confirmDeleteId) { setConfirmDeleteId(null); return }
-        if (showForm) { closeForm(); return }
-        if (showImport) setShowImport(false)
-      }
       if (e.ctrlKey && e.key === 'n') {
         e.preventDefault()
         if (!showForm && !showImport) setShowForm(true)
@@ -83,20 +82,30 @@ export default function TransazioniPage() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showForm, showImport, confirmDeleteId])
+  }, [showForm, showImport])
 
-  // Check if categories exist
-  const hasCategories = (incomeCategories?.length || 0) > 0 ||
+  // Check if categories exist (while categories are still loading, assume
+  // they exist to avoid flashing the "missing categories" banner/re-init
+  // button for a returning user who already has them)
+  const hasCategories = categoriesLoading || (incomeCategories?.length || 0) > 0 ||
                         (expenseCategories?.length || 0) > 0 ||
                         (savingCategories?.length || 0) > 0
 
-  // Filtra client-side per descrizione e range importo
+  // Filtra client-side per descrizione, range importo e categoria
   const filteredTransactions = transactions?.filter(t => {
     if (searchTerm && !t.description?.toLowerCase().includes(searchTerm.toLowerCase())) return false
     if (filterMinAmount && t.amount < parseFloat(filterMinAmount)) return false
     if (filterMaxAmount && t.amount > parseFloat(filterMaxAmount)) return false
+    if (filterCategoryId === UNCATEGORIZED && t.category_id) return false
+    if (filterCategoryId && filterCategoryId !== UNCATEGORIZED && t.category_id !== filterCategoryId) return false
     return true
   })
+
+  const allCategories = [
+    ...(incomeCategories ?? []),
+    ...(expenseCategories ?? []),
+    ...(savingCategories ?? []),
+  ]
 
   const totalPages = Math.ceil((filteredTransactions?.length ?? 0) / PAGE_SIZE)
   const paginatedTransactions = filteredTransactions?.slice(
@@ -153,7 +162,7 @@ export default function TransazioniPage() {
     setFormDescription('')
     setFormCategoryId('')
     setFormPaymentMethod('')
-    setFormDate(new Date().toISOString().split('T')[0])
+    setFormDate(getLocalDateString())
     setFormIsRecurring(false)
     setEditingTransaction(null)
     setShowForm(false)
@@ -225,6 +234,9 @@ export default function TransazioniPage() {
       case 'debt': return 'Debito'
     }
   }
+
+  const formModalRef = useModalA11y<HTMLDivElement>(showForm, closeForm)
+  const deleteModalRef = useModalA11y<HTMLDivElement>(!!confirmDeleteId, () => setConfirmDeleteId(null))
 
   return (
     <DashboardLayout>
@@ -327,6 +339,20 @@ export default function TransazioniPage() {
           {showAdvancedFilters && (
             <div className="mt-3 flex flex-wrap gap-3 items-end">
               <div className="flex flex-col gap-1">
+                <label className="text-xs text-zinc-500 dark:text-zinc-400">Categoria</label>
+                <select
+                  value={filterCategoryId}
+                  onChange={e => { setFilterCategoryId(e.target.value); setCurrentPage(1) }}
+                  className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
+                >
+                  <option value="">Tutte</option>
+                  <option value={UNCATEGORIZED}>Non categorizzato</option>
+                  {allCategories.map(c => (
+                    <option key={c.id} value={c.id}>{c.icon ? `${c.icon} ` : ''}{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
                 <label className="text-xs text-zinc-500 dark:text-zinc-400">Metodo pagamento</label>
                 <select
                   value={filterPaymentMethod}
@@ -361,9 +387,10 @@ export default function TransazioniPage() {
                   className="w-28 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
                 />
               </div>
-              {(filterPaymentMethod || filterMinAmount || filterMaxAmount) && (
+              {(filterCategoryId || filterPaymentMethod || filterMinAmount || filterMaxAmount) && (
                 <button
                   onClick={() => {
+                    setFilterCategoryId('')
                     setFilterPaymentMethod('')
                     setFilterMinAmount('')
                     setFilterMaxAmount('')
@@ -416,7 +443,7 @@ export default function TransazioniPage() {
                           <span title="Ricorrente" className="text-xs text-blue-400 shrink-0">🔄</span>
                         )}
                       </div>
-                      <p className="text-xs text-zinc-400">{(() => { const [y, m, d] = transaction.date.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('it-IT') })()}</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">{(() => { const [y, m, d] = transaction.date.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('it-IT') })()}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 sm:gap-4 shrink-0">
@@ -426,14 +453,14 @@ export default function TransazioniPage() {
                     <button
                       onClick={() => openEditForm(transaction)}
                       aria-label="Modifica transazione"
-                      className="p-1 rounded-lg text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                      className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                     >
                       <Pencil size={14} />
                     </button>
                     <button
                       onClick={() => setConfirmDeleteId(transaction.id)}
                       aria-label="Elimina transazione"
-                      className="p-1 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -474,9 +501,10 @@ export default function TransazioniPage() {
       {/* Add Transaction Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="transaction-modal-title">
-          <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md">
-            <div className="p-6 border-b border-zinc-200 dark:border-zinc-700">
+          <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md">
+            <div className="p-6 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
               <h2 id="transaction-modal-title" className="text-xl font-bold text-zinc-900 dark:text-white">{editingTransaction ? 'Modifica Transazione' : 'Nuova Transazione'}</h2>
+              <button type="button" onClick={closeForm} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -591,7 +619,7 @@ export default function TransazioniPage() {
               <div className="flex items-center justify-between py-1">
                 <div>
                   <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Transazione ricorrente</p>
-                  <p className="text-xs text-zinc-400">Es. affitto, abbonamento mensile</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Es. affitto, abbonamento mensile</p>
                 </div>
                 <button
                   type="button"
@@ -628,7 +656,7 @@ export default function TransazioniPage() {
       {/* Confirm delete modal */}
       {confirmDeleteId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-tx-title">
-          <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
+          <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
             <h3 id="delete-tx-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina transazione</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Questa azione è irreversibile.</p>
             <div className="flex gap-3">
@@ -639,14 +667,20 @@ export default function TransazioniPage() {
                 Annulla
               </button>
               <button
-                onClick={() => {
-                  deleteTransaction.mutate(confirmDeleteId)
-                  showToast('Transazione eliminata', 'info')
-                  setConfirmDeleteId(null)
+                onClick={async () => {
+                  try {
+                    await deleteTransaction.mutateAsync(confirmDeleteId)
+                    showToast('Transazione eliminata', 'info')
+                  } catch {
+                    showToast('Errore durante l\'eliminazione', 'error')
+                  } finally {
+                    setConfirmDeleteId(null)
+                  }
                 }}
-                className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors"
+                disabled={deleteTransaction.isPending}
+                className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-medium transition-colors"
               >
-                Elimina
+                {deleteTransaction.isPending ? 'Eliminazione...' : 'Elimina'}
               </button>
             </div>
           </div>

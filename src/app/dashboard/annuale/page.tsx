@@ -127,7 +127,7 @@ export default function DashboardAnnualePage() {
             { label: 'Entrate totali',  value: data?.totals.income   ?? 0, color: 'text-emerald-600', Icon: TrendingUp,   iconColor: 'text-emerald-500' },
             { label: 'Spese totali',    value: data?.totals.expenses ?? 0, color: 'text-red-600',     Icon: TrendingDown, iconColor: 'text-red-500' },
             { label: 'Risparmi totali', value: data?.totals.savings  ?? 0, color: 'text-blue-600',    Icon: PiggyBank,    iconColor: 'text-blue-500' },
-            { label: 'Saldo netto',     value: data?.totals.balance  ?? 0, color: (data?.totals.balance ?? 0) >= 0 ? 'text-zinc-900 dark:text-white' : 'text-red-600', Icon: Wallet, iconColor: 'text-zinc-400' },
+            { label: 'Saldo netto',     value: data?.totals.balance  ?? 0, color: (data?.totals.balance ?? 0) >= 0 ? 'text-zinc-900 dark:text-white' : 'text-red-600', Icon: Wallet, iconColor: 'text-zinc-500 dark:text-zinc-400' },
           ].map(card => (
             <div key={card.label} className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
               <div className="flex items-center justify-between mb-3">
@@ -256,7 +256,7 @@ export default function DashboardAnnualePage() {
                     <div key={item.label} className="px-5 py-4">
                       <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">{item.label}</p>
                       <p className={`text-sm font-bold ${item.color}`}>{fmt(item.curr)}</p>
-                      <p className="text-xs text-zinc-400 mt-0.5">vs {fmt(item.prev)}</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">vs {fmt(item.prev)}</p>
                       {d !== null && (
                         <span className={`inline-block mt-1 text-xs font-semibold px-1.5 py-0.5 rounded-full ${
                           d > 0

@@ -1,11 +1,13 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { secretsMatch } from '@/lib/security'
+import type { Database } from '@/types/database'
 
 // Cron worker server-side: calcola notifiche automatiche, deduplica, persiste e invia
 export async function POST(req: Request) {
   const cronSecret = process.env.CRON_SECRET
   const authHeader = req.headers.get('authorization')
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || !authHeader || !secretsMatch(authHeader, `Bearer ${cronSecret}`)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -31,9 +33,8 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, processed: sent })
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function processUserNotifications(
-  supabase: any,
+  supabase: SupabaseClient<Database>,
   userId: string,
   today: string
 ) {
@@ -51,7 +52,7 @@ async function processUserNotifications(
   ])
 
   const notifications: Array<{
-    type: string
+    type: 'bill_due' | 'goal_progress'
     title: string
     message: string
     data: Record<string, unknown>
@@ -107,8 +108,7 @@ async function processUserNotifications(
 
   const recentKeys = new Set(
     (recent ?? []).map(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (n: any) => `${n.type}:${(n.data as Record<string, unknown>)?.source_id ?? ''}`
+      (n) => `${n.type}:${(n.data as Record<string, unknown> | null)?.source_id ?? ''}`
     )
   )
 

@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation'
 import { useSettings, useCompleteOnboarding } from '@/hooks/useSettings'
 
 const CURRENCIES = [
-  { code: 'EUR', label: 'Euro (€)' },
-  { code: 'USD', label: 'Dollaro ($)' },
-  { code: 'GBP', label: 'Sterlina (£)' },
-  { code: 'CHF', label: 'Franco Svizzero (CHF)' },
+  { code: 'EUR', label: 'Euro (€)', symbol: '€' },
+  { code: 'USD', label: 'Dollaro ($)', symbol: '$' },
+  { code: 'GBP', label: 'Sterlina (£)', symbol: '£' },
+  { code: 'CHF', label: 'Franco Svizzero (CHF)', symbol: 'CHF' },
 ]
 
 const DEFAULT_CATEGORIES = {
@@ -127,8 +127,8 @@ export default function OnboardingPage() {
                     Saldo iniziale (opzionale)
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 font-medium">
-                      {CURRENCIES.find(c => c.code === currency)?.label.slice(-2, -1)}
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 dark:text-zinc-400 font-medium">
+                      {CURRENCIES.find(c => c.code === currency)?.symbol}
                     </span>
                     <input
                       type="number"

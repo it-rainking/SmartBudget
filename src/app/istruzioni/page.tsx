@@ -150,7 +150,7 @@ const sections: Section[] = [
           <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
             <h4 className="font-semibold text-zinc-900 dark:text-white mb-1">Import da CSV</h4>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">
-              Clicca su <strong>"Importa CSV"</strong> per caricare un file con più transazioni in una volta sola.
+              Clicca su <strong>&quot;Importa CSV&quot;</strong> per caricare un file con più transazioni in una volta sola.
               Il sistema rileva automaticamente il separatore (<code>,</code> o <code>;</code>).
             </p>
             <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">Colonne supportate:</p>
@@ -191,7 +191,7 @@ const sections: Section[] = [
       <div className="space-y-4">
         <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">
           Il modulo Budget ti permette di pianificare quanto vuoi spendere in ogni categoria e confrontarlo
-          con l'effettivo a fine mese.
+          con l&apos;effettivo a fine mese.
         </p>
         <ol className="space-y-3">
           {[
@@ -224,7 +224,7 @@ const sections: Section[] = [
         </ol>
         <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
           <p className="text-sm text-amber-800 dark:text-amber-300">
-            <strong>Attenzione:</strong> se il budget pianificato supera il 110% dell'effettivo, riceverai
+            <strong>Attenzione:</strong> se la spesa effettiva supera il 110% del budget pianificato, riceverai
             una notifica di allerta nel campanellino in alto a destra.
           </p>
         </div>
@@ -301,7 +301,7 @@ const sections: Section[] = [
         </div>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           Quando un obiettivo raggiunge il <strong>90% o più</strong>, ricevi una notifica di incoraggiamento
-          nel campanellino. Al 100% l'obiettivo viene marcato come completato.
+          nel campanellino. Al 100% l&apos;obiettivo viene marcato come completato.
         </p>
       </div>
     ),
@@ -347,7 +347,7 @@ const sections: Section[] = [
     content: (
       <div className="space-y-4">
         <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">
-          Dalla pagina Impostazioni puoi personalizzare il comportamento dell'app e gestire il tuo account.
+          Dalla pagina Impostazioni puoi personalizzare il comportamento dell&apos;app e gestire il tuo account.
         </p>
         <div className="space-y-3">
           {[
@@ -421,7 +421,7 @@ export default function IstruzioniPage() {
     <DashboardLayout>
       <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Guida all'uso</h1>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Guida all&apos;uso</h1>
           <p className="text-zinc-500 dark:text-zinc-400 mt-1">
             Tutto quello che ti serve per usare SmartBudget al meglio.
           </p>

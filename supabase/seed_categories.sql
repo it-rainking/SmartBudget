@@ -6,6 +6,20 @@
 CREATE OR REPLACE FUNCTION public.create_default_categories(p_user_id UUID)
 RETURNS void AS $$
 BEGIN
+    -- SECURITY DEFINER bypasses RLS, so we must enforce ownership explicitly:
+    -- a caller may only seed categories for their own account.
+    IF p_user_id IS DISTINCT FROM auth.uid() THEN
+        RAISE EXCEPTION 'not authorized';
+    END IF;
+
+    -- Idempotency guard: a retried onboarding call (e.g. after a partial
+    -- network failure) must not duplicate the default category set.
+    IF EXISTS (SELECT 1 FROM public.income_categories WHERE user_id = p_user_id)
+        OR EXISTS (SELECT 1 FROM public.expense_categories WHERE user_id = p_user_id)
+        OR EXISTS (SELECT 1 FROM public.saving_categories WHERE user_id = p_user_id) THEN
+        RETURN;
+    END IF;
+
     -- Default Income Categories
     INSERT INTO public.income_categories (user_id, name, icon, color, sort_order) VALUES
     (p_user_id, 'Stipendio',     '💼', '#10b981', 1),
@@ -26,7 +40,8 @@ BEGIN
     (p_user_id, 'Istruzione',      '📚', '#6366f1',  8),
     (p_user_id, 'Viaggi',          '✈️', '#8b5cf6',  9),
     (p_user_id, 'Abbonamenti',     '📱', '#a855f7', 10),
-    (p_user_id, 'Altro',           '📦', '#71717a', 11);
+    (p_user_id, 'Altro',           '📦', '#71717a', 11),
+    (p_user_id, 'Non categorizzato', '❓', '#a1a1aa', 12);
 
     -- Subcategories for Casa
     INSERT INTO public.expense_subcategories (category_id, user_id, name, icon, sort_order)
