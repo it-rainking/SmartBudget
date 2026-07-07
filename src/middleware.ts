@@ -40,8 +40,12 @@ export async function middleware(request: NextRequest) {
   const authPaths = ['/login', '/signup', '/recupera-password']
   const isAuthPath = authPaths.some(path => request.nextUrl.pathname.startsWith(path))
 
-  // Stale refresh token: clear auth cookies and redirect to login to stop repeated errors
-  if (error?.code === 'refresh_token_not_found') {
+  // Stale refresh token: clear auth cookies and redirect to login to stop repeated errors.
+  // 'refresh_token_already_used' happens when the token was rotated by a concurrent request
+  // (or a stale tab) past Supabase's reuse window: the token family is revoked, so the
+  // session is unrecoverable, same as 'refresh_token_not_found'.
+  const staleTokenCodes = ['refresh_token_not_found', 'refresh_token_already_used']
+  if (error?.code && staleTokenCodes.includes(error.code)) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     const redirectResponse = NextResponse.redirect(url)
