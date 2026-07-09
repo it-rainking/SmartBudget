@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Sun, Moon, Monitor, Download, BarChart3, LogOut, Trash2, AlertTriangle } from 'lucide-react'
+import { Sun, Moon, Monitor, Download, BarChart3, LogOut, Trash2, AlertTriangle, Plus, X } from 'lucide-react'
+import { DEFAULT_PAYMENT_METHODS, getPaymentMethods } from '@/lib/utils'
 import { AiCategorySuggestionsPanel } from '@/components/AiCategorySuggestionsPanel'
 import { useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/components/DashboardLayout'
@@ -53,6 +54,9 @@ export default function SettingsPage() {
   const [telegramChatId, setTelegramChatId] = useState(settings?.telegram_chat_id ?? '')
   const [notificationEmail, setNotificationEmail] = useState(settings?.notification_email ?? '')
 
+  // Stato locale metodi di pagamento
+  const [paymentMethods, setPaymentMethods] = useState<string[]>(DEFAULT_PAYMENT_METHODS)
+
   useEffect(() => {
     if (settings) {
       setCurrency(settings.currency)
@@ -62,9 +66,36 @@ export default function SettingsPage() {
       setNotifyTelegram(settings.notify_telegram ?? false)
       setTelegramChatId(settings.telegram_chat_id ?? '')
       setNotificationEmail(settings.notification_email ?? '')
+      setPaymentMethods(getPaymentMethods(settings.payment_methods))
       setIsDirty(false)
     }
   }, [settings])
+
+  // Salva l'elenco dei metodi di pagamento: rimuove i vuoti e i duplicati
+  // (case-insensitive, mantenendo la prima occorrenza).
+  async function savePaymentMethods() {
+    const seen = new Set<string>()
+    const cleaned = paymentMethods
+      .map(m => m.trim())
+      .filter(m => {
+        if (!m) return false
+        const key = m.toLowerCase()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+    if (cleaned.length === 0) {
+      showToast('Aggiungi almeno un metodo di pagamento', 'error')
+      return
+    }
+    try {
+      await updateSettings.mutateAsync({ payment_methods: cleaned })
+      setPaymentMethods(cleaned)
+      showToast('Metodi di pagamento salvati', 'success')
+    } catch {
+      showToast('Errore nel salvataggio', 'error')
+    }
+  }
 
   // Salva preferenze notifiche
   async function saveNotificationSettings() {
@@ -368,6 +399,56 @@ export default function SettingsPage() {
               )}
             </div>
           )}
+        </div>
+
+        {/* Metodi di pagamento */}
+        <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-100 dark:border-zinc-700">
+          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-1 uppercase tracking-wide">Metodi di pagamento</h2>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">Personalizza l&apos;elenco usato nelle transazioni e nei filtri</p>
+
+          <div className="space-y-2">
+            {paymentMethods.map((method, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={method}
+                  onChange={e => setPaymentMethods(prev => prev.map((m, idx) => idx === i ? e.target.value : m))}
+                  placeholder="Nome metodo"
+                  className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethods(prev => prev.filter((_, idx) => idx !== i))}
+                  aria-label={`Rimuovi ${method || 'metodo'}`}
+                  className="p-2 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-between gap-3 pt-4">
+            <button
+              type="button"
+              onClick={() => setPaymentMethods(prev => [...prev, ''])}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+            >
+              <Plus size={15} /> Aggiungi metodo
+            </button>
+            <button
+              type="button"
+              onClick={savePaymentMethods}
+              disabled={updateSettings.isPending}
+              className="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              {updateSettings.isPending ? 'Salvataggio...' : 'Salva metodi di pagamento'}
+            </button>
+          </div>
+
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-3">
+            Nota: rinominare o rimuovere un metodo non modifica le transazioni già registrate con il valore precedente.
+          </p>
         </div>
 
         {/* Notifiche */}

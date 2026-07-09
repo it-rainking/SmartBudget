@@ -9,16 +9,12 @@ import { useToast } from '@/components/Toast'
 import { ImportCSVModal } from '@/components/ImportCSVModal'
 import { useSettings } from '@/hooks/useSettings'
 import { useModalA11y } from '@/hooks/useModalA11y'
-import { formatCurrency, getLocalDateString } from '@/lib/utils'
+import { formatCurrency, getLocalDateString, getPaymentMethods } from '@/lib/utils'
 import type { TransactionType, Transaction } from '@/types'
 
 const MONTHS = [
   'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
   'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
-]
-
-const PAYMENT_METHODS = [
-  'Contanti', 'Carta', 'Bonifico', 'PayPal', 'Altro'
 ]
 
 const PAGE_SIZE = 20
@@ -46,6 +42,7 @@ export default function TransazioniPage() {
   const { showToast } = useToast()
   const { data: settings } = useSettings()
   const currency = settings?.currency || 'EUR'
+  const paymentMethods = getPaymentMethods(settings?.payment_methods)
 
   // Form state
   const [formType, setFormType] = useState<TransactionType>('expense')
@@ -368,7 +365,7 @@ export default function TransazioniPage() {
                   className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
                 >
                   <option value="">Tutti</option>
-                  {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                  {paymentMethods.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-1">
@@ -645,9 +642,13 @@ export default function TransazioniPage() {
                   className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
                 >
                   <option value="">Seleziona metodo</option>
-                  {PAYMENT_METHODS.map((method) => (
+                  {paymentMethods.map((method) => (
                     <option key={method} value={method}>{method}</option>
                   ))}
+                  {/* Preserva un metodo salvato in precedenza ma non più nell'elenco */}
+                  {formPaymentMethod && !paymentMethods.includes(formPaymentMethod) && (
+                    <option value={formPaymentMethod}>{formPaymentMethod}</option>
+                  )}
                 </select>
               </div>
 

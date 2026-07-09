@@ -34,6 +34,16 @@ export function classNames(...classes: (string | boolean | undefined | null)[]):
   return classes.filter(Boolean).join(' ')
 }
 
+// Elenco predefinito dei metodi di pagamento. Usato come fallback quando
+// l'utente non ha ancora personalizzato la propria lista in `settings`.
+export const DEFAULT_PAYMENT_METHODS = ['Contanti', 'Carta', 'Bonifico', 'PayPal', 'Altro']
+
+// Restituisce l'elenco effettivo dei metodi di pagamento: la lista salvata
+// nelle impostazioni utente se presente e non vuota, altrimenti i default.
+export function getPaymentMethods(methods?: string[] | null): string[] {
+  return methods && methods.length > 0 ? methods : DEFAULT_PAYMENT_METHODS
+}
+
 // Today's date as YYYY-MM-DD in the *local* calendar. Do not use
 // `new Date().toISOString().split('T')[0]` for this — it returns the UTC
 // calendar date, which is a day behind local time for part of every day in
