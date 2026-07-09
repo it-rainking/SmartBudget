@@ -14,10 +14,12 @@ import {
 } from 'chart.js'
 import { Doughnut, Bar } from 'react-chartjs-2'
 import { DashboardLayout } from '@/components/DashboardLayout'
-import { useMonthlyKPIs } from '@/hooks/useTransactions'
+import { useMonthlyKPIs, useTransactions } from '@/hooks/useTransactions'
 import { useExpenseCategories } from '@/hooks/useCategories'
 import { useSettings } from '@/hooks/useSettings'
+import { useModalA11y } from '@/hooks/useModalA11y'
 import { formatCurrency, formatMonth } from '@/lib/utils'
+import type { ExpenseCategory } from '@/types'
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement)
 
@@ -37,6 +39,9 @@ export default function DashboardMensilePage() {
 
   const currency = settings?.currency || 'EUR'
   const fmt = (n: number) => formatCurrency(n, currency)
+
+  // Categoria selezionata per il dettaglio delle singole spese (modal)
+  const [detailCategory, setDetailCategory] = useState<ExpenseCategory | null>(null)
 
   const isCurrentMonth = selectedMonth === currentDate.getMonth() + 1 && selectedYear === currentDate.getFullYear()
 
@@ -438,7 +443,13 @@ export default function DashboardMensilePage() {
                   ? Math.round((cat.total / kpis.totalExpenses) * 100)
                   : 0
                 return (
-                  <div key={cat.id} className="px-6 py-3 flex items-center gap-4">
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setDetailCategory(cat)}
+                    aria-label={`Mostra dettaglio spese di ${cat.name}`}
+                    className="w-full px-6 py-3 flex items-center gap-4 text-left hover:bg-zinc-50 dark:hover:bg-zinc-700/40 transition-colors cursor-pointer"
+                  >
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center text-lg shrink-0"
                       style={{ backgroundColor: (cat.color || '#6b7280') + '22' }}>
                       {cat.icon || '📦'}
@@ -458,10 +469,13 @@ export default function DashboardMensilePage() {
                       </div>
                     </div>
                     <span className="text-xs text-zinc-500 dark:text-zinc-400 w-8 text-right shrink-0">{pct}%</span>
-                  </div>
+                  </button>
                 )
               })}
             </div>
+            <p className="px-6 py-2.5 text-xs text-zinc-400 dark:text-zinc-500 border-t border-zinc-50 dark:border-zinc-700/50">
+              Clicca una categoria per vedere il dettaglio delle spese
+            </p>
           </div>
         )}
 
@@ -528,6 +542,90 @@ export default function DashboardMensilePage() {
         )}
 
       </div>
+
+      {detailCategory && (
+        <CategoryExpensesModal
+          category={detailCategory}
+          month={selectedMonth}
+          year={selectedYear}
+          currency={currency}
+          totalForCategory={kpis?.categoryBreakdown[detailCategory.id] ?? 0}
+          onClose={() => setDetailCategory(null)}
+        />
+      )}
     </DashboardLayout>
+  )
+}
+
+// Modal che elenca tutte le singole spese di una categoria nel mese selezionato.
+// È un componente separato così la query sulle transazioni parte solo quando
+// il modal è montato (cioè quando l'utente clicca una categoria).
+function CategoryExpensesModal({
+  category,
+  month,
+  year,
+  currency,
+  totalForCategory,
+  onClose,
+}: {
+  category: ExpenseCategory
+  month: number
+  year: number
+  currency: string
+  totalForCategory: number
+  onClose: () => void
+}) {
+  const { data: transactions, isLoading } = useTransactions({
+    month,
+    year,
+    type: 'expense',
+    category_id: category.id,
+  })
+  const modalRef = useModalA11y<HTMLDivElement>(true, onClose)
+  const fmt = (n: number) => formatCurrency(n, currency)
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="category-detail-title">
+      <div ref={modalRef} className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+        <div className="p-5 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-lg shrink-0"
+              style={{ backgroundColor: (category.color || '#6b7280') + '22' }}>
+              {category.icon || '📦'}
+            </div>
+            <div className="min-w-0">
+              <h2 id="category-detail-title" className="text-base font-bold text-zinc-900 dark:text-white truncate">{category.name}</h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">{formatMonth(month, year)} · {fmt(totalForCategory)}</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 shrink-0">✕</button>
+        </div>
+
+        <div className="overflow-y-auto p-2">
+          {isLoading ? (
+            <p className="p-6 text-center text-sm text-zinc-500 dark:text-zinc-400">Caricamento...</p>
+          ) : !transactions || transactions.length === 0 ? (
+            <p className="p-6 text-center text-sm text-zinc-500 dark:text-zinc-400">Nessuna spesa registrata per questa categoria</p>
+          ) : (
+            <div className="divide-y divide-zinc-100 dark:divide-zinc-700/50">
+              {transactions.map((t) => (
+                <div key={t.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">
+                      {t.description || 'Senza descrizione'}
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {(() => { const [y, m, d] = t.date.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('it-IT') })()}
+                      {t.payment_method ? ` · ${t.payment_method}` : ''}
+                    </p>
+                  </div>
+                  <span className="text-sm font-semibold text-red-600 shrink-0">-{fmt(t.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
