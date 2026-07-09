@@ -32,6 +32,7 @@ CREATE TABLE public.settings (
     notify_telegram BOOLEAN DEFAULT FALSE NOT NULL,
     telegram_chat_id TEXT,
     notification_email TEXT,
+    payment_methods TEXT[] DEFAULT ARRAY['Contanti', 'Carta', 'Bonifico', 'PayPal', 'Altro'],
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     UNIQUE(user_id)

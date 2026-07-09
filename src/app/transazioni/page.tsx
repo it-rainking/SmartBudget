@@ -9,16 +9,12 @@ import { useToast } from '@/components/Toast'
 import { ImportCSVModal } from '@/components/ImportCSVModal'
 import { useSettings } from '@/hooks/useSettings'
 import { useModalA11y } from '@/hooks/useModalA11y'
-import { formatCurrency, getLocalDateString } from '@/lib/utils'
+import { formatCurrency, getLocalDateString, getPaymentMethods } from '@/lib/utils'
 import type { TransactionType, Transaction } from '@/types'
 
 const MONTHS = [
   'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
   'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
-]
-
-const PAYMENT_METHODS = [
-  'Contanti', 'Carta', 'Bonifico', 'PayPal', 'Altro'
 ]
 
 const PAGE_SIZE = 20
@@ -36,6 +32,8 @@ export default function TransazioniPage() {
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('')
   const [filterMinAmount, setFilterMinAmount] = useState('')
   const [filterMaxAmount, setFilterMaxAmount] = useState('')
+  const [filterDayFrom, setFilterDayFrom] = useState('')
+  const [filterDayTo, setFilterDayTo] = useState('')
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -44,6 +42,7 @@ export default function TransazioniPage() {
   const { showToast } = useToast()
   const { data: settings } = useSettings()
   const currency = settings?.currency || 'EUR'
+  const paymentMethods = getPaymentMethods(settings?.payment_methods)
 
   // Form state
   const [formType, setFormType] = useState<TransactionType>('expense')
@@ -98,6 +97,12 @@ export default function TransazioniPage() {
     if (filterMaxAmount && t.amount > parseFloat(filterMaxAmount)) return false
     if (filterCategoryId === UNCATEGORIZED && t.category_id) return false
     if (filterCategoryId && filterCategoryId !== UNCATEGORIZED && t.category_id !== filterCategoryId) return false
+    // Filtro per giorno / range di giorni del mese (t.date è 'YYYY-MM-DD')
+    if (filterDayFrom || filterDayTo) {
+      const day = Number(t.date.split('-')[2])
+      if (filterDayFrom && day < parseInt(filterDayFrom, 10)) return false
+      if (filterDayTo && day > parseInt(filterDayTo, 10)) return false
+    }
     return true
   })
 
@@ -360,7 +365,7 @@ export default function TransazioniPage() {
                   className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
                 >
                   <option value="">Tutti</option>
-                  {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                  {paymentMethods.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-1">
@@ -387,13 +392,41 @@ export default function TransazioniPage() {
                   className="w-28 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
                 />
               </div>
-              {(filterCategoryId || filterPaymentMethod || filterMinAmount || filterMaxAmount) && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-zinc-500 dark:text-zinc-400">Giorno da</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  step="1"
+                  value={filterDayFrom}
+                  onChange={e => { setFilterDayFrom(e.target.value); setCurrentPage(1) }}
+                  placeholder="1"
+                  className="w-24 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-zinc-500 dark:text-zinc-400">Giorno a</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  step="1"
+                  value={filterDayTo}
+                  onChange={e => { setFilterDayTo(e.target.value); setCurrentPage(1) }}
+                  placeholder="31"
+                  className="w-24 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
+                />
+              </div>
+              {(filterCategoryId || filterPaymentMethod || filterMinAmount || filterMaxAmount || filterDayFrom || filterDayTo) && (
                 <button
                   onClick={() => {
                     setFilterCategoryId('')
                     setFilterPaymentMethod('')
                     setFilterMinAmount('')
                     setFilterMaxAmount('')
+                    setFilterDayFrom('')
+                    setFilterDayTo('')
                     setCurrentPage(1)
                   }}
                   className="px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-red-500 transition-colors"
@@ -609,9 +642,13 @@ export default function TransazioniPage() {
                   className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
                 >
                   <option value="">Seleziona metodo</option>
-                  {PAYMENT_METHODS.map((method) => (
+                  {paymentMethods.map((method) => (
                     <option key={method} value={method}>{method}</option>
                   ))}
+                  {/* Preserva un metodo salvato in precedenza ma non più nell'elenco */}
+                  {formPaymentMethod && !paymentMethods.includes(formPaymentMethod) && (
+                    <option value={formPaymentMethod}>{formPaymentMethod}</option>
+                  )}
                 </select>
               </div>
 

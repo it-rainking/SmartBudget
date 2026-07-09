@@ -20,6 +20,7 @@ export interface Settings {
   notify_telegram: boolean
   telegram_chat_id: string | null
   notification_email: string | null
+  payment_methods: string[] | null
   created_at: string
   updated_at: string
 }
