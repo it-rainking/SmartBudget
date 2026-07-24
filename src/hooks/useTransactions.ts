@@ -119,6 +119,31 @@ export function useDeleteTransaction() {
   })
 }
 
+// Media robusta di una serie di valori, esclusi gli outlier (metodo IQR/Tukey).
+// Con meno di 3 valori non ci sono abbastanza dati per distinguere un outlier
+// da una variazione normale, quindi si usa la media semplice.
+function trimmedAverage(values: number[]): number {
+  if (values.length === 0) return 0
+  if (values.length < 3) {
+    return values.reduce((a, b) => a + b, 0) / values.length
+  }
+  const sorted = [...values].sort((a, b) => a - b)
+  const quartile = (arr: number[], q: number) => {
+    const pos = (arr.length - 1) * q
+    const base = Math.floor(pos)
+    const rest = pos - base
+    return arr[base + 1] !== undefined ? arr[base] + rest * (arr[base + 1] - arr[base]) : arr[base]
+  }
+  const q1 = quartile(sorted, 0.25)
+  const q3 = quartile(sorted, 0.75)
+  const iqr = q3 - q1
+  const lower = q1 - 1.5 * iqr
+  const upper = q3 + 1.5 * iqr
+  const filtered = values.filter((v) => v >= lower && v <= upper)
+  const finalValues = filtered.length > 0 ? filtered : values
+  return finalValues.reduce((a, b) => a + b, 0) / finalValues.length
+}
+
 // Monthly KPIs
 export function useMonthlyKPIs(month?: number, year?: number) {
   const currentDate = new Date()
@@ -132,12 +157,19 @@ export function useMonthlyKPIs(month?: number, year?: number) {
   const prevY = prevDate.getFullYear()
   const { startDate: prevStart, endDate: prevEnd } = getMonthDateRange(prevM, prevY)
 
+  // Range dei 12 mesi precedenti (esclude il mese target), usato per stimare
+  // un'entrata "attesa" finché lo stipendio del mese non è ancora registrato.
+  const histStartDate = new Date(y, m - 13, 1)
+  const histStartM = histStartDate.getMonth() + 1
+  const histStartY = histStartDate.getFullYear()
+  const { startDate: histStart } = getMonthDateRange(histStartM, histStartY)
+
   const daysInMonth = new Date(y, m, 0).getDate()
 
   return useQuery({
     queryKey: ['monthly_kpis', { month: m, year: y }],
     queryFn: async () => {
-      const [curr, prev] = await Promise.all([
+      const [curr, prev, hist] = await Promise.all([
         supabase
           .from('transactions')
           .select('type, category_id, amount')
@@ -148,9 +180,16 @@ export function useMonthlyKPIs(month?: number, year?: number) {
           .select('type, amount')
           .gte('date', prevStart)
           .lte('date', prevEnd),
+        supabase
+          .from('transactions')
+          .select('date, amount')
+          .eq('type', 'income')
+          .gte('date', histStart)
+          .lte('date', prevEnd),
       ])
 
       if (curr.error) throw curr.error
+      if (hist.error) throw hist.error
 
       const categoryBreakdown: Record<string, number> = {}
 
@@ -168,6 +207,8 @@ export function useMonthlyKPIs(month?: number, year?: number) {
         dailyAverage: 0,
         topCategoryId: null as string | null,
         categoryBreakdown,
+        projectedIncome: 0,
+        isIncomeEstimated: false,
       }
 
       curr.data?.forEach((t) => {
@@ -189,7 +230,20 @@ export function useMonthlyKPIs(month?: number, year?: number) {
         if (t.type === 'expense') kpis.prevMonthExpenses += Number(t.amount)
       })
 
-      kpis.balance = kpis.totalIncome - kpis.totalExpenses - kpis.totalSavings - kpis.totalDebts
+      // Entrata mensile storica (media robusta degli ultimi 12 mesi, esclusi
+      // outlier). Finché il mese corrente non ha entrate registrate (es. lo
+      // stipendio arriva a fine mese), la si usa come entrata "attesa" per il
+      // saldo netto, evitando un falso allarme di saldo negativo a metà mese.
+      const monthlyIncomeMap: Record<string, number> = {}
+      hist.data?.forEach((t) => {
+        const key = t.date.slice(0, 7)
+        monthlyIncomeMap[key] = (monthlyIncomeMap[key] || 0) + Number(t.amount)
+      })
+      kpis.projectedIncome = trimmedAverage(Object.values(monthlyIncomeMap))
+      kpis.isIncomeEstimated = kpis.totalIncome === 0 && kpis.projectedIncome > 0
+
+      const effectiveIncome = kpis.isIncomeEstimated ? kpis.projectedIncome : kpis.totalIncome
+      kpis.balance = effectiveIncome - kpis.totalExpenses - kpis.totalSavings - kpis.totalDebts
       kpis.dailyAverage = kpis.totalExpenses / daysInMonth
 
       if (kpis.totalIncome > 0) {

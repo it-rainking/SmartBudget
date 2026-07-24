@@ -7,7 +7,8 @@ import { useInvoices } from '@/hooks/useInvoices'
 import { useGoals } from '@/hooks/useGoals'
 import { useMonthlyKPIs } from '@/hooks/useTransactions'
 import { useMonthlyBudget } from '@/hooks/useBudget'
-import { getLocalDateString, daysBetween } from '@/lib/utils'
+import { useSettings } from '@/hooks/useSettings'
+import { getLocalDateString, daysBetween, formatCurrency } from '@/lib/utils'
 
 export interface AppNotification {
   id: string
@@ -27,6 +28,8 @@ export function useNotifications() {
   const { data: goals } = useGoals()
   const { data: kpis } = useMonthlyKPIs(month, year)
   const { data: budget } = useMonthlyBudget(month, year)
+  const { data: settings } = useSettings()
+  const currency = settings?.currency || 'EUR'
 
   const notifications = useMemo<AppNotification[]>(() => {
     const items: AppNotification[] = []
@@ -88,19 +91,23 @@ export function useNotifications() {
       }
     }
 
-    // Saldo negativo questo mese
+    // Saldo negativo questo mese (il saldo tiene già conto, se necessario,
+    // dell'entrata media stimata quando lo stipendio non è ancora arrivato —
+    // vedi kpis.isIncomeEstimated in useMonthlyKPIs)
     if (kpis && kpis.balance < 0) {
       items.push({
         id: 'negative-balance',
         type: 'warning',
         icon: '📉',
         title: 'Saldo mensile negativo',
-        body: `Le spese superano le entrate questo mese`,
+        body: kpis.isIncomeEstimated
+          ? `Anche stimando un'entrata media di ${formatCurrency(kpis.projectedIncome, currency)} (nessuna entrata ancora registrata questo mese), le spese superano il saldo previsto`
+          : `Le spese superano le entrate questo mese`,
       })
     }
 
     return items
-  }, [invoices, goals, kpis, budget, todayStr])
+  }, [invoices, goals, kpis, budget, todayStr, currency])
 
   return notifications
 }
