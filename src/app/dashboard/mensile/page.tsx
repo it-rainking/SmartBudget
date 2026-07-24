@@ -202,6 +202,11 @@ export default function DashboardMensilePage() {
               ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
               : <p className="text-2xl font-bold text-emerald-600">{fmt(kpis?.totalIncome ?? 0)}</p>
             }
+            {!isLoading && kpis?.isIncomeEstimated && (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                Stima storica: {fmt(kpis.projectedIncome)} (in attesa di nuove entrate)
+              </p>
+            )}
           </div>
 
           {/* Spese + delta */}
@@ -254,6 +259,11 @@ export default function DashboardMensilePage() {
                   {fmt(kpis?.balance ?? 0)}
                 </p>
             }
+            {!isLoading && kpis?.isIncomeEstimated && (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                Basato su entrata media stimata
+              </p>
+            )}
           </div>
         </div>
 
