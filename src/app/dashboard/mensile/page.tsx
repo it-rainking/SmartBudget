@@ -82,19 +82,26 @@ export default function DashboardMensilePage() {
     }],
   }), [categoryBreakdown])
 
+  // Finché il mese non ha entrate registrate, si mostra la stima storica
+  // (in giallo) al posto dello zero reale; appena arriva un'entrata vera,
+  // subentra il valore reale (in verde).
+  const isIncomeEstimated = !!kpis?.isIncomeEstimated
+  const displayIncome = isIncomeEstimated ? (kpis?.projectedIncome ?? 0) : (kpis?.totalIncome ?? 0)
+  const incomeColor = isIncomeEstimated ? '#f59e0b' : '#10b981'
+
   // Bar chart data
   const barData = useMemo(() => ({
     labels: ['Entrate', 'Spese', 'Risparmi'],
     datasets: [{
-      data: [kpis?.totalIncome ?? 0, kpis?.totalExpenses ?? 0, kpis?.totalSavings ?? 0],
-      backgroundColor: ['#10b981cc', '#ef4444cc', '#3b82f6cc'],
-      borderColor: ['#10b981', '#ef4444', '#3b82f6'],
+      data: [displayIncome, kpis?.totalExpenses ?? 0, kpis?.totalSavings ?? 0],
+      backgroundColor: [incomeColor + 'cc', '#ef4444cc', '#3b82f6cc'],
+      borderColor: [incomeColor, '#ef4444', '#3b82f6'],
       borderWidth: 2,
       borderRadius: 6,
     }],
-  }), [kpis])
+  }), [kpis, displayIncome, incomeColor])
 
-  const hasData = (kpis?.totalIncome ?? 0) > 0 || (kpis?.totalExpenses ?? 0) > 0 || (kpis?.totalSavings ?? 0) > 0
+  const hasData = displayIncome > 0 || (kpis?.totalExpenses ?? 0) > 0 || (kpis?.totalSavings ?? 0) > 0
 
   // AI Insights
   const [aiInsights, setAiInsights] = useState<string[]>([])
@@ -196,15 +203,15 @@ export default function DashboardMensilePage() {
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Entrate</span>
-              <TrendingUp size={16} className="text-emerald-500" />
+              <TrendingUp size={16} className={isIncomeEstimated ? 'text-amber-500' : 'text-emerald-500'} />
             </div>
             {isLoading
               ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
-              : <p className="text-2xl font-bold text-emerald-600">{fmt(kpis?.totalIncome ?? 0)}</p>
+              : <p className={`text-2xl font-bold ${isIncomeEstimated ? 'text-amber-500' : 'text-emerald-600'}`}>{fmt(displayIncome)}</p>
             }
-            {!isLoading && kpis?.isIncomeEstimated && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                Stima storica: {fmt(kpis.projectedIncome)} (in attesa di nuove entrate)
+            {!isLoading && isIncomeEstimated && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                Stima basata sulla media storica — in attesa di nuove entrate
               </p>
             )}
           </div>
