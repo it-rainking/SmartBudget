@@ -537,6 +537,157 @@ export type Database = {
         }
         Relationships: []
       }
+      assets: {
+        Row: {
+          id: string
+          user_id: string
+          isin: string
+          ticker_gf: string
+          ticker_yahoo: string | null
+          name: string
+          asset_class: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'cash' | 'other'
+          currency: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          isin: string
+          ticker_gf?: string
+          ticker_yahoo?: string | null
+          name: string
+          asset_class: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'cash' | 'other'
+          currency?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          isin?: string
+          ticker_gf?: string
+          ticker_yahoo?: string | null
+          name?: string
+          asset_class?: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'cash' | 'other'
+          currency?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      holdings: {
+        Row: {
+          id: string
+          user_id: string
+          asset_id: string
+          quantity: number
+          avg_cost: number
+          source: string
+          imported_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          asset_id: string
+          quantity: number
+          avg_cost: number
+          source?: string
+          imported_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          asset_id?: string
+          quantity?: number
+          avg_cost?: number
+          source?: string
+          imported_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'holdings_asset_id_fkey'
+            columns: ['asset_id']
+            isOneToOne: false
+            referencedRelation: 'assets'
+            referencedColumns: ['id']
+          }
+        ]
+      }
+      price_snapshots: {
+        Row: {
+          id: number
+          asset_id: string
+          price: number
+          change_pct: number | null
+          currency: string
+          source: 'gsheet' | 'yahoo'
+          fetched_at: string
+        }
+        Insert: {
+          id?: number
+          asset_id: string
+          price: number
+          change_pct?: number | null
+          currency: string
+          source: 'gsheet' | 'yahoo'
+          fetched_at?: string
+        }
+        Update: {
+          id?: number
+          asset_id?: string
+          price?: number
+          change_pct?: number | null
+          currency?: string
+          source?: 'gsheet' | 'yahoo'
+          fetched_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'price_snapshots_asset_id_fkey'
+            columns: ['asset_id']
+            isOneToOne: false
+            referencedRelation: 'assets'
+            referencedColumns: ['id']
+          }
+        ]
+      }
+      isin_ticker_lookup: {
+        Row: {
+          isin: string
+          ticker_gf: string | null
+          ticker_yahoo: string | null
+          name: string | null
+          asset_class: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'cash' | 'other' | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          isin: string
+          ticker_gf?: string | null
+          ticker_yahoo?: string | null
+          name?: string | null
+          asset_class?: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'cash' | 'other' | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          isin?: string
+          ticker_gf?: string | null
+          ticker_yahoo?: string | null
+          name?: string | null
+          asset_class?: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'cash' | 'other' | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -545,6 +696,26 @@ export type Database = {
       create_default_categories: {
         Args: { p_user_id: string }
         Returns: undefined
+      }
+      get_investment_summary: {
+        Args: { p_user_id: string }
+        Returns: {
+          holding_id: string
+          asset_id: string
+          isin: string
+          ticker_gf: string
+          ticker_yahoo: string | null
+          name: string
+          asset_class: string
+          currency: string
+          quantity: number
+          avg_cost: number
+          imported_at: string
+          last_price: number | null
+          change_pct: number | null
+          price_source: 'gsheet' | 'yahoo' | null
+          fetched_at: string | null
+        }[]
       }
     }
     Enums: {
