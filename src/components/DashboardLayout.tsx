@@ -8,7 +8,7 @@ import { NotificationBell } from '@/components/NotificationBell'
 import {
   LayoutDashboard, TrendingUp, CreditCard, PieChart,
   Receipt, Target, TrendingDown, Settings, BookOpen,
-  Wallet, LogOut,
+  Wallet, LogOut, LineChart,
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -23,6 +23,7 @@ const navigation = [
   { name: 'Fatture', href: '/fatture', Icon: Receipt },
   { name: 'Obiettivi', href: '/obiettivi', Icon: Target },
   { name: 'Debiti', href: '/debiti', Icon: TrendingDown },
+  { name: 'Investimenti', href: '/investimenti', Icon: LineChart },
   { name: 'Impostazioni', href: '/settings', Icon: Settings },
   { name: 'Istruzioni', href: '/istruzioni', Icon: BookOpen },
 ]

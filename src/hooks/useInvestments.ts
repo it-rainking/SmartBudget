@@ -1,7 +1,20 @@
 'use client'
 
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { ImportDiff } from '@/types/investments'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ImportDiff, InvestmentSummary } from '@/types/investments'
+
+export function useInvestments() {
+  return useQuery({
+    queryKey: ['investments_summary'],
+    queryFn: async (): Promise<InvestmentSummary> => {
+      const res = await fetch('/api/investments/summary')
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error ?? 'Errore nel caricamento del portafoglio')
+      return body
+    },
+    staleTime: 1000 * 60 * 5,
+  })
+}
 
 export function useImportCsv() {
   const queryClient = useQueryClient()
