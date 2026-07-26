@@ -43,6 +43,7 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 /fatture                  → Fatture/abbonamenti + calendario
 /obiettivi                → Obiettivi finanziari con progress bar
 /debiti                   → Debiti: strategie snowball/avalanche, piano di rimborso
+/investimenti             → Portafoglio investimenti (import CSV Fineco, prezzi Google Finance/Yahoo)
 /istruzioni               → Guida utente
 /settings                 → Preferenze, export GDPR, danger zone
 /auth/callback            → Callback OAuth Supabase
@@ -53,13 +54,17 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 /api/ai/categorize        → POST: suggerimenti categoria via Claude
 /api/ai/insights          → POST: insight finanziari mensili via Claude
 /api/ai/simplify-categories → POST: suggerimenti di semplificazione categorie
+/api/investments/import   → POST: import CSV Fineco (sostituisce integralmente le holdings)
+/api/investments/summary  → GET: riepilogo portafoglio (market_value, P&L, pesi)
+/api/investments/tickers  → GET: lista ticker_gf dell'utente, testo incollabile nel Sheet ponte
+/api/cron/prices          → POST: price fetcher (Google Sheet ponte + fallback Yahoo), protetto da CRON_SECRET
 /api/health               → GET: health check
 ```
 
 ### Middleware (`src/middleware.ts`)
 
 Gestisce redirect auth su ogni request:
-- **Route protette** (`/dashboard`, `/budget`, `/transazioni`, `/fatture`, `/obiettivi`, `/debiti`, `/settings`, `/istruzioni`, `/onboarding`, `/aggiorna-password`): redirect a `/login` se non autenticato
+- **Route protette** (`/dashboard`, `/budget`, `/transazioni`, `/fatture`, `/obiettivi`, `/debiti`, `/investimenti`, `/settings`, `/istruzioni`, `/onboarding`, `/aggiorna-password`): redirect a `/login` se non autenticato
 - **Route auth** (`/login`, `/signup`): redirect a `/dashboard/mensile` se già autenticato
 - Rinnova la sessione Supabase SSR ad ogni request
 
@@ -84,18 +89,28 @@ Tutte le tabelle usano RLS con policy `user_id = auth.uid()`.
 | `invoices` | name, amount, due_date, paid_date, recurrence (once/weekly/monthly/quarterly/yearly), status (pending/paid/overdue/cancelled), description, paid_amount, category_id?, reminder_days, auto_renew | |
 | `goals` | name, type (saving/debt), target_amount, current_amount, deadline, icon, color, is_completed, completed_at | |
 | `notifications` | type (budget_exceeded/bill_due/goal_achieved/goal_progress/system), title, message, data, is_read, read_at | Notifiche persistite nel DB |
+| `assets` | user_id, isin, ticker_gf, ticker_yahoo?, name, asset_class, currency | Un asset (ISIN) per utente, UI in `/investimenti` |
+| `holdings` | user_id, asset_id (FK→assets), quantity, avg_cost, source, imported_at | Snapshot: sostituito integralmente a ogni import CSV, non delta |
+| `price_snapshots` | asset_id (FK→assets), price, change_pct, currency, source (gsheet/yahoo), fetched_at | Scritto solo dal cron `/api/cron/prices` (service role) |
+| `isin_ticker_lookup` | isin (PK), ticker_gf?, ticker_yahoo?, name?, asset_class? | Tabella globale (non per-utente) di riferimento ISIN→ticker, manutenuta manualmente |
 
-### Funzione RPC
+### Funzioni RPC
 
 ```sql
 create_default_categories(p_user_id uuid)
 ```
 Chiamata durante l'onboarding per creare le categorie default dell'utente.
 
+```sql
+get_investment_summary(p_user_id uuid)
+```
+Join holdings↔assets↔ultimo price_snapshot (LATERAL) in una sola query; usata da `GET /api/investments/summary` che calcola market_value/P&L/pesi lato TypeScript.
+
 ### Tipi TypeScript
 
 - `src/types/database.ts` — tipi Supabase 2.84 (Row/Insert/Update + Relationships)
 - `src/types/index.ts` — tipi dominio (Goal, Transaction, Invoice, Settings, ecc.)
+- `src/types/investments.ts` — tipi dominio modulo investimenti (Asset, Holding, InvestmentSummary, ecc.)
 
 **Attenzione Supabase 2.84**: ogni tabella nel tipo Database richiede `Relationships: []` anche se vuota. Le relazioni FK vanno dichiarate esplicitamente con `foreignKeyName`, `columns`, `isOneToOne`, `referencedRelation`, `referencedColumns`. Il top-level dello schema `public` deve avere `Views`, `Enums`, `CompositeTypes`.
 
@@ -110,10 +125,15 @@ src/
 │   ├── page.tsx                    # Redirect a /login
 │   ├── middleware.ts               # Protected route redirects + session refresh
 │   ├── api/
-│   │   └── notifications/
-│   │       ├── send/route.ts       # Invio email (Resend) + Telegram
-│   │       ├── process/route.ts    # Job processor per coda notifiche
-│   │       └── test/route.ts       # Endpoint di test
+│   │   ├── notifications/
+│   │   │   ├── send/route.ts       # Invio email (Resend) + Telegram
+│   │   │   ├── process/route.ts    # Job processor per coda notifiche
+│   │   │   └── test/route.ts       # Endpoint di test
+│   │   ├── investments/
+│   │   │   ├── import/route.ts     # Import CSV Fineco (sostituisce le holdings)
+│   │   │   ├── summary/route.ts    # Riepilogo portafoglio (market_value, P&L, pesi)
+│   │   │   └── tickers/route.ts    # Lista ticker_gf per il Sheet ponte
+│   │   └── cron/prices/route.ts    # Price fetcher (Sheet ponte + fallback Yahoo)
 │   ├── auth/callback/route.ts      # Supabase OAuth callback
 │   ├── login/page.tsx              # Login → check onboarding → redirect
 │   ├── signup/page.tsx             # Registrazione
@@ -125,6 +145,7 @@ src/
 │   ├── budget/page.tsx             # Tab spese/entrate/risparmi, input inline
 │   ├── fatture/page.tsx            # Lista + calendario + modal nuova fattura
 │   ├── obiettivi/page.tsx          # Grid card + modal creazione + modal progresso
+│   ├── investimenti/page.tsx       # Header card, allocazione, tabella posizioni, import CSV
 │   └── settings/page.tsx           # Preferenze + export + danger zone
 ├── components/
 │   ├── DashboardLayout.tsx         # Sidebar (desktop) + header (mobile) + NotificationBell
@@ -142,12 +163,15 @@ src/
 │   ├── useGoals.ts                 # useGoals, useCreateGoal, useUpdateGoal, useAddGoalProgress, useCompleteGoal, useDeleteGoal
 │   ├── useAnnualData.ts            # useAnnualData (fetch anno intero, aggrega per mese)
 │   ├── useImportTransactions.ts    # parseCSV + useImportTransactions (bulk insert)
-│   └── useNotifications.ts         # Notifiche computed in-memory + usePersistedNotifications + useMarkNotificationRead
+│   ├── useNotifications.ts         # Notifiche computed in-memory + usePersistedNotifications + useMarkNotificationRead
+│   └── useInvestments.ts           # useInvestments (summary), useImportCsv
 └── lib/
     ├── supabase.ts                 # createBrowserClient() — client singleton lato browser
     ├── supabase-server.ts          # createServerClient() — client lato server (cookies)
     ├── queryClient.ts              # QueryClient config (staleTime 5min, retry 1, no refocus)
-    └── utils.ts                    # formatCurrency, formatDate, formatMonth, getMonthDateRange, classNames
+    ├── utils.ts                    # formatCurrency, formatDate, formatMonth, getMonthDateRange, classNames
+    ├── investments/parseFinecoCsv.ts # Parser papaparse per CSV Fineco (separatore/decimali auto)
+    └── prices/                     # PriceProvider: googleSheets.ts (Sheet ponte), yahoo.ts (fallback), resolveQuote.ts
 ```
 
 ---
@@ -169,6 +193,7 @@ Tutti gli hook usano React Query. Chiavi query:
 ['goals']
 ['income_categories'] / ['expense_categories'] / ['saving_categories']
 ['notifications']
+['investments_summary']
 ```
 
 **React Query config** (in `src/lib/queryClient.ts`):
@@ -268,11 +293,12 @@ npm run dev    # next dev (Turbopack)
 npm run build  # next build
 npm run start  # next start
 npm run lint   # eslint
+npm test       # vitest run (solo modulo investimenti, vedi sezione Testing)
 ```
 
 ### Testing
 
-**Nessun test presente** — niente jest/vitest/playwright. Verificare le feature manualmente.
+**Vitest** (introdotto per il modulo investimenti, `npm test`): copre solo `src/lib/investments/parseFinecoCsv.ts` e `src/lib/prices/*` (`tests/investments/*.test.ts`), niente altro nel repo ha test — verificare il resto delle feature manualmente. Niente jest/playwright.
 
 ---
 
@@ -285,6 +311,7 @@ npm run lint   # eslint
 | Phase 8 — Notifiche Email/Telegram | 🔄 In corso (API routes presenti) |
 | Phase 9 — Import OFX + AI categorizzazione | 📋 Pianificato |
 | Phase 10 — i18n, Multi-account | 🔮 Futuro |
+| Phase 11 — Modulo Investimenti | 🔄 Codice completo; richiede setup manuale (migration SQL, Sheet ponte + service account Google, vedi `docs/investimenti-setup.md`) prima di essere pienamente operativo |
 
 ### Bug noti
 - Notifiche computed dismiss non persiste al refresh (stato locale in `NotificationBell.tsx`; solo le notifiche persistite nel DB sopravvivono al refresh)
