@@ -15,15 +15,23 @@ import {
 } from 'chart.js'
 import { Line, Bar } from 'react-chartjs-2'
 import { DashboardLayout } from '@/components/DashboardLayout'
-import { useAnnualData } from '@/hooks/useAnnualData'
+import { useAnnualData, type MonthlyAnnualData } from '@/hooks/useAnnualData'
 import { useSettings } from '@/hooks/useSettings'
 import { formatCurrency } from '@/lib/utils'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler)
 
+// Campi numerici di un mese usati dalle card "mesi notevoli"
+type NumericMonthField =
+  | 'income' | 'expenses' | 'savings' | 'balance'
+  | 'ordinaryIncome' | 'ordinaryExpenses' | 'ordinaryBalance'
+
 export default function DashboardAnnualePage() {
   const currentYear = new Date().getFullYear()
   const [year, setYear] = useState(currentYear)
+  // I grafici e i confronti mostrano di default l'andamento ordinario:
+  // i movimenti marcati come eccezionali distorcono la lettura del trend.
+  const [excludeExceptional, setExcludeExceptional] = useState(true)
   const { data, isLoading } = useAnnualData(year)
   const { data: prevData } = useAnnualData(year - 1)
   const { data: settings } = useSettings()
@@ -32,13 +40,24 @@ export default function DashboardAnnualePage() {
   const fmt = (n: number) => formatCurrency(n, currency)
   const labels = data?.months.map(m => m.label) ?? []
 
+  // Serie e totali selezionati in base alla modalità (reale vs ordinaria)
+  const seriesIncome  = (m: MonthlyAnnualData) => excludeExceptional ? m.ordinaryIncome   : m.income
+  const seriesExpense = (m: MonthlyAnnualData) => excludeExceptional ? m.ordinaryExpenses : m.expenses
+  const seriesSaving  = (m: MonthlyAnnualData) => excludeExceptional ? m.ordinarySavings  : m.savings
+  const seriesBalance = (m: MonthlyAnnualData) => excludeExceptional ? m.ordinaryBalance  : m.balance
+
+  const trendTotals = (excludeExceptional ? data?.ordinaryTotals : data?.totals)
+  const prevTrendTotals = (excludeExceptional ? prevData?.ordinaryTotals : prevData?.totals)
+  const highlights = excludeExceptional ? data?.ordinaryHighlights : data?.highlights
+  const hasExceptional = !!data?.hasExceptional || !!prevData?.hasExceptional
+
   // Line chart: Entrate, Spese, Risparmi trend
   const lineData = {
     labels,
     datasets: [
       {
         label: 'Entrate',
-        data: data?.months.map(m => m.income) ?? [],
+        data: data?.months.map(seriesIncome) ?? [],
         borderColor: '#10b981',
         backgroundColor: '#10b98120',
         tension: 0.4,
@@ -48,7 +67,7 @@ export default function DashboardAnnualePage() {
       },
       {
         label: 'Spese',
-        data: data?.months.map(m => m.expenses) ?? [],
+        data: data?.months.map(seriesExpense) ?? [],
         borderColor: '#ef4444',
         backgroundColor: '#ef444420',
         tension: 0.4,
@@ -58,7 +77,7 @@ export default function DashboardAnnualePage() {
       },
       {
         label: 'Risparmi',
-        data: data?.months.map(m => m.savings) ?? [],
+        data: data?.months.map(seriesSaving) ?? [],
         borderColor: '#3b82f6',
         backgroundColor: '#3b82f620',
         tension: 0.4,
@@ -74,12 +93,12 @@ export default function DashboardAnnualePage() {
     labels,
     datasets: [{
       label: 'Saldo netto',
-      data: data?.months.map(m => m.balance) ?? [],
+      data: data?.months.map(seriesBalance) ?? [],
       backgroundColor: data?.months.map(m =>
-        m.balance >= 0 ? '#10b98166' : '#ef444466'
+        seriesBalance(m) >= 0 ? '#10b98166' : '#ef444466'
       ) ?? [],
       borderColor: data?.months.map(m =>
-        m.balance >= 0 ? '#10b981' : '#ef4444'
+        seriesBalance(m) >= 0 ? '#10b981' : '#ef4444'
       ) ?? [],
       borderWidth: 2,
       borderRadius: 6,
@@ -124,10 +143,10 @@ export default function DashboardAnnualePage() {
         {/* Annual KPI cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: 'Entrate totali',  value: data?.totals.income   ?? 0, color: 'text-emerald-600', Icon: TrendingUp,   iconColor: 'text-emerald-500' },
-            { label: 'Spese totali',    value: data?.totals.expenses ?? 0, color: 'text-red-600',     Icon: TrendingDown, iconColor: 'text-red-500' },
-            { label: 'Risparmi totali', value: data?.totals.savings  ?? 0, color: 'text-blue-600',    Icon: PiggyBank,    iconColor: 'text-blue-500' },
-            { label: 'Saldo netto',     value: data?.totals.balance  ?? 0, color: (data?.totals.balance ?? 0) >= 0 ? 'text-zinc-900 dark:text-white' : 'text-red-600', Icon: Wallet, iconColor: 'text-zinc-500 dark:text-zinc-400' },
+            { label: 'Entrate totali',  value: data?.totals.income   ?? 0, exceptional: data?.exceptionalTotals.income   ?? 0, color: 'text-emerald-600', Icon: TrendingUp,   iconColor: 'text-emerald-500' },
+            { label: 'Spese totali',    value: data?.totals.expenses ?? 0, exceptional: data?.exceptionalTotals.expenses ?? 0, color: 'text-red-600',     Icon: TrendingDown, iconColor: 'text-red-500' },
+            { label: 'Risparmi totali', value: data?.totals.savings  ?? 0, exceptional: data?.exceptionalTotals.savings  ?? 0, color: 'text-blue-600',    Icon: PiggyBank,    iconColor: 'text-blue-500' },
+            { label: 'Saldo netto',     value: data?.totals.balance  ?? 0, exceptional: 0, color: (data?.totals.balance ?? 0) >= 0 ? 'text-zinc-900 dark:text-white' : 'text-red-600', Icon: Wallet, iconColor: 'text-zinc-500 dark:text-zinc-400' },
           ].map(card => (
             <div key={card.label} className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
               <div className="flex items-center justify-between mb-3">
@@ -138,18 +157,45 @@ export default function DashboardAnnualePage() {
                 ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
                 : <p className={`text-xl font-bold ${card.color}`}>{fmt(card.value)}</p>
               }
+              {!isLoading && card.exceptional > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                  ⚡ di cui {fmt(card.exceptional)} eccezionali
+                </p>
+              )}
             </div>
           ))}
         </div>
+
+        {/* Modalità trend: reale vs condizioni normali */}
+        {!isLoading && hasExceptional && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30 rounded-xl px-5 py-3">
+            <div>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                Movimenti eccezionali {excludeExceptional ? 'esclusi' : 'inclusi'} da grafici e confronti
+              </p>
+              <p className="text-xs text-amber-700/80 dark:text-amber-400/80">
+                Le card dei totali qui sopra mostrano sempre i valori reali.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setExcludeExceptional(v => !v)}
+              aria-pressed={excludeExceptional}
+              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+            >
+              {excludeExceptional ? 'Mostra valori reali' : 'Escludi eccezionali'}
+            </button>
+          </div>
+        )}
 
         {/* Highlights */}
         {!isLoading && hasData && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: 'Mese migliore',    value: data?.bestMonth,  color: 'text-emerald-600', Icon: Trophy,          iconColor: 'text-emerald-500', field: 'balance' as const },
-              { label: 'Mese peggiore',    value: data?.worstMonth, color: 'text-red-600',     Icon: AlertTriangle,   iconColor: 'text-amber-500',   field: 'balance' as const },
-              { label: 'Picco entrate',    value: data?.topIncome,  color: 'text-emerald-600', Icon: ArrowUpCircle,   iconColor: 'text-emerald-500', field: 'income'  as const },
-              { label: 'Picco spese',      value: data?.topExpense, color: 'text-red-600',     Icon: ArrowDownCircle, iconColor: 'text-red-500',     field: 'expenses' as const },
+              { label: 'Mese migliore',    value: highlights?.bestMonth,  color: 'text-emerald-600', Icon: Trophy,          iconColor: 'text-emerald-500', field: (excludeExceptional ? 'ordinaryBalance'  : 'balance')  as NumericMonthField },
+              { label: 'Mese peggiore',    value: highlights?.worstMonth, color: 'text-red-600',     Icon: AlertTriangle,   iconColor: 'text-amber-500',   field: (excludeExceptional ? 'ordinaryBalance'  : 'balance')  as NumericMonthField },
+              { label: 'Picco entrate',    value: highlights?.topIncome,  color: 'text-emerald-600', Icon: ArrowUpCircle,   iconColor: 'text-emerald-500', field: (excludeExceptional ? 'ordinaryIncome'   : 'income')   as NumericMonthField },
+              { label: 'Picco spese',      value: highlights?.topExpense, color: 'text-red-600',     Icon: ArrowDownCircle, iconColor: 'text-red-500',     field: (excludeExceptional ? 'ordinaryExpenses' : 'expenses') as NumericMonthField },
             ].map(item => (
               <div key={item.label} className="bg-white dark:bg-zinc-800 rounded-xl p-4 shadow-sm border border-zinc-100 dark:border-zinc-700">
                 <div className="flex items-center gap-2 mb-2">
@@ -166,7 +212,14 @@ export default function DashboardAnnualePage() {
         {/* Line chart */}
         {!isLoading && hasData && (
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-100 dark:border-zinc-700">
-            <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">Trend Entrate / Spese / Risparmi</h3>
+            <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">
+              Trend Entrate / Spese / Risparmi
+              {hasExceptional && (
+                <span className="ml-2 font-normal text-xs text-zinc-500 dark:text-zinc-400">
+                  {excludeExceptional ? '· senza movimenti eccezionali' : '· valori reali'}
+                </span>
+              )}
+            </h3>
             <div className="h-64">
               <Line data={lineData} options={chartOptions} />
             </div>
@@ -176,7 +229,14 @@ export default function DashboardAnnualePage() {
         {/* Balance bar chart */}
         {!isLoading && hasData && (
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-100 dark:border-zinc-700">
-            <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">Saldo netto mensile</h3>
+            <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">
+              Saldo netto mensile
+              {hasExceptional && (
+                <span className="ml-2 font-normal text-xs text-zinc-500 dark:text-zinc-400">
+                  {excludeExceptional ? '· senza movimenti eccezionali' : '· valori reali'}
+                </span>
+              )}
+            </h3>
             <div className="h-48">
               <Bar data={balanceData} options={{ ...chartOptions, plugins: { ...chartOptions.plugins, legend: { display: false } } }} />
             </div>
@@ -203,7 +263,17 @@ export default function DashboardAnnualePage() {
                     const hasActivity = m.income > 0 || m.expenses > 0 || m.savings > 0
                     return (
                       <tr key={m.month} className={`hover:bg-zinc-50 dark:hover:bg-zinc-700/30 transition-colors ${!hasActivity ? 'opacity-40' : ''}`}>
-                        <td className="px-4 py-3 font-medium text-zinc-700 dark:text-zinc-300">{m.label}</td>
+                        <td className="px-4 py-3 font-medium text-zinc-700 dark:text-zinc-300">
+                          {m.label}
+                          {(m.exceptionalIncome + m.exceptionalExpenses + m.exceptionalSavings) > 0 && (
+                            <span
+                              title={`Include movimenti eccezionali: ${fmt(m.exceptionalIncome)} entrate, ${fmt(m.exceptionalExpenses)} spese`}
+                              className="ml-1.5 text-amber-500"
+                            >
+                              ⚡
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-emerald-600 font-medium">{m.income > 0 ? fmt(m.income) : '—'}</td>
                         <td className="px-4 py-3 text-red-600 font-medium">{m.expenses > 0 ? fmt(m.expenses) : '—'}</td>
                         <td className="px-4 py-3 text-blue-600 font-medium">{m.savings > 0 ? fmt(m.savings) : '—'}</td>
@@ -235,11 +305,13 @@ export default function DashboardAnnualePage() {
           const delta = (curr: number, prev: number) =>
             prev > 0 ? Math.round(((curr - prev) / prev) * 100) : null
 
+          // Il confronto anno su anno segue la modalità scelta: di default
+          // esclude i movimenti eccezionali, che falserebbero la variazione %.
           const items = [
-            { label: 'Entrate',  curr: data?.totals.income   ?? 0, prev: prevData.totals.income,   color: 'text-emerald-600' },
-            { label: 'Spese',    curr: data?.totals.expenses ?? 0, prev: prevData.totals.expenses, color: 'text-red-600' },
-            { label: 'Risparmi', curr: data?.totals.savings  ?? 0, prev: prevData.totals.savings,  color: 'text-blue-600' },
-            { label: 'Saldo',    curr: data?.totals.balance  ?? 0, prev: prevData.totals.balance,  color: 'text-zinc-700 dark:text-zinc-300' },
+            { label: 'Entrate',  curr: trendTotals?.income   ?? 0, prev: prevTrendTotals?.income   ?? 0, color: 'text-emerald-600' },
+            { label: 'Spese',    curr: trendTotals?.expenses ?? 0, prev: prevTrendTotals?.expenses ?? 0, color: 'text-red-600' },
+            { label: 'Risparmi', curr: trendTotals?.savings  ?? 0, prev: prevTrendTotals?.savings  ?? 0, color: 'text-blue-600' },
+            { label: 'Saldo',    curr: trendTotals?.balance  ?? 0, prev: prevTrendTotals?.balance  ?? 0, color: 'text-zinc-700 dark:text-zinc-300' },
           ]
 
           return (
@@ -247,6 +319,11 @@ export default function DashboardAnnualePage() {
               <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-700">
                 <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
                   Confronto con {year - 1}
+                  {hasExceptional && (
+                    <span className="ml-2 font-normal text-xs text-zinc-500 dark:text-zinc-400">
+                      {excludeExceptional ? '· senza movimenti eccezionali' : '· valori reali'}
+                    </span>
+                  )}
                 </h3>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-zinc-100 dark:divide-zinc-700">

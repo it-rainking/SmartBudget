@@ -41,7 +41,10 @@ export default function BudgetPage() {
 
   const { data: budget, isLoading: budgetLoading } = useMonthlyBudget(selectedMonth, selectedYear)
   const { data: prevBudgetData } = useBudgetItems(prevMonth, prevYear)
-  const { data: actuals } = useActualAmountsByCategory(selectedMonth, selectedYear)
+  const { data: actualAmounts } = useActualAmountsByCategory(selectedMonth, selectedYear)
+  // `actuals` è al netto dei movimenti eccezionali, che vengono mostrati a parte
+  const actuals = actualAmounts?.actuals
+  const exceptionalActuals = actualAmounts?.exceptional
   const { data: incomeCategories } = useIncomeCategories()
   const { data: expenseCategories } = useExpenseCategories()
   const { data: savingCategories } = useSavingCategories()
@@ -77,6 +80,7 @@ export default function BudgetPage() {
 
   const getPlanned = (categoryId: string) => Math.max(0, parseFloat(editingValues[categoryId] || '0') || 0)
   const getActual = (categoryId: string) => actuals?.[categoryId] || 0
+  const getExceptional = (categoryId: string) => exceptionalActuals?.[categoryId] || 0
 
   const totalPlanned = getCategories().reduce((sum, cat) => sum + getPlanned(cat.id), 0)
   const totalActual = getCategories().reduce((sum, cat) => sum + getActual(cat.id), 0)
@@ -187,12 +191,18 @@ export default function BudgetPage() {
             const cats = tab.key === 'income' ? (incomeCategories || []) : tab.key === 'expense' ? (expenseCategories || []) : (savingCategories || [])
             const planned = cats.reduce((sum, cat) => sum + (parseFloat(editingValues[cat.id] || '0') || 0), 0)
             const actual = cats.reduce((sum, cat) => sum + (actuals?.[cat.id] || 0), 0)
+            const exceptional = cats.reduce((sum, cat) => sum + (exceptionalActuals?.[cat.id] || 0), 0)
             const pct = planned > 0 ? Math.min(Math.round((actual / planned) * 100), 100) : 0
             return (
               <div key={tab.key} className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
                 <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">{tab.label}</p>
                 <p className={`text-xl font-bold ${tab.color}`}>{fmt(actual)}</p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">di {fmt(planned)} pianificati</p>
+                {exceptional > 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                    ⚡ {fmt(exceptional)} eccezionali, esclusi dal confronto
+                  </p>
+                )}
                 <div className="mt-3 h-1.5 bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
@@ -277,6 +287,14 @@ export default function BudgetPage() {
                       <span className={`text-sm font-medium ${activeTabConfig.color}`}>
                         {fmt(actual)}
                       </span>
+                      {getExceptional(cat.id) > 0 && (
+                        <span
+                          title="Movimenti eccezionali esclusi dal confronto con il budget"
+                          className="block text-xs text-amber-600 dark:text-amber-400"
+                        >
+                          ⚡ +{fmt(getExceptional(cat.id))}
+                        </span>
+                      )}
                     </div>
                     <div className="col-span-2 text-right">
                       <span className={`text-sm font-semibold ${

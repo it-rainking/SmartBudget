@@ -135,6 +135,12 @@ export default function DashboardMensilePage() {
             dailyAverage: kpis.dailyAverage,
             deltaExpensePercent: kpis.deltaExpensePercent ?? null,
             prevMonthExpenses: kpis.prevMonthExpenses ?? 0,
+            // Valori a condizioni normali: l'analisi deve ragionare su questi
+            ordinaryIncome: kpis.ordinaryIncome,
+            ordinaryExpenses: kpis.ordinaryExpenses,
+            ordinaryBalance: kpis.ordinaryBalance,
+            exceptionalIncome: kpis.exceptionalIncome,
+            exceptionalExpenses: kpis.exceptionalExpenses,
           },
           categoryBreakdown: kpis.categoryBreakdown,
           categoryNames: categoryNamesMap,
@@ -214,6 +220,11 @@ export default function DashboardMensilePage() {
                 Stima basata sulla media storica — in attesa di nuove entrate
               </p>
             )}
+            {!isLoading && (kpis?.exceptionalIncome ?? 0) > 0 && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                ⚡ {fmt(kpis?.exceptionalIncome ?? 0)} eccezionali, esclusi dai trend
+              </p>
+            )}
           </div>
 
           {/* Spese + delta */}
@@ -221,11 +232,14 @@ export default function DashboardMensilePage() {
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Spese</span>
               {!isLoading && kpis?.deltaExpensePercent !== null && kpis?.deltaExpensePercent !== undefined && (
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                  kpis.deltaExpensePercent > 0
-                    ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                }`}>
+                <span
+                  title="Variazione delle spese ordinarie rispetto al mese precedente (movimenti eccezionali esclusi)"
+                  className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    kpis.deltaExpensePercent > 0
+                      ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                      : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                  }`}
+                >
                   {kpis.deltaExpensePercent > 0 ? '▲' : '▼'} {Math.abs(kpis.deltaExpensePercent)}%
                 </span>
               )}
@@ -234,8 +248,16 @@ export default function DashboardMensilePage() {
               ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
               : <p className="text-2xl font-bold text-red-600">{fmt(kpis?.totalExpenses ?? 0)}</p>
             }
+            {!isLoading && (kpis?.exceptionalExpenses ?? 0) > 0 && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                ⚡ {fmt(kpis?.exceptionalExpenses ?? 0)} eccezionali · ordinarie {fmt(kpis?.ordinaryExpenses ?? 0)}
+              </p>
+            )}
             {!isLoading && kpis?.prevMonthExpenses !== undefined && kpis.prevMonthExpenses > 0 && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Mese prec. {fmt(kpis.prevMonthExpenses)}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                Mese prec. {fmt(kpis.prevMonthExpenses)}
+                {kpis.prevMonthExceptionalExpenses > 0 ? ' (ordinarie)' : ''}
+              </p>
             )}
           </div>
 
@@ -271,6 +293,11 @@ export default function DashboardMensilePage() {
                 Basato su entrata media stimata
               </p>
             )}
+            {!isLoading && ((kpis?.exceptionalExpenses ?? 0) > 0 || (kpis?.exceptionalIncome ?? 0) > 0) && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                ⚡ A condizioni normali: {fmt(kpis?.ordinaryBalance ?? 0)}
+              </p>
+            )}
           </div>
         </div>
 
@@ -284,6 +311,9 @@ export default function DashboardMensilePage() {
               <div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">Media giornaliera</p>
                 <p className="text-xl font-bold text-zinc-800 dark:text-zinc-100">{fmt(kpis?.dailyAverage ?? 0)}</p>
+                {(kpis?.exceptionalExpenses ?? 0) > 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">Esclusi i movimenti eccezionali</p>
+                )}
               </div>
             </div>
 
@@ -473,7 +503,17 @@ export default function DashboardMensilePage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{cat.name}</span>
+                        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                          {cat.name}
+                          {(kpis?.exceptionalByCategory[cat.id] ?? 0) > 0 && (
+                            <span
+                              title={`Include ${fmt(kpis?.exceptionalByCategory[cat.id] ?? 0)} di movimenti eccezionali, esclusi dai trend`}
+                              className="ml-2 text-xs text-amber-600 dark:text-amber-400"
+                            >
+                              ⚡ {fmt(kpis?.exceptionalByCategory[cat.id] ?? 0)}
+                            </span>
+                          )}
+                        </span>
                         <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 ml-4 shrink-0">
                           {fmt(cat.total)}
                         </span>
