@@ -80,7 +80,7 @@ Tutte le tabelle usano RLS con policy `user_id = auth.uid()`.
 | `debt_items` | total_amount, remaining_amount, interest_rate, monthly_payment, ... | UI in `/debiti` (strategie snowball/avalanche) |
 | `monthly_budgets` | month, year, notes | Header budget |
 | `monthly_budget_items` | budget_id, category_type, category_id, planned_amount | Dettaglio per categoria |
-| `transactions` | type (income/expense/saving/debt), category_id?, subcategory_id?, amount, date, description, payment_method, tags[], notes, is_recurring, recurring_id | category_id nullable (import CSV) |
+| `transactions` | type (income/expense/saving/debt), category_id?, subcategory_id?, amount, date, description, payment_method, tags[], notes, is_recurring, recurring_id, installment_plan_id?, installment_number?, installment_count? | category_id nullable (import CSV); campi installment_* valorizzati solo sulle rate di spese dilazionate (vedi sezione "Spese a rate") |
 | `invoices` | name, amount, due_date, paid_date, recurrence (once/weekly/monthly/quarterly/yearly), status (pending/paid/overdue/cancelled), description, paid_amount, category_id?, reminder_days, auto_renew | |
 | `goals` | name, type (saving/debt), target_amount, current_amount, deadline, icon, color, is_completed, completed_at | |
 | `notifications` | type (budget_exceeded/bill_due/goal_achieved/goal_progress/system), title, message, data, is_read, read_at | Notifiche persistite nel DB |
@@ -136,7 +136,8 @@ src/
 │   ├── useAuth.ts                  # user, loading, signOut, isAuthenticated
 │   ├── useSettings.ts              # useSettings, useUpdateSettings, useCompleteOnboarding
 │   ├── useCategories.ts            # useIncomeCategories, useExpenseCategories, useDeleteCategory, ecc.
-│   ├── useTransactions.ts          # useTransactions, useCreateTransaction, useUpdateTransaction, useDeleteTransaction, useMonthlyKPIs
+│   ├── useTransactions.ts          # useTransactions, useCreateTransaction, useCreateInstallmentPlan, useUpdateTransaction, useDeleteTransaction, useDeleteInstallmentPlan, useMonthlyKPIs
+│   ├── useInstallments.ts          # useInstallmentPlans — ricostruisce i piani di spese a rate (PayPal) che toccano un mese
 │   ├── useBudget.ts                # useMonthlyBudget, useEnsureMonthlyBudget, useUpsertBudgetItem, useActualAmountsByCategory
 │   ├── useInvoices.ts              # useInvoices, useCreateInvoice, useUpdateInvoice, useMarkAsPaid, useDeleteInvoice
 │   ├── useGoals.ts                 # useGoals, useCreateGoal, useUpdateGoal, useAddGoalProgress, useCompleteGoal, useDeleteGoal
@@ -169,6 +170,7 @@ Tutti gli hook usano React Query. Chiavi query:
 ['goals']
 ['income_categories'] / ['expense_categories'] / ['saving_categories']
 ['notifications']
+['installment_plans', { month, year }]
 ```
 
 **React Query config** (in `src/lib/queryClient.ts`):
@@ -255,6 +257,21 @@ Per l'invio asincrono: API route `/api/notifications/send` gestisce email (Resen
 
 ---
 
+## Spese a rate (PayPal "Paga in 3 rate")
+
+Nel form di nuova transazione (`transazioni/page.tsx`), quando `type = expense` e il metodo di pagamento contiene "paypal" (case-insensitive, vedi `isPaypalMethod()` in `utils.ts`) compare il toggle **"Paga in 3 rate"**.
+
+- L'importo inserito è il **totale** dell'acquisto. `splitInstallments()` lo divide in `PAYPAL_INSTALLMENT_COUNT` (3) rate arrotondate al centesimo, con l'eventuale resto sulla prima rata.
+- `installmentDates()` calcola le date delle rate successive: stesso giorno del mese, mese per mese (`addMonthsClamped()`), con clamp all'ultimo giorno se il mese di destinazione è più corto.
+- `useCreateInstallmentPlan()` (in `useTransactions.ts`) inserisce le N rate come normali righe in `transactions`, tutte con lo stesso `installment_plan_id` (un nuovo UUID) e `installment_number` / `installment_count` valorizzati. Non c'è una tabella separata: ogni rata è una transazione a sé, quindi pesa su KPI/budget del proprio mese fin da subito (anche le rate future, non ancora addebitate).
+- Una rata è considerata **addebitata** quando `date <= oggi`, **programmata** altrimenti — calcolato lato client in `useInstallmentPlans()` (`useInstallments.ts`), non c'è un flag nel DB.
+- `useInstallmentPlans(month, year)` ricostruisce i piani che toccano il mese richiesto (query ±5 mesi per raggruppare tutte le rate di un piano), usata nella sezione "💳 Spese PayPal a rate" della dashboard mensile (`dashboard/mensile/page.tsx`) per mostrare stato (`programmato` / `in_corso` / `completato`), rate addebitate/residue e importo totale.
+- Modifica: editare una rata (`transazioni/page.tsx`) modifica solo quella riga, non l'intero piano.
+- Eliminazione: il modal di conferma elimina offre la scelta fra "solo questa rata" (`useDeleteTransaction`) o "tutte le rate" (`useDeleteInstallmentPlan`, cancella per `installment_plan_id`).
+- Migrazione DB: `supabase/migrate_paypal_installments.sql` aggiunge `installment_plan_id UUID`, `installment_number INTEGER`, `installment_count INTEGER` a `transactions` (anche in `schema.sql` per i nuovi progetti).
+
+---
+
 ## Ambiente di Build
 
 - `.env.local` con `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` (gitignored)
@@ -301,6 +318,7 @@ npm run lint   # eslint
 - ✅ Suggerimenti AI per categorizzazione/insight/semplificazione categorie (`/api/ai/*`, richiede `ANTHROPIC_API_KEY`)
 - ✅ Budget: copia da mese precedente (`handleCopyFromPrevMonth` in `budget/page.tsx`)
 - ✅ Filtro per categoria nella lista transazioni
+- ✅ Spese PayPal a rate (toggle "Paga in 3 rate", generazione automatica delle rate nei 2 mesi successivi, sommario con stato nella dashboard mensile)
 
 ### Priority backlog
 - Aggregazione annuale lato SQL (view/RPC) invece di fetch raw + riduzione client-side (`useAnnualData.ts`)

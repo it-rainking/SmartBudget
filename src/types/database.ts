@@ -354,6 +354,9 @@ export type Database = {
           notes: string | null
           is_recurring: boolean
           recurring_id: string | null
+          installment_plan_id: string | null
+          installment_number: number | null
+          installment_count: number | null
           created_at: string
           updated_at: string
         }
@@ -371,6 +374,9 @@ export type Database = {
           notes?: string | null
           is_recurring?: boolean
           recurring_id?: string | null
+          installment_plan_id?: string | null
+          installment_number?: number | null
+          installment_count?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -388,6 +394,9 @@ export type Database = {
           notes?: string | null
           is_recurring?: boolean
           recurring_id?: string | null
+          installment_plan_id?: string | null
+          installment_number?: number | null
+          installment_count?: number | null
           created_at?: string
           updated_at?: string
         }

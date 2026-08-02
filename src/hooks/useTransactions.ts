@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { getMonthDateRange } from '@/lib/utils'
+import { getMonthDateRange, installmentDates, splitInstallments, PAYPAL_INSTALLMENT_COUNT } from '@/lib/utils'
 import type { Transaction, TransactionFormData } from '@/types'
 
 interface TransactionFilters {
@@ -74,6 +74,50 @@ export function useCreateTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
+    },
+  })
+}
+
+// Crea una spesa dilazionata: `data.amount` è il totale dell'acquisto, che
+// viene diviso in `count` rate. La prima rata resta sulla data indicata, le
+// successive cadono lo stesso giorno dei mesi seguenti — come "Paga in 3 rate"
+// di PayPal. Le rate sono normali transazioni, quindi ciascuna pesa sui KPI e
+// sul budget del proprio mese.
+export function useCreateInstallmentPlan() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ data, count = PAYPAL_INSTALLMENT_COUNT }: { data: TransactionFormData; count?: number }) => {
+      const { data: user } = await supabase.auth.getUser()
+      if (!user.user) throw new Error('Non autenticato')
+
+      const planId = crypto.randomUUID()
+      const amounts = splitInstallments(data.amount, count)
+      const dates = installmentDates(data.date, count)
+
+      const rows = amounts.map((amount, i) => ({
+        ...data,
+        amount,
+        date: dates[i],
+        user_id: user.user!.id,
+        installment_plan_id: planId,
+        installment_number: i + 1,
+        installment_count: count,
+      }))
+
+      const { data: transactions, error } = await supabase
+        .from('transactions')
+        .insert(rows)
+        .select()
+
+      if (error) throw error
+      return transactions
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
     },
   })
 }
@@ -96,6 +140,7 @@ export function useUpdateTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
     },
   })
 }
@@ -115,6 +160,28 @@ export function useDeleteTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
+    },
+  })
+}
+
+// Elimina tutte le rate di un piano, comprese quelle dei mesi successivi.
+export function useDeleteInstallmentPlan() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (planId: string) => {
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('installment_plan_id', planId)
+
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
     },
   })
 }
