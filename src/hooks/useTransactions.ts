@@ -175,10 +175,10 @@ export function useMonthlyKPIs(month?: number, year?: number) {
   return useQuery({
     queryKey: ['monthly_kpis', { month: m, year: y }],
     queryFn: async () => {
-      const [curr, prev, hist] = await Promise.all([
+      const [curr, prev, hist, prior, settingsRes] = await Promise.all([
         supabase
           .from('transactions')
-          .select('type, category_id, amount, is_exceptional')
+          .select('type, category_id, amount, date, is_exceptional')
           .gte('date', startDate)
           .lte('date', endDate),
         supabase
@@ -193,10 +193,24 @@ export function useMonthlyKPIs(month?: number, year?: number) {
           .eq('is_exceptional', false)
           .gte('date', histStart)
           .lte('date', prevEnd),
+        // Tutto lo storico precedente al mese: serve solo alla somma cumulata
+        // del saldo disponibile, quindi si leggono due sole colonne.
+        // Aggregazione client-side coerente con useAnnualData; spostarla lato
+        // SQL è già nel backlog di CLAUDE.md.
+        supabase
+          .from('transactions')
+          .select('type, amount')
+          .lt('date', startDate),
+        supabase
+          .from('settings')
+          .select('initial_balance')
+          .maybeSingle(),
       ])
 
       if (curr.error) throw curr.error
       if (hist.error) throw hist.error
+      // Un errore qui falserebbe il saldo disponibile invece di lasciarlo vuoto
+      if (prior.error) throw prior.error
 
       const categoryBreakdown: Record<string, number> = {}
       const exceptionalByCategory: Record<string, number> = {}
@@ -230,6 +244,12 @@ export function useMonthlyKPIs(month?: number, year?: number) {
         exceptionalByCategory,
         projectedIncome: 0,
         isIncomeEstimated: false,
+        // Saldo disponibile: denaro effettivamente in cassa a inizio e fine
+        // mese, più la curva giorno per giorno. Concetto distinto da `balance`
+        // (che è il flusso del mese e può basarsi su un'entrata stimata).
+        openingBalance: 0,
+        closingBalance: 0,
+        dailyBalances: [] as number[],
       }
 
       curr.data?.forEach((t) => {
@@ -310,6 +330,35 @@ export function useMonthlyKPIs(month?: number, year?: number) {
       Object.entries(categoryBreakdown).forEach(([id, amt]) => {
         if (amt > maxCat) { maxCat = amt; kpis.topCategoryId = id }
       })
+
+      // --- Saldo disponibile ---
+      // Contano solo i movimenti realmente registrati, eccezionali inclusi:
+      // sono soldi che si sono davvero mossi. Niente entrata stimata, che
+      // mostrerebbe denaro non ancora incassato.
+      const signedFlow = (type: string, amount: number) => (type === 'income' ? amount : -amount)
+
+      let openingBalance = Number(settingsRes.data?.initial_balance ?? 0)
+      prior.data?.forEach((t) => {
+        openingBalance += signedFlow(t.type, Number(t.amount))
+      })
+
+      // Il giorno si estrae dalla stringa 'YYYY-MM-DD': new Date() sposterebbe
+      // la data di un giorno nei fusi a offset positivo.
+      const dailyNet: number[] = new Array(daysInMonth).fill(0)
+      curr.data?.forEach((t) => {
+        const day = Number(t.date.slice(8, 10))
+        if (day >= 1 && day <= daysInMonth) {
+          dailyNet[day - 1] += signedFlow(t.type, Number(t.amount))
+        }
+      })
+
+      let running = openingBalance
+      kpis.dailyBalances = dailyNet.map((net) => {
+        running += net
+        return running
+      })
+      kpis.openingBalance = openingBalance
+      kpis.closingBalance = running
 
       return kpis
     },

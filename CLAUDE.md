@@ -36,11 +36,11 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 /recupera-password        → Richiesta reset password
 /aggiorna-password        → Imposta nuova password (dopo link email)
 /onboarding               → Wizard 3-step primo accesso
-/dashboard/mensile        → KPI mensili + grafici
+/dashboard/mensile        → KPI mensili + saldo disponibile + grafici (incl. andamento saldo giornaliero)
 /dashboard/annuale        → Trend 12 mesi + grafici annuali
 /transazioni              → CRUD transazioni + import CSV/OFX
 /budget                   → Budget previsto vs effettivo
-/fatture                  → Fatture/abbonamenti + calendario
+/fatture                  → Fatture/abbonamenti + calendario (⚠️ non linkata in sidebar: strumento non in uso, codice mantenuto)
 /obiettivi                → Obiettivi finanziari con progress bar
 /debiti                   → Debiti: strategie snowball/avalanche, piano di rimborso
 /investimenti             → Portafoglio investimenti (import CSV Fineco, prezzi Google Finance/Yahoo)
@@ -244,7 +244,16 @@ Esclusa da:
 - `useNotifications`: alert "budget superato" e "saldo negativo"
 - `/api/ai/insights`: il prompt riceve i valori ordinari e cita gli eccezionali a parte
 
-Inclusa in: `totalIncome`/`totalExpenses`/`totalSavings`/`balance`, `categoryBreakdown`, totali annuali.
+Inclusa in: `totalIncome`/`totalExpenses`/`totalSavings`/`balance`, `categoryBreakdown`, totali annuali, e nel saldo disponibile (vedi sotto: un movimento eccezionale è comunque denaro che si è mosso davvero).
+
+### Saldo netto vs saldo disponibile
+
+Due concetti distinti in `useMonthlyKPIs`, da non confondere:
+
+- **`balance`** (card "Saldo netto") — *flusso* del mese: `entrate − spese − risparmi − debiti`. Può basarsi su `projectedIncome` quando lo stipendio del mese non è ancora registrato (`isIncomeEstimated`). Risponde a "quanto ho messo da parte questo mese".
+- **`openingBalance` / `closingBalance` / `dailyBalances`** (card "Saldo disponibile" + grafico "Andamento del saldo") — *stock*: `settings.initial_balance` + somma cumulata di tutti i movimenti realmente registrati. **Mai** basato su stime: mostrerebbe denaro non ancora incassato. I risparmi sono sottratti (escono dal conto corrente).
+
+`dailyBalances` è la curva giorno per giorno del mese selezionato; nel mese corrente la pagina la tronca a oggi per non far sembrare una previsione la linea piatta fino a fine mese.
 
 ### Invoice status dinamico
 

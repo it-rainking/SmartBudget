@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, TrendingUp, PiggyBank, Wallet, CalendarDays, BarChart3, Trophy } from 'lucide-react'
+import { ChevronLeft, ChevronRight, TrendingUp, PiggyBank, Wallet, CalendarDays, BarChart3, Trophy, Landmark } from 'lucide-react'
 import {
   Chart as ChartJS,
   ArcElement,
@@ -11,8 +11,11 @@ import {
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
+  PointElement,
+  Filler,
 } from 'chart.js'
-import { Doughnut, Bar } from 'react-chartjs-2'
+import { Doughnut, Bar, Line } from 'react-chartjs-2'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useMonthlyKPIs, useTransactions } from '@/hooks/useTransactions'
 import { useExpenseCategories } from '@/hooks/useCategories'
@@ -21,7 +24,7 @@ import { useModalA11y } from '@/hooks/useModalA11y'
 import { formatCurrency, formatMonth } from '@/lib/utils'
 import type { ExpenseCategory } from '@/types'
 
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement)
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Filler)
 
 const MONTHS = [
   'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
@@ -102,6 +105,13 @@ export default function DashboardMensilePage() {
   }), [kpis, displayIncome, incomeColor])
 
   const hasData = displayIncome > 0 || (kpis?.totalExpenses ?? 0) > 0 || (kpis?.totalSavings ?? 0) > 0
+
+  // Curva del saldo: nel mese corrente si ferma a oggi, altrimenti una linea
+  // piatta fino a fine mese sembrerebbe una previsione.
+  const dailyBalances = kpis?.dailyBalances ?? []
+  const balanceValues = isCurrentMonth
+    ? dailyBalances.slice(0, Math.min(currentDate.getDate(), dailyBalances.length))
+    : dailyBalances
 
   // AI Insights
   const [aiInsights, setAiInsights] = useState<string[]>([])
@@ -303,7 +313,24 @@ export default function DashboardMensilePage() {
 
         {/* Secondary KPIs */}
         {!isLoading && hasData && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Saldo disponibile: denaro realmente in cassa, distinto dal
+                "Saldo netto" qui sopra che è il flusso del mese. */}
+            <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700 flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/20 flex items-center justify-center shrink-0">
+                <Landmark size={22} className="text-emerald-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">Saldo disponibile</p>
+                <p className={`text-xl font-bold ${(kpis?.closingBalance ?? 0) >= 0 ? 'text-zinc-800 dark:text-zinc-100' : 'text-red-600'}`}>
+                  {fmt(kpis?.closingBalance ?? 0)}
+                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                  A inizio mese {fmt(kpis?.openingBalance ?? 0)}
+                </p>
+              </div>
+            </div>
+
             <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700 flex items-center gap-4">
               <div className="h-12 w-12 rounded-xl bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center shrink-0">
                 <CalendarDays size={22} className="text-orange-500" />
@@ -444,6 +471,67 @@ export default function DashboardMensilePage() {
                   }}
                 />
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Andamento del saldo giorno per giorno */}
+        {!isLoading && hasData && balanceValues.length > 0 && (
+          <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-100 dark:border-zinc-700">
+            <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+              Andamento del saldo
+            </h3>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
+              Denaro disponibile giorno per giorno{isCurrentMonth ? ', fino a oggi' : ''}
+            </p>
+            <div className="h-56">
+              <Line
+                data={{
+                  labels: balanceValues.map((_, i) => String(i + 1)),
+                  datasets: [{
+                    data: balanceValues,
+                    borderColor: '#10b981',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    tension: 0.3,
+                    // Evidenzia l'attraversamento dello zero: è il punto
+                    // informativo del grafico.
+                    fill: {
+                      target: 'origin',
+                      above: 'rgba(16, 185, 129, 0.12)',
+                      below: 'rgba(239, 68, 68, 0.18)',
+                    },
+                  }],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                      callbacks: {
+                        title: (items) => `Giorno ${items[0].label}`,
+                        label: (item) => fmt(item.parsed.y ?? 0),
+                      },
+                    },
+                  },
+                  scales: {
+                    x: {
+                      grid: { display: false },
+                      ticks: { maxTicksLimit: 10, color: '#a1a1aa', font: { size: 11 } },
+                    },
+                    y: {
+                      grid: { color: 'rgba(161, 161, 170, 0.15)' },
+                      ticks: {
+                        color: '#a1a1aa',
+                        font: { size: 11 },
+                        callback: (value) => fmt(Number(value)),
+                      },
+                    },
+                  },
+                }}
+              />
             </div>
           </div>
         )}
