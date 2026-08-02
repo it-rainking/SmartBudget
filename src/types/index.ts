@@ -131,11 +131,44 @@ export interface Transaction {
   // Movimento eccezionale/una tantum: conta nei totali reali ma è escluso
   // da medie, delta mese su mese, trend annuali, stime e alert
   is_exceptional: boolean
+  // Spese dilazionate (PayPal "Paga in 3 rate"): valorizzati solo sulle rate
+  installment_plan_id: string | null
+  installment_number: number | null
+  installment_count: number | null
   created_at: string
   updated_at: string
   // Joined fields
   category?: IncomeCategory | ExpenseCategory | SavingCategory
   subcategory?: ExpenseSubcategory
+}
+
+// Stato di una singola rata di un piano di rateizzazione
+export type InstallmentStatus = 'addebitata' | 'programmata'
+
+export interface InstallmentEntry {
+  id: string
+  number: number
+  amount: number
+  date: string
+  status: InstallmentStatus
+}
+
+// Stato complessivo del piano: nessuna rata addebitata / in corso / tutte addebitate
+export type InstallmentPlanStatus = 'programmato' | 'in_corso' | 'completato'
+
+export interface InstallmentPlan {
+  planId: string
+  description: string | null
+  categoryId: string | null
+  paymentMethod: string | null
+  totalAmount: number
+  installments: InstallmentEntry[]
+  chargedCount: number
+  chargedAmount: number
+  remainingAmount: number
+  status: InstallmentPlanStatus
+  // Quota del piano che cade nel mese analizzato
+  amountInMonth: number
 }
 
 export type InvoiceStatus = 'pending' | 'paid' | 'overdue' | 'cancelled'
@@ -204,6 +237,9 @@ export interface TransactionFormData {
   notes?: string
   is_recurring?: boolean
   is_exceptional?: boolean
+  installment_plan_id?: string
+  installment_number?: number
+  installment_count?: number
 }
 
 export interface CategoryFormData {

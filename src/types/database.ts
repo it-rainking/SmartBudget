@@ -355,6 +355,9 @@ export type Database = {
           is_recurring: boolean
           recurring_id: string | null
           is_exceptional: boolean
+          installment_plan_id: string | null
+          installment_number: number | null
+          installment_count: number | null
           created_at: string
           updated_at: string
         }
@@ -373,6 +376,9 @@ export type Database = {
           is_recurring?: boolean
           recurring_id?: string | null
           is_exceptional?: boolean
+          installment_plan_id?: string | null
+          installment_number?: number | null
+          installment_count?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -391,6 +397,9 @@ export type Database = {
           is_recurring?: boolean
           recurring_id?: string | null
           is_exceptional?: boolean
+          installment_plan_id?: string | null
+          installment_number?: number | null
+          installment_count?: number | null
           created_at?: string
           updated_at?: string
         }

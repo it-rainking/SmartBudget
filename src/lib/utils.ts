@@ -67,3 +67,43 @@ export function parseLocalDate(dateStr: string): Date {
 export function daysBetween(aStr: string, bStr: string): number {
   return Math.round((parseLocalDate(bStr).getTime() - parseLocalDate(aStr).getTime()) / 86400000)
 }
+
+// ── Spese a rate (PayPal "Paga in 3 rate") ──────────────────────────────────
+
+// Numero di rate del piano PayPal: prima rata all'acquisto + 2 mensili.
+export const PAYPAL_INSTALLMENT_COUNT = 3
+
+// Riconosce PayPal fra i metodi di pagamento, che l'utente può rinominare
+// dalle impostazioni (es. "PayPal Business"): confronto case-insensitive.
+export function isPaypalMethod(method?: string | null): boolean {
+  return !!method && method.toLowerCase().includes('paypal')
+}
+
+// Somma `months` mesi a una data 'YYYY-MM-DD' mantenendo lo stesso giorno del
+// mese. Se il mese di destinazione è più corto (31/01 + 1 mese) si usa il suo
+// ultimo giorno, come fanno gli addebiti ricorrenti PayPal.
+export function addMonthsClamped(dateStr: string, months: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const absoluteMonth = (m - 1) + months
+  const targetYear = y + Math.floor(absoluteMonth / 12)
+  const targetMonth = ((absoluteMonth % 12) + 12) % 12
+  const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate()
+  const day = Math.min(d, lastDay)
+  return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+// Ripartisce un totale in `count` rate arrotondate al centesimo. Il resto
+// della divisione finisce sulla prima rata (100 € → 33,34 + 33,33 + 33,33),
+// così la somma delle rate è sempre esattamente il totale.
+export function splitInstallments(total: number, count: number = PAYPAL_INSTALLMENT_COUNT): number[] {
+  const totalCents = Math.round(total * 100)
+  const base = Math.floor(totalCents / count)
+  const remainder = totalCents - base * count
+  return Array.from({ length: count }, (_, i) => (i === 0 ? base + remainder : base) / 100)
+}
+
+// Date delle rate a partire dalla data della prima: stesso giorno nei mesi
+// successivi.
+export function installmentDates(startDate: string, count: number = PAYPAL_INSTALLMENT_COUNT): string[] {
+  return Array.from({ length: count }, (_, i) => addMonthsClamped(startDate, i))
+}

@@ -18,11 +18,12 @@ import {
 import { Doughnut, Bar, Line } from 'react-chartjs-2'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useMonthlyKPIs, useTransactions } from '@/hooks/useTransactions'
+import { useInstallmentPlans } from '@/hooks/useInstallments'
 import { useExpenseCategories } from '@/hooks/useCategories'
 import { useSettings } from '@/hooks/useSettings'
 import { useModalA11y } from '@/hooks/useModalA11y'
-import { formatCurrency, formatMonth } from '@/lib/utils'
-import type { ExpenseCategory } from '@/types'
+import { formatCurrency, formatDate, formatMonth } from '@/lib/utils'
+import type { ExpenseCategory, InstallmentPlan } from '@/types'
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Filler)
 
@@ -39,6 +40,7 @@ export default function DashboardMensilePage() {
   const { data: kpis, isLoading } = useMonthlyKPIs(selectedMonth, selectedYear)
   const { data: expenseCategories } = useExpenseCategories()
   const { data: settings } = useSettings()
+  const { data: installmentPlans } = useInstallmentPlans(selectedMonth, selectedYear)
 
   const currency = settings?.currency || 'EUR'
   const fmt = (n: number) => formatCurrency(n, currency)
@@ -566,6 +568,11 @@ export default function DashboardMensilePage() {
           </div>
         )}
 
+        {/* Spese PayPal a rate */}
+        {!isLoading && (installmentPlans?.length ?? 0) > 0 && (
+          <InstallmentPlansSummary plans={installmentPlans!} currency={currency} />
+        )}
+
         {/* Category breakdown detail */}
         {!isLoading && categoryBreakdown.length > 0 && (
           <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-100 dark:border-zinc-700 overflow-hidden">
@@ -699,6 +706,76 @@ export default function DashboardMensilePage() {
         />
       )}
     </DashboardLayout>
+  )
+}
+
+const INSTALLMENT_STATUS_LABEL: Record<InstallmentPlan['status'], string> = {
+  programmato: 'Programmato',
+  in_corso: 'In corso',
+  completato: 'Completato',
+}
+
+const INSTALLMENT_STATUS_CLASS: Record<InstallmentPlan['status'], string> = {
+  programmato: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300',
+  in_corso: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  completato: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+}
+
+// Sommario delle spese PayPal a rate che toccano il mese selezionato, con lo
+// stato di avanzamento di ciascun piano (quante rate sono già state
+// addebitate e quante restano).
+function InstallmentPlansSummary({ plans, currency }: { plans: InstallmentPlan[]; currency: string }) {
+  const fmt = (n: number) => formatCurrency(n, currency)
+  const totalInMonth = plans.reduce((sum, p) => sum + p.amountInMonth, 0)
+
+  return (
+    <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-100 dark:border-zinc-700 overflow-hidden">
+      <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-700 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">💳 Spese PayPal a rate</h3>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Rate di questo mese: {fmt(totalInMonth)}</p>
+        </div>
+      </div>
+      <div className="divide-y divide-zinc-50 dark:divide-zinc-700/50">
+        {plans.map((plan) => (
+          <div key={plan.planId} className="px-6 py-3">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate">
+                {plan.description || 'Spesa a rate'}
+              </p>
+              <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${INSTALLMENT_STATUS_CLASS[plan.status]}`}>
+                {INSTALLMENT_STATUS_LABEL[plan.status]}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1.5">
+              <span>{plan.chargedCount}/{plan.installments.length} rate addebitate · Totale {fmt(plan.totalAmount)}</span>
+              <span>Residuo {fmt(plan.remainingAmount)}</span>
+            </div>
+            <div className="h-1.5 bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden mb-2">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                style={{ width: `${(plan.chargedCount / plan.installments.length) * 100}%` }}
+              />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {plan.installments.map((inst) => (
+                <span
+                  key={inst.id}
+                  title={`Rata ${inst.number}: ${fmt(inst.amount)}`}
+                  className={`text-[10px] px-1.5 py-0.5 rounded ${
+                    inst.status === 'addebitata'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                      : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400'
+                  }`}
+                >
+                  {inst.number}/{plan.installments.length} · {formatDate(inst.date)}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
