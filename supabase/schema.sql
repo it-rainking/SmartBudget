@@ -163,10 +163,24 @@ CREATE TABLE public.transactions (
     notes TEXT,
     is_recurring BOOLEAN DEFAULT FALSE,
     recurring_id UUID,
+    -- Spese dilazionate (es. PayPal "Paga in 3 rate"): le rate di uno stesso
+    -- acquisto condividono installment_plan_id e si numerano 1..installment_count
+    installment_plan_id UUID,
+    installment_number INTEGER,
+    installment_count INTEGER,
     -- Movimento eccezionale/una tantum: escluso da medie, delta e trend
     is_exceptional BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    CONSTRAINT transactions_installment_check CHECK (
+        (installment_plan_id IS NULL AND installment_number IS NULL AND installment_count IS NULL)
+        OR (
+            installment_plan_id IS NOT NULL
+            AND installment_count >= 2
+            AND installment_number >= 1
+            AND installment_number <= installment_count
+        )
+    )
 );
 
 -- ============================================
@@ -297,6 +311,7 @@ CREATE INDEX idx_transactions_user_id ON public.transactions(user_id);
 CREATE INDEX idx_transactions_date ON public.transactions(date);
 CREATE INDEX idx_transactions_type ON public.transactions(type);
 CREATE INDEX idx_transactions_user_date ON public.transactions(user_id, date);
+CREATE INDEX idx_transactions_installment_plan ON public.transactions(installment_plan_id) WHERE installment_plan_id IS NOT NULL;
 CREATE INDEX idx_transactions_user_exceptional ON public.transactions(user_id, is_exceptional);
 
 -- Budget indexes
