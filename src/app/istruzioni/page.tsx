@@ -147,6 +147,23 @@ const sections: Section[] = [
               ))}
             </div>
           </div>
+          <div className="p-4 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/10">
+            <h4 className="font-semibold text-zinc-900 dark:text-white mb-1">⚡ Movimenti eccezionali</h4>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Nel form di una transazione (entrata o spesa) puoi attivare <strong>&quot;Movimento eccezionale&quot;</strong>
+              per le operazioni una tantum fuori dall&apos;ordinario: acquisto di un&apos;auto, un rimborso, un bonus.
+            </p>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
+              Questi movimenti restano nei <strong>totali reali</strong> del mese e dell&apos;anno, ma vengono
+              esclusi da media giornaliera, confronto con il mese precedente, trend annuali, stima delle
+              entrate, confronto con il budget e avvisi. Così un mese con una spesa straordinaria non fa
+              sembrare fuori controllo il tuo andamento normale.
+            </p>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
+              In lista sono contrassegnati dal badge <strong>⚡ Eccezionale</strong> e nei filtri avanzati puoi
+              isolarli o nasconderli.
+            </p>
+          </div>
           <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
             <h4 className="font-semibold text-zinc-900 dark:text-white mb-1">Import da CSV</h4>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">

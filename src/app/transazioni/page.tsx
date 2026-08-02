@@ -46,6 +46,7 @@ export default function TransazioniPage() {
   const [filterType, setFilterType] = useState<TransactionType | ''>('')
   const [filterCategoryId, setFilterCategoryId] = useState('')
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('')
+  const [filterExceptional, setFilterExceptional] = useState<'' | 'only' | 'exclude'>('')
   const [filterMinAmount, setFilterMinAmount] = useState('')
   const [filterMaxAmount, setFilterMaxAmount] = useState('')
   const [filterDayFrom, setFilterDayFrom] = useState('')
@@ -69,6 +70,7 @@ export default function TransazioniPage() {
   const [formPaymentMethod, setFormPaymentMethod] = useState('')
   const [formIsRecurring, setFormIsRecurring] = useState(false)
   const [formIsInstallment, setFormIsInstallment] = useState(false)
+  const [formIsExceptional, setFormIsExceptional] = useState(false)
 
   // Il pagamento a rate è offerto solo dove esiste davvero: spese pagate con
   // PayPal. In modifica non si propone, perché il piano è già stato creato.
@@ -80,6 +82,7 @@ export default function TransazioniPage() {
     year: selectedYear,
     type: filterType || undefined,
     payment_method: filterPaymentMethod || undefined,
+    exceptional: filterExceptional || undefined,
   })
   const { data: incomeCategories, isLoading: incomeCategoriesLoading } = useIncomeCategories()
   const { data: expenseCategories, isLoading: expenseCategoriesLoading } = useExpenseCategories()
@@ -187,6 +190,7 @@ export default function TransazioniPage() {
     setFormDescription(transaction.description || '')
     setFormPaymentMethod(transaction.payment_method || '')
     setFormIsRecurring(transaction.is_recurring || false)
+    setFormIsExceptional(transaction.is_exceptional || false)
     setShowForm(true)
   }
 
@@ -199,6 +203,7 @@ export default function TransazioniPage() {
     setFormDate(getLocalDateString())
     setFormIsRecurring(false)
     setFormIsInstallment(false)
+    setFormIsExceptional(false)
     setEditingTransaction(null)
     setShowForm(false)
   }
@@ -220,6 +225,7 @@ export default function TransazioniPage() {
       description: formDescription || undefined,
       payment_method: formPaymentMethod || undefined,
       is_recurring: formIsRecurring,
+      is_exceptional: formIsExceptional,
     }
 
     try {
@@ -421,6 +427,18 @@ export default function TransazioniPage() {
                 </select>
               </div>
               <div className="flex flex-col gap-1">
+                <label className="text-xs text-zinc-500 dark:text-zinc-400">Movimenti</label>
+                <select
+                  value={filterExceptional}
+                  onChange={e => { setFilterExceptional(e.target.value as '' | 'only' | 'exclude'); setCurrentPage(1) }}
+                  className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
+                >
+                  <option value="">Tutti</option>
+                  <option value="exclude">Solo ordinari</option>
+                  <option value="only">Solo eccezionali</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
                 <label className="text-xs text-zinc-500 dark:text-zinc-400">Importo min (€)</label>
                 <input
                   type="number"
@@ -470,11 +488,12 @@ export default function TransazioniPage() {
                   className="w-24 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
                 />
               </div>
-              {(filterCategoryId || filterPaymentMethod || filterMinAmount || filterMaxAmount || filterDayFrom || filterDayTo) && (
+              {(filterCategoryId || filterPaymentMethod || filterExceptional || filterMinAmount || filterMaxAmount || filterDayFrom || filterDayTo) && (
                 <button
                   onClick={() => {
                     setFilterCategoryId('')
                     setFilterPaymentMethod('')
+                    setFilterExceptional('')
                     setFilterMinAmount('')
                     setFilterMaxAmount('')
                     setFilterDayFrom('')
@@ -533,6 +552,14 @@ export default function TransazioniPage() {
                             className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
                           >
                             Rata {transaction.installment_number}/{transaction.installment_count}
+                          </span>
+                        )}
+                        {transaction.is_exceptional && (
+                          <span
+                            title="Movimento eccezionale — escluso da medie, confronti e trend"
+                            className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                          >
+                            ⚡ Eccezionale
                           </span>
                         )}
                       </div>
@@ -791,6 +818,26 @@ export default function TransazioniPage() {
                 </button>
               </div>
               )}
+
+              {/* Eccezionale — escluso dai trend */}
+              <div className="flex items-center justify-between py-1">
+                <div className="pr-3">
+                  <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Movimento eccezionale</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Una tantum fuori dall&apos;ordinario (es. acquisto auto, rimborso, bonus).
+                    Resta nei totali reali ma viene escluso da medie, confronti mensili e trend.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormIsExceptional(v => !v)}
+                  className={`relative w-11 h-6 shrink-0 rounded-full transition-colors focus:outline-none ${formIsExceptional ? 'bg-amber-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}
+                  aria-pressed={formIsExceptional}
+                  aria-label="Movimento eccezionale, escluso dai trend"
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formIsExceptional ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
 
               {/* Actions */}
               <div className="flex gap-3 pt-4">

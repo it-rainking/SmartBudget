@@ -11,6 +11,8 @@ interface TransactionFilters {
   type?: 'income' | 'expense' | 'saving' | 'debt'
   category_id?: string
   payment_method?: string
+  // 'only' = solo movimenti eccezionali, 'exclude' = solo ordinari
+  exceptional?: 'only' | 'exclude'
 }
 
 export function useTransactions(filters?: TransactionFilters) {
@@ -41,6 +43,10 @@ export function useTransactions(filters?: TransactionFilters) {
 
       if (filters?.payment_method) {
         query = query.eq('payment_method', filters.payment_method)
+      }
+
+      if (filters?.exceptional) {
+        query = query.eq('is_exceptional', filters.exceptional === 'only')
       }
 
       const { data, error } = await query
@@ -239,18 +245,19 @@ export function useMonthlyKPIs(month?: number, year?: number) {
       const [curr, prev, hist] = await Promise.all([
         supabase
           .from('transactions')
-          .select('type, category_id, amount')
+          .select('type, category_id, amount, is_exceptional')
           .gte('date', startDate)
           .lte('date', endDate),
         supabase
           .from('transactions')
-          .select('type, amount')
+          .select('type, amount, is_exceptional')
           .gte('date', prevStart)
           .lte('date', prevEnd),
         supabase
           .from('transactions')
           .select('date, amount')
           .eq('type', 'income')
+          .eq('is_exceptional', false)
           .gte('date', histStart)
           .lte('date', prevEnd),
       ])
@@ -259,59 +266,97 @@ export function useMonthlyKPIs(month?: number, year?: number) {
       if (hist.error) throw hist.error
 
       const categoryBreakdown: Record<string, number> = {}
+      const exceptionalByCategory: Record<string, number> = {}
 
       const kpis = {
+        // Totali reali: includono anche i movimenti eccezionali
         totalIncome: 0,
         totalExpenses: 0,
         totalSavings: 0,
         totalDebts: 0,
         balance: 0,
+        // Valori "condizioni normali": al netto dei movimenti eccezionali.
+        // Sono la base di medie, delta e alert.
+        ordinaryIncome: 0,
+        ordinaryExpenses: 0,
+        ordinarySavings: 0,
+        ordinaryDebts: 0,
+        ordinaryBalance: 0,
+        exceptionalIncome: 0,
+        exceptionalExpenses: 0,
         incomePercent: 0,
         expensePercent: 0,
         savingsPercent: 0,
+        // Spese ordinarie del mese precedente (base del confronto)
         prevMonthExpenses: 0,
+        prevMonthExceptionalExpenses: 0,
         deltaExpensePercent: null as number | null,
         dailyAverage: 0,
         topCategoryId: null as string | null,
         categoryBreakdown,
+        exceptionalByCategory,
         projectedIncome: 0,
         isIncomeEstimated: false,
       }
 
       curr.data?.forEach((t) => {
         const amt = Number(t.amount)
+        const exceptional = !!t.is_exceptional
         switch (t.type) {
-          case 'income':  kpis.totalIncome += amt; break
+          case 'income':
+            kpis.totalIncome += amt
+            if (exceptional) kpis.exceptionalIncome += amt
+            else kpis.ordinaryIncome += amt
+            break
           case 'expense':
             kpis.totalExpenses += amt
+            if (exceptional) kpis.exceptionalExpenses += amt
+            else kpis.ordinaryExpenses += amt
             if (t.category_id) {
               categoryBreakdown[t.category_id] = (categoryBreakdown[t.category_id] || 0) + amt
+              if (exceptional) {
+                exceptionalByCategory[t.category_id] = (exceptionalByCategory[t.category_id] || 0) + amt
+              }
             }
             break
-          case 'saving':  kpis.totalSavings += amt; break
-          case 'debt':    kpis.totalDebts += amt; break
+          case 'saving':
+            kpis.totalSavings += amt
+            if (!exceptional) kpis.ordinarySavings += amt
+            break
+          case 'debt':
+            kpis.totalDebts += amt
+            if (!exceptional) kpis.ordinaryDebts += amt
+            break
         }
       })
 
       prev.data?.forEach((t) => {
-        if (t.type === 'expense') kpis.prevMonthExpenses += Number(t.amount)
+        if (t.type !== 'expense') return
+        const amt = Number(t.amount)
+        if (t.is_exceptional) kpis.prevMonthExceptionalExpenses += amt
+        else kpis.prevMonthExpenses += amt
       })
 
       // Entrata mensile storica (media robusta degli ultimi 12 mesi, esclusi
-      // outlier). Finché il mese corrente non ha entrate registrate (es. lo
-      // stipendio arriva a fine mese), la si usa come entrata "attesa" per il
-      // saldo netto, evitando un falso allarme di saldo negativo a metà mese.
+      // outlier e movimenti marcati come eccezionali). Finché il mese corrente
+      // non ha entrate ordinarie registrate (es. lo stipendio arriva a fine
+      // mese), la si usa come entrata "attesa" per il saldo netto, evitando un
+      // falso allarme di saldo negativo a metà mese.
       const monthlyIncomeMap: Record<string, number> = {}
       hist.data?.forEach((t) => {
         const key = t.date.slice(0, 7)
         monthlyIncomeMap[key] = (monthlyIncomeMap[key] || 0) + Number(t.amount)
       })
       kpis.projectedIncome = trimmedAverage(Object.values(monthlyIncomeMap))
-      kpis.isIncomeEstimated = kpis.totalIncome === 0 && kpis.projectedIncome > 0
+      kpis.isIncomeEstimated = kpis.ordinaryIncome === 0 && kpis.projectedIncome > 0
 
-      const effectiveIncome = kpis.isIncomeEstimated ? kpis.projectedIncome : kpis.totalIncome
+      const effectiveOrdinaryIncome = kpis.isIncomeEstimated ? kpis.projectedIncome : kpis.ordinaryIncome
+      const effectiveIncome = effectiveOrdinaryIncome + kpis.exceptionalIncome
       kpis.balance = effectiveIncome - kpis.totalExpenses - kpis.totalSavings - kpis.totalDebts
-      kpis.dailyAverage = kpis.totalExpenses / daysInMonth
+      // Saldo "a condizioni normali": ignora sia le entrate sia le spese una tantum
+      kpis.ordinaryBalance = effectiveOrdinaryIncome - kpis.ordinaryExpenses - kpis.ordinarySavings - kpis.ordinaryDebts
+      // La media giornaliera descrive il ritmo di spesa abituale: niente una tantum
+      kpis.dailyAverage = kpis.ordinaryExpenses / daysInMonth
 
       if (kpis.totalIncome > 0) {
         kpis.expensePercent = Math.round((kpis.totalExpenses / kpis.totalIncome) * 100)
@@ -319,8 +364,10 @@ export function useMonthlyKPIs(month?: number, year?: number) {
         kpis.incomePercent = 100
       }
 
+      // Delta mese su mese calcolato solo sulle spese ordinarie: una spesa
+      // straordinaria non deve far sembrare il mese fuori controllo.
       if (kpis.prevMonthExpenses > 0) {
-        const raw = ((kpis.totalExpenses - kpis.prevMonthExpenses) / kpis.prevMonthExpenses) * 100
+        const raw = ((kpis.ordinaryExpenses - kpis.prevMonthExpenses) / kpis.prevMonthExpenses) * 100
         kpis.deltaExpensePercent = isNaN(raw) || !isFinite(raw) ? null : Math.round(raw)
       } else {
         kpis.deltaExpensePercent = null

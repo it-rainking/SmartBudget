@@ -80,21 +80,25 @@ export function useNotifications() {
       const budgetedExpenses = (budget.items ?? [])
         .filter(i => i.category_type === 'expense')
         .reduce((s, i) => s + i.planned_amount, 0)
-      if (budgetedExpenses > 0 && kpis.totalExpenses > budgetedExpenses * 1.1) {
+      // Confronto sulle sole spese ordinarie: una spesa una tantum marcata
+      // come eccezionale non deve far scattare l'alert di budget sforato.
+      if (budgetedExpenses > 0 && kpis.ordinaryExpenses > budgetedExpenses * 1.1) {
         items.push({
           id: 'budget-overrun',
           type: 'warning',
           icon: '📊',
           title: 'Budget spese superato',
-          body: `Spese attuali superiori del ${Math.round(((kpis.totalExpenses / budgetedExpenses) - 1) * 100)}% al budget`,
+          body: `Spese attuali superiori del ${Math.round(((kpis.ordinaryExpenses / budgetedExpenses) - 1) * 100)}% al budget`,
         })
       }
     }
 
-    // Saldo negativo questo mese (il saldo tiene già conto, se necessario,
+    // Saldo negativo questo mese, valutato a condizioni normali: i movimenti
+    // eccezionali sono esclusi, così un acquisto straordinario non genera un
+    // falso allarme. Il saldo ordinario tiene già conto, se necessario,
     // dell'entrata media stimata quando lo stipendio non è ancora arrivato —
-    // vedi kpis.isIncomeEstimated in useMonthlyKPIs)
-    if (kpis && kpis.balance < 0) {
+    // vedi kpis.isIncomeEstimated in useMonthlyKPIs.
+    if (kpis && kpis.ordinaryBalance < 0) {
       items.push({
         id: 'negative-balance',
         type: 'warning',

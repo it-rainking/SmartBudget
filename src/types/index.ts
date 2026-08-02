@@ -132,6 +132,9 @@ export interface Transaction {
   installment_plan_id: string | null
   installment_number: number | null
   installment_count: number | null
+  // Movimento eccezionale/una tantum: conta nei totali reali ma è escluso
+  // da medie, delta mese su mese, trend annuali, stime e alert
+  is_exceptional: boolean
   created_at: string
   updated_at: string
   // Joined fields
@@ -236,6 +239,7 @@ export interface TransactionFormData {
   installment_plan_id?: string
   installment_number?: number
   installment_count?: number
+  is_exceptional?: boolean
 }
 
 export interface CategoryFormData {

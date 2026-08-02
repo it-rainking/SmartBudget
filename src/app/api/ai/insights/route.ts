@@ -46,6 +46,13 @@ export async function POST(req: Request) {
       dailyAverage: number
       deltaExpensePercent: number | null
       prevMonthExpenses: number
+      // Valori al netto dei movimenti marcati come eccezionali (opzionali per
+      // retro-compatibilità con client non aggiornati)
+      ordinaryIncome?: number
+      ordinaryExpenses?: number
+      ordinaryBalance?: number
+      exceptionalIncome?: number
+      exceptionalExpenses?: number
     }
     categoryBreakdown: Record<string, number>
     categoryNames: Record<string, string>
@@ -72,6 +79,21 @@ export async function POST(req: Request) {
     .map(([id, amt]) => `${categoryNames[id] ?? 'Altro'}: ${amt.toFixed(2)} ${currency}`)
     .join(', ')
 
+  // Movimenti eccezionali (una tantum): vanno citati a parte, non devono
+  // inquinare la lettura dell'andamento ordinario.
+  const exceptionalIncome = kpis.exceptionalIncome ?? 0
+  const exceptionalExpenses = kpis.exceptionalExpenses ?? 0
+  const hasExceptional = exceptionalIncome > 0 || exceptionalExpenses > 0
+  const exceptionalBlock = hasExceptional
+    ? `
+Movimenti eccezionali una tantum (già inclusi nei totali sopra, ma da considerare fuori dall'andamento ordinario):
+- Entrate eccezionali: ${exceptionalIncome.toFixed(2)} ${currency}
+- Spese eccezionali: ${exceptionalExpenses.toFixed(2)} ${currency}
+- Spese ordinarie (al netto delle eccezionali): ${(kpis.ordinaryExpenses ?? kpis.totalExpenses).toFixed(2)} ${currency}
+- Saldo a condizioni normali: ${(kpis.ordinaryBalance ?? kpis.balance).toFixed(2)} ${currency}
+Valuta l'andamento del mese sui valori ordinari; menziona i movimenti eccezionali solo come evento isolato, senza trattarli come tendenza.`
+    : ''
+
   const prompt = `Sei un consulente finanziario personale che analizza i dati finanziari di un utente.
 
 Dati di ${monthName} ${year}:
@@ -81,8 +103,9 @@ Dati di ${monthName} ${year}:
 - Saldo netto: ${kpis.balance.toFixed(2)} ${currency}
 - Tasso di risparmio: ${kpis.savingsPercent}%
 - Spesa giornaliera media: ${kpis.dailyAverage.toFixed(2)} ${currency}
-- Variazione spese vs mese precedente: ${kpis.deltaExpensePercent !== null ? `${kpis.deltaExpensePercent > 0 ? '+' : ''}${kpis.deltaExpensePercent}%` : 'N/D'}
+- Variazione spese ordinarie vs mese precedente: ${kpis.deltaExpensePercent !== null ? `${kpis.deltaExpensePercent > 0 ? '+' : ''}${kpis.deltaExpensePercent}%` : 'N/D'}
 - Top 3 categorie di spesa: ${topCats || 'nessuna'}
+${exceptionalBlock}
 
 Genera esattamente 3 insight finanziari in italiano, concisi (max 2 frasi ciascuno), pratici e personalizzati su questi dati.
 Sii specifico sui numeri, non generico.

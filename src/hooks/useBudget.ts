@@ -136,18 +136,27 @@ export function useActualAmountsByCategory(month: number, year: number) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('transactions')
-        .select('type, category_id, amount')
+        .select('type, category_id, amount, is_exceptional')
         .gte('date', startDate)
         .lte('date', endDate)
 
       if (error) throw error
 
+      // `actuals` esclude i movimenti eccezionali: il confronto con il budget
+      // deve riflettere l'andamento ordinario, non l'acquisto una tantum.
+      // La quota esclusa resta disponibile in `exceptional` per mostrarla a parte.
       const actuals: Record<string, number> = {}
+      const exceptional: Record<string, number> = {}
       data?.forEach((t) => {
         if (!t.category_id) return
-        actuals[t.category_id] = (actuals[t.category_id] || 0) + Number(t.amount)
+        const amt = Number(t.amount)
+        if (t.is_exceptional) {
+          exceptional[t.category_id] = (exceptional[t.category_id] || 0) + amt
+        } else {
+          actuals[t.category_id] = (actuals[t.category_id] || 0) + amt
+        }
       })
-      return actuals
+      return { actuals, exceptional }
     },
   })
 }
