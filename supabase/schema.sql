@@ -163,6 +163,8 @@ CREATE TABLE public.transactions (
     notes TEXT,
     is_recurring BOOLEAN DEFAULT FALSE,
     recurring_id UUID,
+    -- Movimento eccezionale/una tantum: escluso da medie, delta e trend
+    is_exceptional BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
@@ -233,6 +235,7 @@ CREATE INDEX idx_transactions_user_id ON public.transactions(user_id);
 CREATE INDEX idx_transactions_date ON public.transactions(date);
 CREATE INDEX idx_transactions_type ON public.transactions(type);
 CREATE INDEX idx_transactions_user_date ON public.transactions(user_id, date);
+CREATE INDEX idx_transactions_user_exceptional ON public.transactions(user_id, is_exceptional);
 
 -- Budget indexes
 CREATE INDEX idx_monthly_budgets_user_id ON public.monthly_budgets(user_id);

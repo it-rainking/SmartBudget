@@ -128,6 +128,9 @@ export interface Transaction {
   notes: string | null
   is_recurring: boolean
   recurring_id: string | null
+  // Movimento eccezionale/una tantum: conta nei totali reali ma è escluso
+  // da medie, delta mese su mese, trend annuali, stime e alert
+  is_exceptional: boolean
   created_at: string
   updated_at: string
   // Joined fields
@@ -199,6 +202,8 @@ export interface TransactionFormData {
   payment_method?: string
   tags?: string[]
   notes?: string
+  is_recurring?: boolean
+  is_exceptional?: boolean
 }
 
 export interface CategoryFormData {

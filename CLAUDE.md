@@ -80,7 +80,7 @@ Tutte le tabelle usano RLS con policy `user_id = auth.uid()`.
 | `debt_items` | total_amount, remaining_amount, interest_rate, monthly_payment, ... | UI in `/debiti` (strategie snowball/avalanche) |
 | `monthly_budgets` | month, year, notes | Header budget |
 | `monthly_budget_items` | budget_id, category_type, category_id, planned_amount | Dettaglio per categoria |
-| `transactions` | type (income/expense/saving/debt), category_id?, subcategory_id?, amount, date, description, payment_method, tags[], notes, is_recurring, recurring_id | category_id nullable (import CSV) |
+| `transactions` | type (income/expense/saving/debt), category_id?, subcategory_id?, amount, date, description, payment_method, tags[], notes, is_recurring, recurring_id, is_exceptional | category_id nullable (import CSV); `is_exceptional` = movimento una tantum escluso dai trend |
 | `invoices` | name, amount, due_date, paid_date, recurrence (once/weekly/monthly/quarterly/yearly), status (pending/paid/overdue/cancelled), description, paid_amount, category_id?, reminder_days, auto_renew | |
 | `goals` | name, type (saving/debt), target_amount, current_amount, deadline, icon, color, is_completed, completed_at | |
 | `notifications` | type (budget_exceeded/bill_due/goal_achieved/goal_progress/system), title, message, data, is_read, read_at | Notifiche persistite nel DB |
@@ -207,6 +207,19 @@ const fmt = (n: number) => formatCurrency(n, settings?.currency || 'EUR')
 Usare sempre `date.split('-')` invece di `new Date(date)` per estrarre mese/anno da stringhe `YYYY-MM-DD` — evita problemi timezone UTC vs locale.
 
 `getMonthDateRange(month, year)` in `utils.ts` restituisce `{ startDate: 'YYYY-MM-01', endDate: 'YYYY-MM-31' }`.
+
+### Movimenti eccezionali (`is_exceptional`)
+
+Una transazione marcata come eccezionale è una tantum (acquisto auto, rimborso, bonus). Regola generale: **conta nei totali reali, non conta nelle statistiche di andamento**.
+
+Esclusa da:
+- `useMonthlyKPIs`: `dailyAverage`, `deltaExpensePercent`, `prevMonthExpenses`, media storica delle entrate (`projectedIncome`), `ordinaryBalance`
+- `useAnnualData`: serie `ordinary*` usate da grafici, mesi notevoli e confronto anno su anno (`/dashboard/annuale` ha un toggle reale/ordinario, default ordinario)
+- `useBudget.useActualAmountsByCategory`: ritorna `{ actuals, exceptional }` — `actuals` è al netto degli eccezionali
+- `useNotifications`: alert "budget superato" e "saldo negativo"
+- `/api/ai/insights`: il prompt riceve i valori ordinari e cita gli eccezionali a parte
+
+Inclusa in: `totalIncome`/`totalExpenses`/`totalSavings`/`balance`, `categoryBreakdown`, totali annuali.
 
 ### Invoice status dinamico
 
