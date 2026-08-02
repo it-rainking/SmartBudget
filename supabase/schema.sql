@@ -227,6 +227,68 @@ CREATE TABLE public.notifications (
 );
 
 -- ============================================
+-- 14. ASSETS (Investimenti)
+-- ============================================
+CREATE TABLE public.assets (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    isin TEXT NOT NULL,
+    ticker_gf TEXT NOT NULL DEFAULT '',
+    ticker_yahoo TEXT,
+    name TEXT NOT NULL,
+    asset_class TEXT NOT NULL CHECK (asset_class IN ('etf_equity', 'etf_bond', 'etf_thematic', 'stock', 'cash', 'other')),
+    currency TEXT NOT NULL DEFAULT 'EUR',
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    UNIQUE(user_id, isin)
+);
+
+-- ============================================
+-- 15. HOLDINGS (Investimenti)
+-- ============================================
+CREATE TABLE public.holdings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    asset_id UUID REFERENCES public.assets(id) ON DELETE CASCADE NOT NULL,
+    quantity NUMERIC(18,6) NOT NULL,
+    avg_cost NUMERIC(18,4) NOT NULL,
+    source TEXT NOT NULL DEFAULT 'fineco_csv',
+    imported_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    UNIQUE(user_id, asset_id)
+);
+
+-- ============================================
+-- 16. PRICE SNAPSHOTS (Investimenti)
+-- ============================================
+-- Scritto solo dal cron price fetcher (service role, bypassa RLS).
+CREATE TABLE public.price_snapshots (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    asset_id UUID REFERENCES public.assets(id) ON DELETE CASCADE NOT NULL,
+    price NUMERIC(18,4) NOT NULL,
+    change_pct NUMERIC(8,4),
+    currency TEXT NOT NULL,
+    source TEXT NOT NULL CHECK (source IN ('gsheet', 'yahoo')),
+    fetched_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+-- ============================================
+-- 17. ISIN TICKER LOOKUP (Investimenti)
+-- ============================================
+-- Tabella di riferimento globale (non per-utente): mappa ISIN noti al ticker
+-- Google Finance / Yahoo, usata dall'import CSV per risolvere il ticker.
+CREATE TABLE public.isin_ticker_lookup (
+    isin TEXT PRIMARY KEY,
+    ticker_gf TEXT,
+    ticker_yahoo TEXT,
+    name TEXT,
+    asset_class TEXT CHECK (asset_class IN ('etf_equity', 'etf_bond', 'etf_thematic', 'stock', 'cash', 'other')),
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+-- ============================================
 -- INDEXES for better performance
 -- ============================================
 
@@ -261,6 +323,12 @@ CREATE INDEX idx_goals_type ON public.goals(type);
 CREATE INDEX idx_notifications_user_id ON public.notifications(user_id);
 CREATE INDEX idx_notifications_is_read ON public.notifications(is_read);
 
+-- Investments indexes
+CREATE INDEX idx_assets_user_id ON public.assets(user_id);
+CREATE INDEX idx_holdings_user_id ON public.holdings(user_id);
+CREATE INDEX idx_holdings_asset_id ON public.holdings(asset_id);
+CREATE INDEX idx_price_snapshots_asset_fetched ON public.price_snapshots(asset_id, fetched_at DESC);
+
 -- ============================================
 -- FUNCTIONS
 -- ============================================
@@ -287,6 +355,9 @@ CREATE TRIGGER update_monthly_budget_items_updated_at BEFORE UPDATE ON public.mo
 CREATE TRIGGER update_transactions_updated_at BEFORE UPDATE ON public.transactions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_invoices_updated_at BEFORE UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_goals_updated_at BEFORE UPDATE ON public.goals FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_assets_updated_at BEFORE UPDATE ON public.assets FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_holdings_updated_at BEFORE UPDATE ON public.holdings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_isin_ticker_lookup_updated_at BEFORE UPDATE ON public.isin_ticker_lookup FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Function to auto-create profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -323,3 +394,65 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_invoice_status_trigger
     BEFORE INSERT OR UPDATE ON public.invoices
     FOR EACH ROW EXECUTE FUNCTION update_invoice_status();
+
+-- Riepilogo portafoglio investimenti: join holdings <-> assets <-> ultimo
+-- price_snapshot in una sola query (LATERAL). L'aggregazione (market_value,
+-- P&L, pesi, badge di provenienza) resta lato API route (/api/investments/summary).
+CREATE OR REPLACE FUNCTION public.get_investment_summary(p_user_id UUID)
+RETURNS TABLE (
+    holding_id UUID,
+    asset_id UUID,
+    isin TEXT,
+    ticker_gf TEXT,
+    ticker_yahoo TEXT,
+    name TEXT,
+    asset_class TEXT,
+    currency TEXT,
+    quantity NUMERIC,
+    avg_cost NUMERIC,
+    imported_at TIMESTAMPTZ,
+    last_price NUMERIC,
+    change_pct NUMERIC,
+    price_source TEXT,
+    fetched_at TIMESTAMPTZ
+) AS $$
+BEGIN
+    IF p_user_id IS DISTINCT FROM auth.uid() THEN
+        RAISE EXCEPTION 'not authorized';
+    END IF;
+
+    RETURN QUERY
+    SELECT
+        h.id,
+        a.id,
+        a.isin,
+        a.ticker_gf,
+        a.ticker_yahoo,
+        a.name,
+        a.asset_class,
+        a.currency,
+        h.quantity,
+        h.avg_cost,
+        h.imported_at,
+        ps.price,
+        ps.change_pct,
+        ps.source,
+        ps.fetched_at
+    FROM public.holdings h
+    JOIN public.assets a ON a.id = h.asset_id
+    LEFT JOIN LATERAL (
+        SELECT price_snapshots.price, price_snapshots.change_pct, price_snapshots.source, price_snapshots.fetched_at
+        FROM public.price_snapshots
+        WHERE price_snapshots.asset_id = a.id
+        ORDER BY price_snapshots.fetched_at DESC
+        LIMIT 1
+    ) ps ON true
+    WHERE h.user_id = p_user_id;
+END;
+$$ language 'plpgsql' SECURITY DEFINER;
+
+-- Righe di esempio per isin_ticker_lookup (pattern da estendere con i propri ISIN).
+INSERT INTO public.isin_ticker_lookup (isin, ticker_gf, ticker_yahoo, name, asset_class) VALUES
+    ('IE00BK5BQT80', 'BIT:VWCE', 'VWCE.MI', 'Vanguard FTSE All-World UCITS ETF', 'etf_equity'),
+    ('IE00B4L5Y983', 'BIT:SWDA', 'SWDA.MI', 'iShares Core MSCI World UCITS ETF', 'etf_equity')
+ON CONFLICT (isin) DO NOTHING;

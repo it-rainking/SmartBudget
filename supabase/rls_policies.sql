@@ -17,6 +17,10 @@ ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.holdings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.price_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.isin_ticker_lookup ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
 -- PROFILES POLICIES
@@ -256,3 +260,67 @@ CREATE POLICY "Users can delete own notifications"
     USING (auth.uid() = user_id);
 
 -- INSERT notifiche: solo service role (bypassa RLS). Nessuna policy client-side necessaria.
+
+-- ============================================
+-- ASSETS POLICIES (Investimenti)
+-- ============================================
+CREATE POLICY "Users can view own assets"
+    ON public.assets FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own assets"
+    ON public.assets FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own assets"
+    ON public.assets FOR UPDATE
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own assets"
+    ON public.assets FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- ============================================
+-- HOLDINGS POLICIES (Investimenti)
+-- ============================================
+CREATE POLICY "Users can view own holdings"
+    ON public.holdings FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own holdings"
+    ON public.holdings FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own holdings"
+    ON public.holdings FOR UPDATE
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own holdings"
+    ON public.holdings FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- ============================================
+-- PRICE SNAPSHOTS POLICIES (Investimenti)
+-- ============================================
+-- Sola lettura per l'utente proprietario dell'asset referenziato (via join);
+-- nessuna policy INSERT/UPDATE/DELETE lato client: il cron scrive con la
+-- service role key, che bypassa RLS (stesso pattern di public.notifications).
+CREATE POLICY "Users can view own price snapshots"
+    ON public.price_snapshots FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.assets
+            WHERE assets.id = price_snapshots.asset_id
+              AND assets.user_id = auth.uid()
+        )
+    );
+
+-- ============================================
+-- ISIN TICKER LOOKUP POLICIES (Investimenti)
+-- ============================================
+-- Dato di riferimento condiviso: sola lettura per utenti autenticati,
+-- nessuna scrittura client-side (manutenzione manuale via SQL Editor).
+CREATE POLICY "Authenticated users can view isin ticker lookup"
+    ON public.isin_ticker_lookup FOR SELECT
+    TO authenticated
+    USING (true);

@@ -31,6 +31,11 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  // yahoo-finance2 ships un dynamic import verso i propri file di test (usati
+  // solo per il suo dev harness Deno) che il bundler prova a risolvere in
+  // build anche se non viene mai eseguito: escluso dal bundling, resta un
+  // require Node normale a runtime (dove quel percorso non viene chiamato).
+  serverExternalPackages: ['yahoo-finance2'],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }]
   },
