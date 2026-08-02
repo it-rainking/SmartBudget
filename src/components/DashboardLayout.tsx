@@ -7,7 +7,7 @@ import { ToastProvider } from '@/components/Toast'
 import { NotificationBell } from '@/components/NotificationBell'
 import {
   LayoutDashboard, TrendingUp, CreditCard, PieChart,
-  Receipt, Target, TrendingDown, Settings, BookOpen,
+  Target, TrendingDown, Settings, BookOpen,
   Wallet, LogOut, LineChart,
 } from 'lucide-react'
 
@@ -15,12 +15,14 @@ interface DashboardLayoutProps {
   children: React.ReactNode
 }
 
+// La voce "Fatture" è volutamente esclusa: lo strumento non è in uso. La
+// pagina /fatture e tutto il codice relativo restano intatti e la rotta è
+// ancora raggiungibile da URL diretto (e protetta dal middleware).
 const navigation = [
   { name: 'Dashboard', href: '/dashboard/mensile', Icon: LayoutDashboard },
   { name: 'Annuale', href: '/dashboard/annuale', Icon: TrendingUp },
   { name: 'Transazioni', href: '/transazioni', Icon: CreditCard },
   { name: 'Budget', href: '/budget', Icon: PieChart },
-  { name: 'Fatture', href: '/fatture', Icon: Receipt },
   { name: 'Obiettivi', href: '/obiettivi', Icon: Target },
   { name: 'Debiti', href: '/debiti', Icon: TrendingDown },
   { name: 'Investimenti', href: '/investimenti', Icon: LineChart },
