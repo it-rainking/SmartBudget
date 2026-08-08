@@ -39,10 +39,10 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 /dashboard/mensile        → KPI mensili + saldo disponibile + grafici (incl. andamento saldo giornaliero)
 /dashboard/annuale        → Trend 12 mesi + grafici annuali
 /transazioni              → CRUD transazioni + import CSV/OFX
-/budget                   → Budget previsto vs effettivo
+/budget                   → Budget previsto vs effettivo (⚠️ non linkata in sidebar: accesso disattivato al momento, codice mantenuto)
 /fatture                  → Fatture/abbonamenti + calendario (⚠️ non linkata in sidebar: strumento non in uso, codice mantenuto)
 /obiettivi                → Obiettivi finanziari con progress bar
-/debiti                   → Debiti: strategie snowball/avalanche, piano di rimborso
+/debiti                   → Debiti: strategie snowball/avalanche, piano di rimborso (⚠️ non linkata in sidebar: accesso disattivato al momento, codice mantenuto)
 /investimenti             → Portafoglio investimenti (import CSV Fineco, prezzi Google Finance/Yahoo)
 /istruzioni               → Guida utente
 /settings                 → Preferenze, export GDPR, danger zone
