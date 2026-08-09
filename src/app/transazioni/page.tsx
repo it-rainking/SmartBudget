@@ -621,13 +621,13 @@ export default function TransazioniPage() {
       {/* Add Transaction Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="transaction-modal-title">
-          <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md">
-            <div className="p-6 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
+          <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between shrink-0">
               <h2 id="transaction-modal-title" className="text-xl font-bold text-zinc-900 dark:text-white">{editingTransaction ? 'Modifica Transazione' : 'Nuova Transazione'}</h2>
               <button type="button" onClick={closeForm} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
               {/* Le modifiche a una rata valgono solo per quella rata */}
               {editingTransaction?.installment_plan_id && (
                 <p className="text-xs rounded-lg px-3 py-2 bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900/40">
