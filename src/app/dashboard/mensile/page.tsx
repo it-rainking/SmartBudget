@@ -807,7 +807,7 @@ function CategoryExpensesModal({
   const fmt = (n: number) => formatCurrency(n, currency)
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="category-detail-title">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="category-detail-title">
       <div ref={modalRef} className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
         <div className="p-5 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">

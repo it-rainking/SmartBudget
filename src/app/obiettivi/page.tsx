@@ -446,13 +446,13 @@ export default function ObiettiviPage() {
 
       {/* New Goal Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="goal-modal-title">
-          <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-700">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="goal-modal-title">
+          <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-700 shrink-0">
               <h2 id="goal-modal-title" className="text-lg font-semibold text-zinc-900 dark:text-white">{editingGoal ? 'Modifica Obiettivo' : 'Nuovo Obiettivo'}</h2>
               <button onClick={closeModal} aria-label="Chiudi" className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
             </div>
-            <form onSubmit={handleCreate} className="p-6 space-y-4">
+            <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
               <div>
                 <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Nome obiettivo *</label>
                 <input
@@ -550,7 +550,7 @@ export default function ObiettiviPage() {
 
       {/* Add Progress Modal */}
       {progressModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="progress-modal-title">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="progress-modal-title">
           <div ref={progressModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-700">
               <h2 id="progress-modal-title" className="text-lg font-semibold text-zinc-900 dark:text-white">Aggiungi Progresso</h2>
@@ -595,7 +595,7 @@ export default function ObiettiviPage() {
 
       {/* Confirm delete obiettivo */}
       {confirmDeleteGoalId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-goal-title">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="delete-goal-title">
           <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
             <h3 id="delete-goal-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina obiettivo</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Questa azione è irreversibile.</p>
