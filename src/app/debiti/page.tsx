@@ -318,7 +318,7 @@ export default function DebitiPage() {
 
       {/* Add/Edit modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="debt-modal-title">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="debt-modal-title">
           <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-700">
               <h2 id="debt-modal-title" className="text-lg font-bold text-zinc-900 dark:text-white">
@@ -438,7 +438,7 @@ export default function DebitiPage() {
 
       {/* Confirm delete */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-debt-title">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="delete-debt-title">
           <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
             <h3 id="delete-debt-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Rimuovi debito</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Il debito verrà archiviato e non sarà più visibile.</p>

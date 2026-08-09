@@ -579,7 +579,7 @@ export default function SettingsPage() {
 
       {/* Delete confirm modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="delete-account-title">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="delete-account-title">
           <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl p-6">
             <div className="text-center mb-4">
               <AlertTriangle size={44} className="text-amber-500 mx-auto mb-2" />

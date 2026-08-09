@@ -91,7 +91,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </aside>
 
       {/* Mobile Header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 pt-[env(safe-area-inset-top)]">
         <div className="flex h-14 items-center justify-between px-4">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white shrink-0">
@@ -138,7 +138,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </header>
 
       {/* Main Content */}
-      <main className="lg:pl-60 pt-32 lg:pt-0">
+      <main className="lg:pl-60 pt-[calc(8rem+env(safe-area-inset-top))] lg:pt-0">
         <div className="p-4 sm:p-6 lg:p-8">
           <ToastProvider>
             {children}

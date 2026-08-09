@@ -556,7 +556,7 @@ export default function FatturePage() {
 
       {/* ─── MODAL: CONFERMA ELIMINAZIONE ─── */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-invoice-title">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="delete-invoice-title">
           <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
             <h3 id="delete-invoice-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina fattura</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Questa azione è irreversibile.</p>
@@ -581,7 +581,7 @@ export default function FatturePage() {
 
       {/* ─── MODAL: NUOVA FATTURA ─── */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="invoice-modal-title">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="invoice-modal-title">
           <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-700 shrink-0">
               <h2 id="invoice-modal-title" className="text-lg font-bold text-zinc-900 dark:text-white">{editingInvoice ? 'Modifica fattura' : 'Nuova fattura'}</h2>
