@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { parseCSV, parseOFX, useImportTransactions, type ParsedTransaction } from '@/hooks/useImportTransactions'
+import { useState, useRef, useMemo } from 'react'
+import { parseCSV, parseOFX, useImportTransactions, findSimilarTransactions, type ParsedTransaction, type ParseRowError } from '@/hooks/useImportTransactions'
 import { useToast } from '@/components/Toast'
 import { useSettings } from '@/hooks/useSettings'
 import { useExpenseCategories, useIncomeCategories } from '@/hooks/useCategories'
 import { useModalA11y } from '@/hooks/useModalA11y'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
 
 const TYPE_LABELS = { income: 'Entrata', expense: 'Spesa', saving: 'Risparmio' }
 const TYPE_COLORS = { income: 'text-emerald-600', expense: 'text-red-600', saving: 'text-blue-600' }
@@ -31,6 +31,8 @@ export function ImportCSVModal({ onClose }: Props) {
 
   const [rows, setRows] = useState<ParsedTransaction[]>([])
   const [parseError, setParseError] = useState<string | null>(null)
+  const [parseErrors, setParseErrors] = useState<ParseRowError[]>([])
+  const [showParseErrors, setShowParseErrors] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
   const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
   const [importResult, setImportResult] = useState<{ inserted: number; skipped: number } | null>(null)
@@ -41,19 +43,28 @@ export function ImportCSVModal({ onClose }: Props) {
 
   const modalRef = useModalA11y<HTMLDivElement>(true, onClose)
 
+  const similarMatches = useMemo(() => findSimilarTransactions(rows), [rows])
+
   function handleFile(file: File) {
     setParseError(null)
+    setParseErrors([])
+    setShowParseErrors(false)
     setFileName(file.name)
     const isOFX = /\.(ofx|qfx|qif)$/i.test(file.name)
     const reader = new FileReader()
     reader.onload = (e) => {
       const text = e.target?.result as string
-      const parsed = isOFX ? parseOFX(text) : parseCSV(text)
-      if (parsed.length === 0) {
-        setParseError('Nessuna riga valida trovata. Controlla il formato del file.')
+      const { transactions, errors } = isOFX ? parseOFX(text) : parseCSV(text)
+      setParseErrors(errors)
+      if (transactions.length === 0) {
+        setParseError(
+          errors.length > 0
+            ? `Nessuna riga valida trovata: ${errors.length} righe scartate. Controlla i dettagli sotto.`
+            : 'Nessuna riga valida trovata. Controlla il formato del file.'
+        )
         return
       }
-      setRows(parsed)
+      setRows(transactions)
       setStep('preview')
     }
     reader.readAsText(file, 'UTF-8')
@@ -191,8 +202,18 @@ export function ImportCSVModal({ onClose }: Props) {
               </div>
 
               {parseError && (
-                <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
-                  {parseError}
+                <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400 space-y-2">
+                  <p>{parseError}</p>
+                  {parseErrors.length > 0 && (
+                    <ul className="text-xs space-y-1 max-h-48 overflow-y-auto border-t border-red-200 dark:border-red-800 pt-2">
+                      {parseErrors.map((e, i) => (
+                        <li key={i}>
+                          <span className="font-semibold">{e.location}</span>: {e.reason}
+                          {e.raw ? <span className="text-red-500 dark:text-red-500/80"> — &quot;{e.raw}&quot;</span> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               )}
 
@@ -250,6 +271,34 @@ export function ImportCSVModal({ onClose }: Props) {
                 </button>
               </div>
 
+              {parseErrors.length > 0 && (
+                <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-700 dark:text-amber-400">
+                  <button
+                    onClick={() => setShowParseErrors(s => !s)}
+                    className="flex items-center justify-between w-full font-medium text-left"
+                  >
+                    <span>⚠️ {parseErrors.length} righe scartate durante la lettura del file</span>
+                    <span>{showParseErrors ? '▲' : '▼'}</span>
+                  </button>
+                  {showParseErrors && (
+                    <ul className="mt-2 space-y-1 text-xs max-h-40 overflow-y-auto border-t border-amber-200 dark:border-amber-800 pt-2">
+                      {parseErrors.map((e, i) => (
+                        <li key={i}>
+                          <span className="font-semibold">{e.location}</span>: {e.reason}
+                          {e.raw ? <span className="text-amber-600/80 dark:text-amber-500/80"> — &quot;{e.raw}&quot;</span> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {similarMatches.size > 0 && (
+                <div className="px-4 py-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg text-xs text-orange-700 dark:text-orange-400">
+                  🔁 {similarMatches.size} transazioni hanno un importo uguale o molto simile (differenza &lt;5%) ad un&apos;altra riga nello stesso giorno del mese — evidenziate in tabella, verifica che non siano doppioni.
+                </div>
+              )}
+
               <div className="overflow-x-auto rounded-lg border border-zinc-100 dark:border-zinc-700">
                 <table className="w-full text-sm">
                   <thead>
@@ -260,28 +309,48 @@ export function ImportCSVModal({ onClose }: Props) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-50 dark:divide-zinc-700/50">
-                    {rows.map((row, i) => (
-                      <tr key={i} className="hover:bg-zinc-50 dark:hover:bg-zinc-700/30">
-                        <td className="px-3 py-2 text-zinc-700 dark:text-zinc-300 whitespace-nowrap">{row.date}</td>
-                        <td className={`px-3 py-2 font-medium whitespace-nowrap ${TYPE_COLORS[row.type]}`}>
-                          {TYPE_LABELS[row.type]}
-                        </td>
-                        <td className="px-3 py-2 font-medium text-zinc-800 dark:text-zinc-200 whitespace-nowrap">{fmt(row.amount)}</td>
-                        <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400 max-w-[150px] truncate">{row.description || '—'}</td>
-                        <td className="px-3 py-2 max-w-[120px]">
-                          {row.category_name ? (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400">
-                              ✨ {row.category_name}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-zinc-500 dark:text-zinc-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          <button onClick={() => removeRow(i)} className="text-zinc-300 hover:text-red-500 dark:text-zinc-600 dark:hover:text-red-400 transition-colors">✕</button>
-                        </td>
-                      </tr>
-                    ))}
+                    {rows.map((row, i) => {
+                      const matches = similarMatches.get(i)
+                      return (
+                        <tr
+                          key={i}
+                          className={matches
+                            ? 'bg-orange-50/60 dark:bg-orange-900/10 hover:bg-orange-50 dark:hover:bg-orange-900/20'
+                            : 'hover:bg-zinc-50 dark:hover:bg-zinc-700/30'}
+                        >
+                          <td className="px-3 py-2 text-zinc-700 dark:text-zinc-300 whitespace-nowrap">{row.date}</td>
+                          <td className={`px-3 py-2 font-medium whitespace-nowrap ${TYPE_COLORS[row.type]}`}>
+                            {TYPE_LABELS[row.type]}
+                          </td>
+                          <td className="px-3 py-2 font-medium text-zinc-800 dark:text-zinc-200 whitespace-nowrap">
+                            {fmt(row.amount)}
+                            {matches && (
+                              <span
+                                className="ml-1.5 inline-flex items-center text-orange-500 dark:text-orange-400 cursor-help align-middle"
+                                title={`Possibile doppione — importo simile a: ${matches
+                                  .map(m => `${fmt(m.amount)} il ${formatDate(m.date)}${m.description ? ` (${m.description})` : ''}`)
+                                  .join('; ')}`}
+                              >
+                                🔁
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400 max-w-[150px] truncate">{row.description || '—'}</td>
+                          <td className="px-3 py-2 max-w-[120px]">
+                            {row.category_name ? (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400">
+                                ✨ {row.category_name}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-zinc-500 dark:text-zinc-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <button onClick={() => removeRow(i)} className="text-zinc-300 hover:text-red-500 dark:text-zinc-600 dark:hover:text-red-400 transition-colors">✕</button>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

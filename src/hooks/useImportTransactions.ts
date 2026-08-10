@@ -13,6 +13,18 @@ export interface ParsedTransaction {
   category_name?: string
 }
 
+// Riga scartata durante il parsing, con motivo leggibile per l'utente.
+export interface ParseRowError {
+  location: string // es. "Riga 5" (CSV) o "Transazione #3" (OFX)
+  reason: string
+  raw?: string
+}
+
+export interface ParseResult {
+  transactions: ParsedTransaction[]
+  errors: ParseRowError[]
+}
+
 // ─── CSV Parser ────────────────────────────────────────────────────────────────
 
 // Parses a locale-formatted amount string, handling both European
@@ -58,9 +70,14 @@ function splitCSVLine(line: string, sep: string): string[] {
   return result
 }
 
-export function parseCSV(text: string): ParsedTransaction[] {
+export function parseCSV(text: string): ParseResult {
   const lines = text.trim().split('\n').filter(l => l.trim())
-  if (lines.length < 2) return []
+  if (lines.length < 2) {
+    return {
+      transactions: [],
+      errors: [{ location: 'File', reason: 'Il file è vuoto o contiene solo l\'intestazione' }],
+    }
+  }
 
   const separator = lines[0].includes(';') ? ';' : ','
   const header = splitCSVLine(lines[0], separator).map(h => h.trim().toLowerCase().replace(/['"]/g, ''))
@@ -79,7 +96,19 @@ export function parseCSV(text: string): ParsedTransaction[] {
   const descCol   = colIndex(['descrizione', 'description', 'nota', 'note', 'notes'])
   const methodCol = colIndex(['metodo', 'method', 'payment_method', 'pagamento'])
 
-  if (dateCol === -1 || amountCol === -1) return []
+  if (dateCol === -1 || amountCol === -1) {
+    const missing = [dateCol === -1 && 'data/date', amountCol === -1 && 'importo/amount']
+      .filter(Boolean)
+      .join(', ')
+    return {
+      transactions: [],
+      errors: [{
+        location: 'Intestazione',
+        reason: `Colonna obbligatoria mancante: ${missing}`,
+        raw: lines[0],
+      }],
+    }
+  }
 
   const TYPE_MAP: Record<string, 'income' | 'expense' | 'saving'> = {
     income: 'income', entrata: 'income', entrate: 'income', reddito: 'income',
@@ -88,9 +117,13 @@ export function parseCSV(text: string): ParsedTransaction[] {
   }
 
   const results: ParsedTransaction[] = []
+  const errors: ParseRowError[] = []
 
   for (let i = 1; i < lines.length; i++) {
-    const cols = splitCSVLine(lines[i], separator).map(c => c.trim().replace(/^["']|["']$/g, ''))
+    const lineNumber = i + 1 // 1-based, coerente con l'editor/foglio di calcolo (riga 1 = intestazione)
+    const rawLine = lines[i]
+    const location = `Riga ${lineNumber}`
+    const cols = splitCSVLine(rawLine, separator).map(c => c.trim().replace(/^["']|["']$/g, ''))
     const raw = {
       date: cols[dateCol] ?? '',
       type: cols[typeCol]?.toLowerCase() ?? 'expense',
@@ -99,10 +132,20 @@ export function parseCSV(text: string): ParsedTransaction[] {
       method: methodCol !== -1 ? (cols[methodCol] ?? null) : null,
     }
 
+    if (!raw.date) {
+      errors.push({ location, reason: 'Data mancante', raw: rawLine })
+      continue
+    }
+    if (isNaN(raw.amount)) {
+      errors.push({ location, reason: `Importo non numerico: "${cols[amountCol] ?? ''}"`, raw: rawLine })
+      continue
+    }
+    if (raw.amount === 0) {
+      errors.push({ location, reason: 'Importo pari a zero', raw: rawLine })
+      continue
+    }
     // Bank exports commonly encode expenses as negative amounts — take the
-    // magnitude instead of silently discarding the row (only drop rows with
-    // no date or a genuinely unparseable/zero amount).
-    if (!raw.date || isNaN(raw.amount) || raw.amount === 0) continue
+    // magnitude instead of silently discarding the row.
     raw.amount = Math.abs(raw.amount)
 
     // Normalize date: try YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY
@@ -113,10 +156,16 @@ export function parseCSV(text: string): ParsedTransaction[] {
     }
 
     // Validate resulting date is a real calendar date
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      errors.push({ location, reason: `Formato data non riconosciuto: "${raw.date}"`, raw: rawLine })
+      continue
+    }
     const [y, m, d] = date.split('-').map(Number)
     const parsed = new Date(y, m - 1, d)
-    if (parsed.getFullYear() !== y || parsed.getMonth() + 1 !== m || parsed.getDate() !== d) continue
+    if (parsed.getFullYear() !== y || parsed.getMonth() + 1 !== m || parsed.getDate() !== d) {
+      errors.push({ location, reason: `Data non valida: "${raw.date}"`, raw: rawLine })
+      continue
+    }
 
     results.push({
       date,
@@ -127,38 +176,64 @@ export function parseCSV(text: string): ParsedTransaction[] {
     })
   }
 
-  return results
+  return { transactions: results, errors }
 }
 
 // ─── OFX Parser ────────────────────────────────────────────────────────────────
 
 const CREDIT_TYPES = new Set(['CREDIT', 'DEP', 'DIRECTDEP', 'INT', 'DIV', 'XFER'])
 
-export function parseOFX(text: string): ParsedTransaction[] {
+export function parseOFX(text: string): ParseResult {
   const results: ParsedTransaction[] = []
+  const errors: ParseRowError[] = []
 
   // Split on <STMTTRN> to get individual transaction blocks (SGML format, no closing tags)
   const blocks = text.split(/<STMTTRN>/i).slice(1)
 
-  for (const block of blocks) {
+  if (blocks.length === 0) {
+    return {
+      transactions: [],
+      errors: [{ location: 'File', reason: 'Nessun blocco <STMTTRN> trovato — il file non sembra un estratto conto OFX/QFX valido' }],
+    }
+  }
+
+  blocks.forEach((block, idx) => {
     const get = (tag: string) => {
       const m = block.match(new RegExp(`<${tag}>([^<\n\r]+)`, 'i'))
       return m ? m[1].trim() : ''
     }
 
+    const location = `Transazione #${idx + 1}`
     const trnType  = get('TRNTYPE').toUpperCase()
     const dtRaw    = get('DTPOSTED') || get('DTAVAIL')
     const amtRaw   = get('TRNAMT')
     const memo     = get('MEMO') || get('NAME') || ''
 
-    if (!dtRaw || !amtRaw) continue
+    if (!dtRaw) {
+      errors.push({ location, reason: 'Data mancante (DTPOSTED/DTAVAIL)', raw: memo || undefined })
+      return
+    }
+    if (!amtRaw) {
+      errors.push({ location, reason: 'Importo mancante (TRNAMT)', raw: memo || undefined })
+      return
+    }
 
     const amt = parseFloat(amtRaw.replace(',', '.'))
-    if (isNaN(amt) || amt === 0) continue
+    if (isNaN(amt)) {
+      errors.push({ location, reason: `Importo non numerico: "${amtRaw}"`, raw: memo || undefined })
+      return
+    }
+    if (amt === 0) {
+      errors.push({ location, reason: 'Importo pari a zero', raw: memo || undefined })
+      return
+    }
 
     // Date: YYYYMMDD[HHmmss[.xxx][TZ]]
     const dateStr = dtRaw.replace(/[^\d]/g, '').substring(0, 8)
-    if (dateStr.length < 8) continue
+    if (dateStr.length < 8) {
+      errors.push({ location, reason: `Data non valida: "${dtRaw}"`, raw: memo || undefined })
+      return
+    }
     const date = `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`
 
     const isCredit = amt > 0 || CREDIT_TYPES.has(trnType)
@@ -171,9 +246,55 @@ export function parseOFX(text: string): ParsedTransaction[] {
       description: memo,
       payment_method: null,
     })
+  })
+
+  return { transactions: results, errors }
+}
+
+// ─── Rilevamento importi simili ────────────────────────────────────────────────
+
+// Soglia di similarità: differenza percentuale rispetto all'importo maggiore.
+const SIMILAR_AMOUNT_THRESHOLD = 0.05
+
+export interface SimilarMatch {
+  index: number
+  date: string
+  amount: number
+  description: string
+  diffPercent: number
+}
+
+// Segnala, per ogni riga, le altre righe dello stesso tipo che cadono nello
+// stesso giorno del mese (giorno + mese, indipendentemente dall'anno) con un
+// importo uguale o molto simile (<5%) — probabile doppione non rilevato dal
+// controllo esatto su data+importo+descrizione fatto in fase di insert.
+export function findSimilarTransactions(rows: ParsedTransaction[]): Map<number, SimilarMatch[]> {
+  const matches = new Map<number, SimilarMatch[]>()
+
+  for (let i = 0; i < rows.length; i++) {
+    const a = rows[i]
+    const [, aMonth, aDay] = a.date.split('-')
+
+    for (let j = i + 1; j < rows.length; j++) {
+      const b = rows[j]
+      if (a.type !== b.type) continue
+
+      const [, bMonth, bDay] = b.date.split('-')
+      if (aMonth !== bMonth || aDay !== bDay) continue
+
+      const maxAmount = Math.max(a.amount, b.amount)
+      if (maxAmount === 0) continue
+      const diffPercent = Math.abs(a.amount - b.amount) / maxAmount
+      if (diffPercent >= SIMILAR_AMOUNT_THRESHOLD) continue
+
+      if (!matches.has(i)) matches.set(i, [])
+      if (!matches.has(j)) matches.set(j, [])
+      matches.get(i)!.push({ index: j, date: b.date, amount: b.amount, description: b.description, diffPercent })
+      matches.get(j)!.push({ index: i, date: a.date, amount: a.amount, description: a.description, diffPercent })
+    }
   }
 
-  return results
+  return matches
 }
 
 // ─── Import Mutation ───────────────────────────────────────────────────────────
