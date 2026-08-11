@@ -296,11 +296,13 @@ Per l'invio asincrono: API route `/api/notifications/send` gestisce email (Resen
 
 `parseCSV()` in `useImportTransactions.ts`:
 - Separatore auto-detect (`,` o `;`)
-- Colonne: `data/date`, `tipo/type`, `importo/amount`, `descrizione/description`, `metodo/payment_method`
+- Colonne obbligatorie: `data/date`, `importo/amount`
+- Colonne opzionali: `tipo/type` (default `expense` se assente/non riconosciuto), `descrizione/description`, `categoria/category`, `sottocategoria/subcategory` (solo spese), `metodo/method/payment_method/pagamento`, `tag/tags/etichette` (valori separati da `|`), `note/nota/notes`, `eccezionale/exceptional/una tantum` (`si/sì/yes/true/1/x` → `true`)
 - Date: `YYYY-MM-DD`, `DD/MM/YYYY`, `DD-MM-YYYY`
-- Tipo: `entrata/income` → income, `spesa/expense` → expense, `risparmio/saving` → saving
+- Tipo: `entrata/income` → income, `spesa/expense` → expense, `risparmio/saving` → saving (nessun supporto per `debt` in bulk import — i debiti si gestiscono da `/debiti`)
 - Amount: parseFloat con normalizzazione virgola → punto
-- Le transazioni importate hanno `category_id: null` (la colonna è nullable nel DB)
+- `categoria`/`sottocategoria` sono testo libero nel CSV: `resolveCategoryNames()` (stesso file) li confronta case-insensitive con le categorie reali dell'utente (caricate in `ImportCSVModal.tsx` via `useIncomeCategories`/`useExpenseCategories`/`useSavingCategories`) e popola `category_id`/`subcategory_id`. Se il nome non corrisponde a nessuna categoria, la riga resta con `category_id: undefined` — verrà mostrata con badge ⚠️ nell'anteprima e può ricevere una categoria dal pulsante "Categorizza con AI" o dal fallback "Non categorizzato" (solo spese) al momento dell'insert
+- `useImportTransactions()` inserisce anche `subcategory_id`, `tags`, `notes`, `is_exceptional` insieme ai campi già esistenti
 
 ---
 

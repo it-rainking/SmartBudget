@@ -185,7 +185,12 @@ const sections: Section[] = [
                     ['tipo / type', 'entrata, spesa, risparmio (o EN: income, expense, saving)'],
                     ['importo / amount', 'numero positivo (es. 1250.50 o 1250,50)'],
                     ['descrizione / description', 'testo libero (opzionale)'],
+                    ['categoria / category', 'nome esatto di una tua categoria esistente (opzionale)'],
+                    ['sottocategoria / subcategory', 'nome esatto di una sottocategoria della spesa (opzionale)'],
                     ['metodo / payment_method', 'metodo di pagamento (opzionale)'],
+                    ['tag / tags', 'più tag separati da | , es. casa|urgente (opzionale)'],
+                    ['note / notes', 'testo libero, distinto dalla descrizione (opzionale)'],
+                    ['eccezionale / exceptional', 'si/no — movimento una tantum (opzionale)'],
                   ].map(([col, val]) => (
                     <tr key={col} className="border-b border-zinc-100 dark:border-zinc-700">
                       <td className="py-1 pr-3 font-mono">{col}</td>
@@ -195,6 +200,12 @@ const sections: Section[] = [
                 </tbody>
               </table>
             </div>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
+              Il valore di <strong>categoria</strong>/<strong>sottocategoria</strong> deve corrispondere esattamente (senza
+              distinguere maiuscole/minuscole) a una categoria già creata su SmartBudget. Le righe con un nome non
+              riconosciuto restano senza categoria: puoi assegnarla dopo l&apos;import con il pulsante &quot;Categorizza con
+              AI&quot; nell&apos;anteprima, oppure modificando la transazione manualmente.
+            </p>
           </div>
         </div>
       </div>

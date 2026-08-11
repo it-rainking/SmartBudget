@@ -11,6 +11,11 @@ export interface ParsedTransaction {
   payment_method: string | null
   category_id?: string | null
   category_name?: string
+  subcategory_id?: string | null
+  subcategory_name?: string
+  tags?: string[] | null
+  notes?: string | null
+  is_exceptional?: boolean
 }
 
 // Riga scartata durante il parsing, con motivo leggibile per l'utente.
@@ -70,6 +75,8 @@ function splitCSVLine(line: string, sep: string): string[] {
   return result
 }
 
+const EXCEPTIONAL_VALUES = new Set(['si', 'sì', 'yes', 'true', '1', 'x'])
+
 export function parseCSV(text: string): ParseResult {
   const lines = text.trim().split('\n').filter(l => l.trim())
   if (lines.length < 2) {
@@ -90,11 +97,19 @@ export function parseCSV(text: string): ParseResult {
     return -1
   }
 
-  const dateCol   = colIndex(['data', 'date'])
-  const typeCol   = colIndex(['tipo', 'type', 'categoria', 'category'])
-  const amountCol = colIndex(['importo', 'amount', 'valore', 'value'])
-  const descCol   = colIndex(['descrizione', 'description', 'nota', 'note', 'notes'])
-  const methodCol = colIndex(['metodo', 'method', 'payment_method', 'pagamento'])
+  const dateCol          = colIndex(['data', 'date'])
+  const typeCol          = colIndex(['tipo', 'type'])
+  const amountCol        = colIndex(['importo', 'amount', 'valore', 'value'])
+  const descCol          = colIndex(['descrizione', 'description'])
+  const methodCol        = colIndex(['metodo', 'method', 'payment_method', 'pagamento'])
+  // Nome categoria/sottocategoria testuale — risolto contro le categorie
+  // reali dell'utente lato modal (resolveCategoryNames), non qui: il parser
+  // non ha accesso alle categorie salvate su Supabase.
+  const categoryCol      = colIndex(['categoria', 'category'])
+  const subcategoryCol   = colIndex(['sottocategoria', 'sotto-categoria', 'subcategory', 'sub-category'])
+  const notesCol         = colIndex(['note', 'nota', 'notes'])
+  const tagsCol          = colIndex(['tag', 'tags', 'etichette'])
+  const exceptionalCol   = colIndex(['eccezionale', 'exceptional', 'una tantum', 'unatantum'])
 
   if (dateCol === -1 || amountCol === -1) {
     const missing = [dateCol === -1 && 'data/date', amountCol === -1 && 'importo/amount']
@@ -130,6 +145,11 @@ export function parseCSV(text: string): ParseResult {
       amount: parseLocaleAmount(cols[amountCol] ?? '0'),
       description: descCol !== -1 ? (cols[descCol] ?? '') : '',
       method: methodCol !== -1 ? (cols[methodCol] ?? null) : null,
+      category: categoryCol !== -1 ? (cols[categoryCol] ?? '').trim() : '',
+      subcategory: subcategoryCol !== -1 ? (cols[subcategoryCol] ?? '').trim() : '',
+      notes: notesCol !== -1 ? (cols[notesCol] ?? '').trim() : '',
+      tagsRaw: tagsCol !== -1 ? (cols[tagsCol] ?? '').trim() : '',
+      exceptional: exceptionalCol !== -1 ? (cols[exceptionalCol] ?? '').trim().toLowerCase() : '',
     }
 
     if (!raw.date) {
@@ -167,12 +187,19 @@ export function parseCSV(text: string): ParseResult {
       continue
     }
 
+    const tags = raw.tagsRaw ? raw.tagsRaw.split('|').map(t => t.trim()).filter(Boolean) : null
+
     results.push({
       date,
       type: TYPE_MAP[raw.type] ?? 'expense',
       amount: raw.amount,
       description: raw.description,
       payment_method: raw.method,
+      ...(raw.category ? { category_name: raw.category } : {}),
+      ...(raw.subcategory ? { subcategory_name: raw.subcategory } : {}),
+      ...(raw.notes ? { notes: raw.notes } : {}),
+      ...(tags ? { tags } : {}),
+      is_exceptional: EXCEPTIONAL_VALUES.has(raw.exceptional),
     })
   }
 
@@ -249,6 +276,52 @@ export function parseOFX(text: string): ParseResult {
   })
 
   return { transactions: results, errors }
+}
+
+// ─── Risoluzione categorie testuali ────────────────────────────────────────────
+
+export interface CategoryOption {
+  id: string
+  name: string
+  subcategories?: { id: string; name: string }[]
+}
+
+export interface ResolveCategoriesResult {
+  rows: ParsedTransaction[]
+  unmatched: string[]
+}
+
+// Le colonne categoria/sottocategoria del CSV contengono nomi testuali, non
+// id: qui vengono confrontati (case-insensitive) con le categorie reali
+// dell'utente per popolare category_id/subcategory_id. category_id resta
+// undefined se non c'è corrispondenza, così la riga può ancora ricevere una
+// categoria dal fallback "Non categorizzato" o dal pulsante "Categorizza con AI".
+export function resolveCategoryNames(
+  rows: ParsedTransaction[],
+  categoriesByType: Record<'income' | 'expense' | 'saving', CategoryOption[]>
+): ResolveCategoriesResult {
+  const norm = (s: string) => s.trim().toLowerCase()
+  const unmatched = new Set<string>()
+
+  const resolved = rows.map(row => {
+    if (!row.category_name) return row
+
+    const options = categoriesByType[row.type] ?? []
+    const match = options.find(c => norm(c.name) === norm(row.category_name!))
+    if (!match) {
+      unmatched.add(row.category_name)
+      return row
+    }
+
+    const next: ParsedTransaction = { ...row, category_id: match.id }
+    if (row.subcategory_name && match.subcategories?.length) {
+      const subMatch = match.subcategories.find(s => norm(s.name) === norm(row.subcategory_name!))
+      if (subMatch) next.subcategory_id = subMatch.id
+    }
+    return next
+  })
+
+  return { rows: resolved, unmatched: Array.from(unmatched) }
 }
 
 // ─── Rilevamento importi simili ────────────────────────────────────────────────
@@ -348,10 +421,14 @@ export function useImportTransactions() {
         amount: r.amount,
         description: r.description || null,
         payment_method: r.payment_method || null,
-        // Usa category_id se fornita dall'AI, altrimenti fallback alla categoria default
+        // Usa category_id se fornita dal CSV/AI, altrimenti fallback alla categoria default
         category_id: r.category_id !== undefined
           ? r.category_id
           : (r.type === 'expense' ? uncatId : null),
+        subcategory_id: r.subcategory_id ?? null,
+        tags: r.tags ?? null,
+        notes: r.notes ?? null,
+        is_exceptional: r.is_exceptional ?? false,
       }))
 
       const { error } = await supabase.from('transactions').insert(inserts)
