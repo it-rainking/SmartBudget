@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Upload, Pencil, Trash2, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import {
@@ -208,27 +208,37 @@ export default function TransazioniPage() {
     setShowForm(false)
   }
 
+  // Guardia sincrona contro il doppio invio: il pulsante si disabilita solo
+  // al render successivo (isPending), che su tap doppi ravvicinati (mobile)
+  // può arrivare dopo che il secondo submit è già partito, creando due piani
+  // di rate identici per lo stesso acquisto. Il ref blocca il rientro subito,
+  // senza aspettare il re-render.
+  const isSubmittingRef = useRef(false)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const amount = parseFloat(formAmount)
-    if (isNaN(amount) || amount <= 0) {
-      showToast('Inserisci un importo valido maggiore di zero', 'error')
-      return
-    }
-
-    const payload = {
-      type: formType,
-      category_id: formCategoryId || undefined,
-      amount,
-      date: formDate,
-      description: formDescription || undefined,
-      payment_method: formPaymentMethod || undefined,
-      is_recurring: formIsRecurring,
-      is_exceptional: formIsExceptional,
-    }
+    if (isSubmittingRef.current) return
+    isSubmittingRef.current = true
 
     try {
+      const amount = parseFloat(formAmount)
+      if (isNaN(amount) || amount <= 0) {
+        showToast('Inserisci un importo valido maggiore di zero', 'error')
+        return
+      }
+
+      const payload = {
+        type: formType,
+        category_id: formCategoryId || undefined,
+        amount,
+        date: formDate,
+        description: formDescription || undefined,
+        payment_method: formPaymentMethod || undefined,
+        is_recurring: formIsRecurring,
+        is_exceptional: formIsExceptional,
+      }
+
       if (editingTransaction) {
         await updateTransaction.mutateAsync({ id: editingTransaction.id, data: payload })
         closeForm()
@@ -244,6 +254,8 @@ export default function TransazioniPage() {
       }
     } catch {
       showToast('Errore durante il salvataggio', 'error')
+    } finally {
+      isSubmittingRef.current = false
     }
   }
 
