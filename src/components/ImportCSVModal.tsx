@@ -1,21 +1,22 @@
 'use client'
 
 import { useState, useRef, useMemo } from 'react'
-import { parseCSV, parseOFX, useImportTransactions, findSimilarTransactions, type ParsedTransaction, type ParseRowError } from '@/hooks/useImportTransactions'
+import { parseCSV, parseOFX, resolveCategoryNames, useImportTransactions, findSimilarTransactions, type ParsedTransaction, type ParseRowError } from '@/hooks/useImportTransactions'
 import { useToast } from '@/components/Toast'
 import { useSettings } from '@/hooks/useSettings'
-import { useExpenseCategories, useIncomeCategories } from '@/hooks/useCategories'
+import { useExpenseCategories, useIncomeCategories, useSavingCategories } from '@/hooks/useCategories'
 import { useModalA11y } from '@/hooks/useModalA11y'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
 const TYPE_LABELS = { income: 'Entrata', expense: 'Spesa', saving: 'Risparmio' }
 const TYPE_COLORS = { income: 'text-emerald-600', expense: 'text-red-600', saving: 'text-blue-600' }
 
-const EXAMPLE_CSV = `data,tipo,importo,descrizione,metodo
-2026-01-15,entrata,2500,Stipendio gennaio,bonifico
-2026-01-20,spesa,85.50,Spesa supermercato,carta
-2026-01-22,risparmio,300,Fondo emergenza,bonifico
-2026-02-01,spesa,1200,Affitto,bonifico`
+const EXAMPLE_CSV = `data,tipo,importo,descrizione,categoria,sottocategoria,metodo,tag,note,eccezionale
+2026-01-15,entrata,2500,Stipendio gennaio,Stipendio,,bonifico,,,no
+2026-01-20,spesa,85.50,Spesa supermercato,Alimentari,Conad,carta,,,no
+2026-01-22,risparmio,300,Fondo emergenza,Investimenti,,bonifico,,,no
+2026-02-01,spesa,1200,Affitto,Casa,Affitto,bonifico,casa,,no
+2026-02-10,spesa,950,Riparazione auto dopo un incidente,Trasporti,Manutenzione Auto,carta,,Preventivo carrozzeria Rossi,si`
 
 interface Props {
   onClose: () => void
@@ -25,6 +26,7 @@ export function ImportCSVModal({ onClose }: Props) {
   const { data: settings } = useSettings()
   const { data: expenseCategories } = useExpenseCategories()
   const { data: incomeCategories } = useIncomeCategories()
+  const { data: savingCategories } = useSavingCategories()
   const importTx = useImportTransactions()
   const { showToast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -33,6 +35,7 @@ export function ImportCSVModal({ onClose }: Props) {
   const [parseError, setParseError] = useState<string | null>(null)
   const [parseErrors, setParseErrors] = useState<ParseRowError[]>([])
   const [showParseErrors, setShowParseErrors] = useState(false)
+  const [unmatchedCategories, setUnmatchedCategories] = useState<string[]>([])
   const [fileName, setFileName] = useState<string | null>(null)
   const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
   const [importResult, setImportResult] = useState<{ inserted: number; skipped: number } | null>(null)
@@ -49,6 +52,7 @@ export function ImportCSVModal({ onClose }: Props) {
     setParseError(null)
     setParseErrors([])
     setShowParseErrors(false)
+    setUnmatchedCategories([])
     setFileName(file.name)
     const isOFX = /\.(ofx|qfx|qif)$/i.test(file.name)
     const reader = new FileReader()
@@ -64,7 +68,19 @@ export function ImportCSVModal({ onClose }: Props) {
         )
         return
       }
-      setRows(transactions)
+      // Risolve i nomi di categoria/sottocategoria del CSV contro le categorie
+      // reali dell'utente (case-insensitive) per popolare category_id/subcategory_id.
+      const { rows: resolved, unmatched } = resolveCategoryNames(transactions, {
+        income: (incomeCategories ?? []).map(c => ({ id: c.id, name: c.name })),
+        expense: (expenseCategories ?? []).map(c => ({
+          id: c.id,
+          name: c.name,
+          subcategories: (c.subcategories ?? []).map(s => ({ id: s.id, name: s.name })),
+        })),
+        saving: (savingCategories ?? []).map(c => ({ id: c.id, name: c.name })),
+      })
+      setUnmatchedCategories(unmatched)
+      setRows(resolved)
       setStep('preview')
     }
     reader.readAsText(file, 'UTF-8')
@@ -229,7 +245,12 @@ export function ImportCSVModal({ onClose }: Props) {
                         ['tipo / type', 'entrata · spesa · risparmio'],
                         ['importo / amount', 'numero positivo'],
                         ['descrizione', 'opzionale'],
+                        ['categoria', 'opzionale — nome esatto di una tua categoria'],
+                        ['sottocategoria', 'opzionale — solo per le spese'],
                         ['metodo', 'opzionale'],
+                        ['tag', 'opzionale — più tag separati da |'],
+                        ['note', 'opzionale'],
+                        ['eccezionale', 'opzionale — si/no'],
                       ].map(([col, val]) => (
                         <div key={col} className="contents">
                           <span className="font-mono text-emerald-600 dark:text-emerald-400">{col}</span>
@@ -240,6 +261,11 @@ export function ImportCSVModal({ onClose }: Props) {
                     <button onClick={downloadExample} className="text-xs text-emerald-600 dark:text-emerald-400 underline mt-1">
                       Scarica file di esempio
                     </button>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
+                      Il nome in <span className="font-mono">categoria</span>/<span className="font-mono">sottocategoria</span> deve
+                      corrispondere esattamente (senza maiuscole) a una categoria già creata su SmartBudget: le righe non riconosciute
+                      restano senza categoria e puoi assegnarla dopo con &quot;Categorizza con AI&quot; o modificandole manualmente.
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300">OFX / QFX</p>
@@ -293,6 +319,13 @@ export function ImportCSVModal({ onClose }: Props) {
                 </div>
               )}
 
+              {unmatchedCategories.length > 0 && (
+                <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-xs text-amber-700 dark:text-amber-400">
+                  ⚠️ Categorie nel file non riconosciute: <span className="font-medium">{unmatchedCategories.join(', ')}</span>.
+                  Le righe corrispondenti resteranno senza categoria — puoi usare &quot;Categorizza con AI&quot; qui sotto o assegnarla dopo l&apos;import.
+                </div>
+              )}
+
               {similarMatches.size > 0 && (
                 <div className="px-4 py-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg text-xs text-orange-700 dark:text-orange-400">
                   🔁 {similarMatches.size} transazioni hanno un importo uguale o molto simile (differenza &lt;5%) ad un&apos;altra riga nello stesso giorno del mese — evidenziate in tabella, verifica che non siano doppioni.
@@ -321,6 +354,9 @@ export function ImportCSVModal({ onClose }: Props) {
                           <td className="px-3 py-2 text-zinc-700 dark:text-zinc-300 whitespace-nowrap">{row.date}</td>
                           <td className={`px-3 py-2 font-medium whitespace-nowrap ${TYPE_COLORS[row.type]}`}>
                             {TYPE_LABELS[row.type]}
+                            {row.is_exceptional && (
+                              <span className="ml-1" title="Movimento eccezionale — escluso da medie e trend">⚡</span>
+                            )}
                           </td>
                           <td className="px-3 py-2 font-medium text-zinc-800 dark:text-zinc-200 whitespace-nowrap">
                             {fmt(row.amount)}
@@ -336,10 +372,20 @@ export function ImportCSVModal({ onClose }: Props) {
                             )}
                           </td>
                           <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400 max-w-[150px] truncate">{row.description || '—'}</td>
-                          <td className="px-3 py-2 max-w-[120px]">
-                            {row.category_name ? (
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400">
-                                ✨ {row.category_name}
+                          <td className="px-3 py-2 max-w-[150px]">
+                            {row.category_id && row.category_name ? (
+                              <span
+                                className="text-xs px-1.5 py-0.5 rounded bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 inline-block truncate max-w-full align-middle"
+                                title={row.subcategory_name ? `${row.category_name} › ${row.subcategory_name}` : row.category_name}
+                              >
+                                ✨ {row.subcategory_id && row.subcategory_name ? `${row.category_name} › ${row.subcategory_name}` : row.category_name}
+                              </span>
+                            ) : row.category_name ? (
+                              <span
+                                className="text-xs px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 inline-block truncate max-w-full align-middle"
+                                title={`"${row.category_name}" non corrisponde a nessuna categoria — resterà senza categoria`}
+                              >
+                                ⚠️ {row.category_name}
                               </span>
                             ) : (
                               <span className="text-xs text-zinc-500 dark:text-zinc-400">—</span>
