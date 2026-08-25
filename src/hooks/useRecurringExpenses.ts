@@ -183,3 +183,139 @@ export function useGenerateRecurringBackfill() {
     },
   })
 }
+
+// ── Import una tantum da transazioni esistenti ──────────────────────────────
+// Strumento pensato per popolare il pannello a partire dallo storico: cerca le
+// transazioni già segnate "ricorrente" dal semplice toggle del form (prima che
+// esistesse questo pannello) ma non ancora collegate a un modello, le
+// raggruppa per candidati plausibili e permette di crearne i modelli. Non è
+// pensato per restare in uso continuativo: può essere nascosto togliendo
+// SHOW_IMPORT_TOOL in spese-ricorrenti/page.tsx una volta usato.
+
+export interface RecurringCandidateGroup {
+  key: string
+  categoryId: string | null
+  amount: number
+  suggestedName: string
+  paymentMethod: string | null
+  dayOfMonth: number
+  startDate: string
+  transactionIds: string[]
+  occurrences: number
+}
+
+// Cerca le transazioni di tipo 'expense' marcate is_recurring=true e non
+// ancora collegate a nessun modello (recurring_expense_id NULL), e le
+// raggruppa per categoria + importo (stesso affitto/abbonamento ripetuto nei
+// mesi ha lo stesso importo). Non scrive nulla: la creazione avviene solo
+// dopo conferma dell'utente tramite useImportRecurringCandidate.
+export function useDetectRecurringCandidates() {
+  return useMutation({
+    mutationFn: async (): Promise<RecurringCandidateGroup[]> => {
+      const { data: user } = await supabase.auth.getUser()
+      if (!user.user) return []
+
+      const { data: transactions, error } = await supabase
+        .from('transactions')
+        .select('id, category_id, amount, date, description, payment_method')
+        .eq('user_id', user.user.id)
+        .eq('type', 'expense')
+        .eq('is_recurring', true)
+        .is('recurring_expense_id', null)
+        .order('date', { ascending: true })
+
+      if (error) throw error
+      if (!transactions || transactions.length === 0) return []
+
+      const groups = new Map<string, typeof transactions>()
+      for (const t of transactions) {
+        const key = `${t.category_id ?? 'none'}::${Number(t.amount).toFixed(2)}`
+        const arr = groups.get(key) ?? []
+        arr.push(t)
+        groups.set(key, arr)
+      }
+
+      return Array.from(groups.entries())
+        .map(([key, txs]) => {
+          const mostRecent = txs[txs.length - 1]
+          // Descrizione più ricorrente nel gruppo, altrimenti l'ultima disponibile
+          const descCounts = new Map<string, number>()
+          txs.forEach((t) => {
+            if (t.description) descCounts.set(t.description, (descCounts.get(t.description) ?? 0) + 1)
+          })
+          const bestDescription = [...descCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+
+          return {
+            key,
+            categoryId: mostRecent.category_id,
+            amount: Number(mostRecent.amount),
+            suggestedName: bestDescription || mostRecent.description || '',
+            paymentMethod: mostRecent.payment_method,
+            dayOfMonth: Number(mostRecent.date.slice(8, 10)),
+            startDate: txs[0].date,
+            transactionIds: txs.map((t) => t.id),
+            occurrences: txs.length,
+          }
+        })
+        .sort((a, b) => b.occurrences - a.occurrences)
+    },
+  })
+}
+
+// Crea il modello per un candidato rilevato e ci collega retroattivamente le
+// transazioni del gruppo (così non vengono ri-proposte a un futuro rilancio
+// dello strumento, e smettono di generare falsi "simili" nel form transazioni).
+export function useImportRecurringCandidate() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      name,
+      categoryId,
+      amount,
+      dayOfMonth,
+      startDate,
+      paymentMethod,
+      transactionIds,
+    }: {
+      name: string
+      categoryId: string | null
+      amount: number
+      dayOfMonth: number
+      startDate: string
+      paymentMethod: string | null
+      transactionIds: string[]
+    }) => {
+      const { data: user } = await supabase.auth.getUser()
+      if (!user.user) throw new Error('Non autenticato')
+
+      const { data: created, error: createError } = await supabase
+        .from('recurring_expenses')
+        .insert({
+          user_id: user.user.id,
+          name,
+          category_id: categoryId ?? undefined,
+          amount,
+          day_of_month: dayOfMonth,
+          payment_method: paymentMethod ?? undefined,
+          start_date: startDate,
+        })
+        .select()
+        .single()
+
+      if (createError) throw createError
+
+      const { error: linkError } = await supabase
+        .from('transactions')
+        .update({ recurring_expense_id: created.id })
+        .in('id', transactionIds)
+
+      if (linkError) throw linkError
+      return created as RecurringExpense
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recurring_expenses'] })
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+    },
+  })
+}
