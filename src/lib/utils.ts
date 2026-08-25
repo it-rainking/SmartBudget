@@ -107,3 +107,30 @@ export function splitInstallments(total: number, count: number = PAYPAL_INSTALLM
 export function installmentDates(startDate: string, count: number = PAYPAL_INSTALLMENT_COUNT): string[] {
   return Array.from({ length: count }, (_, i) => addMonthsClamped(startDate, i))
 }
+
+// ── Spese ricorrenti (pannello /spese-ricorrenti) ───────────────────────────
+
+// Data 'YYYY-MM-DD' di un giorno del mese, clampato all'ultimo giorno se il
+// mese è più corto (es. giorno 31 in aprile → 30 aprile).
+export function clampDayInMonth(day: number, month: number, year: number): string {
+  const lastDay = new Date(year, month, 0).getDate()
+  const d = Math.min(day, lastDay)
+  return `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+// Cerca fra i modelli di spesa ricorrente esistenti uno "simile" a una nuova
+// transazione: stessa categoria e importo entro una tolleranza (di default il
+// 10%, per assorbire piccole variazioni come le bollette a consumo).
+export function findSimilarRecurringExpense<T extends { category_id: string | null; amount: number }>(
+  templates: T[],
+  categoryId: string | null | undefined,
+  amount: number,
+  tolerance = 0.1
+): T | null {
+  if (!categoryId) return null
+  return (
+    templates.find(
+      (t) => t.category_id === categoryId && Math.abs(t.amount - amount) <= t.amount * tolerance
+    ) ?? null
+  )
+}

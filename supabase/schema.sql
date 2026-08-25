@@ -163,6 +163,11 @@ CREATE TABLE public.transactions (
     notes TEXT,
     is_recurring BOOLEAN DEFAULT FALSE,
     recurring_id UUID,
+    -- Collega la transazione al modello in recurring_expenses da cui è stata
+    -- generata automaticamente (o a cui l'utente l'ha collegata manualmente
+    -- dal form). NULL per una transazione ricorrente "libera", non collegata
+    -- a nessun modello nel pannello Spese ricorrenti.
+    recurring_expense_id UUID,
     -- Spese dilazionate (es. PayPal "Paga in 3 rate"): le rate di uno stesso
     -- acquisto condividono installment_plan_id e si numerano 1..installment_count
     installment_plan_id UUID,
@@ -303,6 +308,35 @@ CREATE TABLE public.isin_ticker_lookup (
 );
 
 -- ============================================
+-- 18. RECURRING EXPENSES (modelli spese ricorrenti)
+-- ============================================
+-- Modello di spesa ricorrente gestito dal pannello /spese-ricorrenti. A ogni
+-- occorrenza mensile generata corrisponde una normale riga in `transactions`
+-- con `recurring_expense_id` valorizzato (vedi sopra) — non è uno storico
+-- separato, solo il "template" da cui le occorrenze vengono create.
+CREATE TABLE public.recurring_expenses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    name TEXT NOT NULL,
+    category_id UUID REFERENCES public.expense_categories(id) ON DELETE SET NULL,
+    subcategory_id UUID REFERENCES public.expense_subcategories(id) ON DELETE SET NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    day_of_month SMALLINT NOT NULL CHECK (day_of_month BETWEEN 1 AND 31),
+    payment_method TEXT,
+    notes TEXT,
+    -- Prima ricorrenza generabile: le occorrenze di mesi precedenti non si
+    -- generano, né in avanti né con il backfill manuale.
+    start_date DATE NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+ALTER TABLE public.transactions
+    ADD CONSTRAINT transactions_recurring_expense_id_fkey
+    FOREIGN KEY (recurring_expense_id) REFERENCES public.recurring_expenses(id) ON DELETE SET NULL;
+
+-- ============================================
 -- INDEXES for better performance
 -- ============================================
 
@@ -313,6 +347,11 @@ CREATE INDEX idx_transactions_type ON public.transactions(type);
 CREATE INDEX idx_transactions_user_date ON public.transactions(user_id, date);
 CREATE INDEX idx_transactions_installment_plan ON public.transactions(installment_plan_id) WHERE installment_plan_id IS NOT NULL;
 CREATE INDEX idx_transactions_user_exceptional ON public.transactions(user_id, is_exceptional);
+CREATE INDEX idx_transactions_recurring_expense ON public.transactions(recurring_expense_id) WHERE recurring_expense_id IS NOT NULL;
+
+-- Recurring expenses indexes
+CREATE INDEX idx_recurring_expenses_user_id ON public.recurring_expenses(user_id);
+CREATE INDEX idx_recurring_expenses_user_active ON public.recurring_expenses(user_id, is_active);
 
 -- Budget indexes
 CREATE INDEX idx_monthly_budgets_user_id ON public.monthly_budgets(user_id);
@@ -373,6 +412,7 @@ CREATE TRIGGER update_goals_updated_at BEFORE UPDATE ON public.goals FOR EACH RO
 CREATE TRIGGER update_assets_updated_at BEFORE UPDATE ON public.assets FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_holdings_updated_at BEFORE UPDATE ON public.holdings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_isin_ticker_lookup_updated_at BEFORE UPDATE ON public.isin_ticker_lookup FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_recurring_expenses_updated_at BEFORE UPDATE ON public.recurring_expenses FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Function to auto-create profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()

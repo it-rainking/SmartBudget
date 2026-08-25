@@ -12,6 +12,7 @@ import {
   useDeleteInstallmentPlan,
 } from '@/hooks/useTransactions'
 import { useIncomeCategories, useExpenseCategories, useSavingCategories, useInitializeCategories } from '@/hooks/useCategories'
+import { useRecurringExpenses, useCreateRecurringExpense } from '@/hooks/useRecurringExpenses'
 import { useToast } from '@/components/Toast'
 import { ImportCSVModal } from '@/components/ImportCSVModal'
 import { useSettings } from '@/hooks/useSettings'
@@ -24,6 +25,7 @@ import {
   installmentDates,
   isPaypalMethod,
   splitInstallments,
+  findSimilarRecurringExpense,
   PAYPAL_INSTALLMENT_COUNT,
 } from '@/lib/utils'
 import type { TransactionType, Transaction } from '@/types'
@@ -71,6 +73,13 @@ export default function TransazioniPage() {
   const [formIsRecurring, setFormIsRecurring] = useState(false)
   const [formIsInstallment, setFormIsInstallment] = useState(false)
   const [formIsExceptional, setFormIsExceptional] = useState(false)
+  // Cosa fare col modello ricorrente quando si aggiunge una spesa: collegare
+  // a un modello simile già presente nel pannello, crearne uno nuovo, oppure
+  // registrare solo questa transazione senza toccare il pannello.
+  const [recurringChoice, setRecurringChoice] = useState<'link' | 'new' | 'skip'>('link')
+  // Quando non c'è nessun modello simile, propone (senza forzare) di salvarla
+  // anche nel pannello Spese ricorrenti
+  const [saveAsRecurringTemplate, setSaveAsRecurringTemplate] = useState(false)
 
   // Il pagamento a rate è offerto solo dove esiste davvero: spese pagate con
   // PayPal. In modifica non si propone, perché il piano è già stato creato.
@@ -88,6 +97,7 @@ export default function TransazioniPage() {
   const { data: expenseCategories, isLoading: expenseCategoriesLoading } = useExpenseCategories()
   const { data: savingCategories, isLoading: savingCategoriesLoading } = useSavingCategories()
   const categoriesLoading = incomeCategoriesLoading || expenseCategoriesLoading || savingCategoriesLoading
+  const { data: recurringExpenses } = useRecurringExpenses()
 
   // Mutations
   const createTransaction = useCreateTransaction()
@@ -96,6 +106,22 @@ export default function TransazioniPage() {
   const deleteTransaction = useDeleteTransaction()
   const deleteInstallmentPlan = useDeleteInstallmentPlan()
   const initializeCategories = useInitializeCategories()
+  const createRecurringExpense = useCreateRecurringExpense()
+
+  // Solo in creazione (non in modifica): se marco la spesa come ricorrente,
+  // verifico se nel pannello Spese ricorrenti esiste già un modello simile
+  // (stessa categoria, importo entro il 10%) per evitare doppioni.
+  const amountForMatch = parseFloat(formAmount)
+  const similarRecurringExpense =
+    !editingTransaction && formType === 'expense' && formIsRecurring && !formIsInstallment && !isNaN(amountForMatch)
+      ? findSimilarRecurringExpense(recurringExpenses ?? [], formCategoryId, amountForMatch)
+      : null
+
+  // Il suggerimento cambia man mano che l'utente modifica categoria/importo:
+  // di default si propone di collegarsi al modello trovato.
+  useEffect(() => {
+    setRecurringChoice('link')
+  }, [similarRecurringExpense?.id])
 
   // Se il contesto cambia (tipo o metodo di pagamento diverso, apertura in
   // modifica) il flag rate non è più applicabile: si spegne.
@@ -204,6 +230,8 @@ export default function TransazioniPage() {
     setFormIsRecurring(false)
     setFormIsInstallment(false)
     setFormIsExceptional(false)
+    setRecurringChoice('link')
+    setSaveAsRecurringTemplate(false)
     setEditingTransaction(null)
     setShowForm(false)
   }
@@ -228,6 +256,27 @@ export default function TransazioniPage() {
         return
       }
 
+      // Risolve il collegamento al pannello Spese ricorrenti solo in
+      // creazione: collega a un modello simile esistente, ne crea uno nuovo
+      // (da questa transazione o perché l'utente l'ha chiesto esplicitamente
+      // pur non essendoci un simile), oppure lascia la transazione libera.
+      let recurringExpenseId: string | undefined
+      if (!editingTransaction && formType === 'expense' && formIsRecurring && !formIsInstallment) {
+        if (similarRecurringExpense && recurringChoice === 'link') {
+          recurringExpenseId = similarRecurringExpense.id
+        } else if ((similarRecurringExpense && recurringChoice === 'new') || (!similarRecurringExpense && saveAsRecurringTemplate)) {
+          const created = await createRecurringExpense.mutateAsync({
+            name: formDescription.trim() || getCategoryName(formCategoryId, 'expense').trim(),
+            category_id: formCategoryId || undefined,
+            amount,
+            day_of_month: Number(formDate.split('-')[2]),
+            payment_method: formPaymentMethod || undefined,
+            start_date: formDate,
+          })
+          recurringExpenseId = created.id
+        }
+      }
+
       const payload = {
         type: formType,
         category_id: formCategoryId || undefined,
@@ -237,6 +286,7 @@ export default function TransazioniPage() {
         payment_method: formPaymentMethod || undefined,
         is_recurring: formIsRecurring,
         is_exceptional: formIsExceptional,
+        recurring_expense_id: recurringExpenseId,
       }
 
       if (editingTransaction) {
@@ -556,7 +606,12 @@ export default function TransazioniPage() {
                           <p className="text-sm text-zinc-500 dark:text-zinc-400 truncate max-w-[160px] sm:max-w-none">{transaction.description}</p>
                         )}
                         {transaction.is_recurring && (
-                          <span title="Ricorrente" className="text-xs text-blue-400 shrink-0">🔄</span>
+                          <span
+                            title={transaction.recurring_expense_id ? 'Ricorrente · collegata al pannello Spese ricorrenti' : 'Ricorrente'}
+                            className="text-xs text-blue-400 shrink-0"
+                          >
+                            🔄
+                          </span>
                         )}
                         {transaction.installment_plan_id && (
                           <span
@@ -829,6 +884,44 @@ export default function TransazioniPage() {
                   <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formIsRecurring ? 'translate-x-5' : 'translate-x-0'}`} />
                 </button>
               </div>
+              )}
+
+              {/* Spesa ricorrente simile già nel pannello: chiede cosa fare */}
+              {!editingTransaction && formIsRecurring && similarRecurringExpense && (
+                <div className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50/70 dark:bg-amber-900/10 p-3">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                    Trovata una spesa ricorrente simile nel pannello
+                  </p>
+                  <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
+                    &ldquo;{similarRecurringExpense.name}&rdquo; · {fmt(similarRecurringExpense.amount)} il giorno {similarRecurringExpense.day_of_month}
+                  </p>
+                  <div className="mt-2 space-y-1.5">
+                    <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
+                      <input type="radio" name="recurring-choice" checked={recurringChoice === 'link'} onChange={() => setRecurringChoice('link')} />
+                      Collega questa transazione al modello esistente
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
+                      <input type="radio" name="recurring-choice" checked={recurringChoice === 'new'} onChange={() => setRecurringChoice('new')} />
+                      Crea comunque un nuovo modello separato
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
+                      <input type="radio" name="recurring-choice" checked={recurringChoice === 'skip'} onChange={() => setRecurringChoice('skip')} />
+                      Registra solo questa transazione, senza collegarla
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {/* Nessun modello simile: propone di salvarla nel pannello */}
+              {!editingTransaction && formIsRecurring && !similarRecurringExpense && formType === 'expense' && !formIsInstallment && (
+                <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 -mt-2">
+                  <input
+                    type="checkbox"
+                    checked={saveAsRecurringTemplate}
+                    onChange={(e) => setSaveAsRecurringTemplate(e.target.checked)}
+                  />
+                  Aggiungi anche al pannello Spese ricorrenti (verrà generata automaticamente ogni mese)
+                </label>
               )}
 
               {/* Eccezionale — escluso dai trend */}

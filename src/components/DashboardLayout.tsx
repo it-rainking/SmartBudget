@@ -1,15 +1,34 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { useEnsureCurrentMonthRecurring } from '@/hooks/useRecurringExpenses'
 import { ToastProvider } from '@/components/Toast'
 import { NotificationBell } from '@/components/NotificationBell'
 import {
   LayoutDashboard, TrendingUp, CreditCard,
   Target, Settings, BookOpen,
-  Wallet, LogOut, LineChart,
+  Wallet, LogOut, LineChart, Repeat,
 } from 'lucide-react'
+
+// Genera automaticamente le occorrenze del mese corrente per le spese
+// ricorrenti attive, una volta per sessione: così si propagano "in avanti nel
+// tempo" ad ogni apertura dell'app, senza bisogno di un cron dedicato.
+// L'invalidazione delle query transazioni/KPI, se qualcosa viene creato, è
+// già gestita dentro useEnsureCurrentMonthRecurring.
+function useAutoGenerateRecurringExpenses() {
+  const ensureRecurring = useEnsureCurrentMonthRecurring()
+  const hasRunRef = useRef(false)
+
+  useEffect(() => {
+    if (hasRunRef.current) return
+    hasRunRef.current = true
+    ensureRecurring.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+}
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -23,6 +42,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard/mensile', Icon: LayoutDashboard },
   { name: 'Annuale', href: '/dashboard/annuale', Icon: TrendingUp },
   { name: 'Transazioni', href: '/transazioni', Icon: CreditCard },
+  { name: 'Spese ricorrenti', href: '/spese-ricorrenti', Icon: Repeat },
   { name: 'Obiettivi', href: '/obiettivi', Icon: Target },
   { name: 'Investimenti', href: '/investimenti', Icon: LineChart },
   { name: 'Impostazioni', href: '/settings', Icon: Settings },
@@ -32,6 +52,7 @@ const navigation = [
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname()
   const { user, signOut } = useAuth()
+  useAutoGenerateRecurringExpenses()
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">

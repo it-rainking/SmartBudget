@@ -128,6 +128,9 @@ export interface Transaction {
   notes: string | null
   is_recurring: boolean
   recurring_id: string | null
+  // Collega la transazione al modello in recurring_expenses da cui è stata
+  // generata automaticamente (o a cui è stata collegata manualmente dal form)
+  recurring_expense_id: string | null
   // Spese dilazionate (PayPal "Paga in 3 rate"): valorizzati solo sulle rate
   installment_plan_id: string | null
   installment_number: number | null
@@ -140,6 +143,40 @@ export interface Transaction {
   // Joined fields
   category?: IncomeCategory | ExpenseCategory | SavingCategory
   subcategory?: ExpenseSubcategory
+}
+
+// ── Spese ricorrenti (pannello /spese-ricorrenti) ───────────────────────────
+// Modello da cui vengono generate automaticamente le occorrenze mensili
+// (normali righe in `transactions` con recurring_expense_id valorizzato).
+export interface RecurringExpense {
+  id: string
+  user_id: string
+  name: string
+  category_id: string | null
+  subcategory_id: string | null
+  amount: number
+  day_of_month: number
+  payment_method: string | null
+  notes: string | null
+  start_date: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  // Joined fields
+  category?: ExpenseCategory
+  subcategory?: ExpenseSubcategory
+}
+
+export interface RecurringExpenseFormData {
+  name: string
+  category_id?: string
+  subcategory_id?: string
+  amount: number
+  day_of_month: number
+  payment_method?: string
+  notes?: string
+  start_date: string
+  is_active?: boolean
 }
 
 // Stato di una singola rata di un piano di rateizzazione
@@ -236,6 +273,7 @@ export interface TransactionFormData {
   tags?: string[]
   notes?: string
   is_recurring?: boolean
+  recurring_expense_id?: string
   installment_plan_id?: string
   installment_number?: number
   installment_count?: number
