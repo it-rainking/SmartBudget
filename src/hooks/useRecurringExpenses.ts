@@ -202,13 +202,24 @@ export interface RecurringCandidateGroup {
   startDate: string
   transactionIds: string[]
   occurrences: number
+  monthsCount: number
 }
 
-// Cerca le transazioni di tipo 'expense' marcate is_recurring=true e non
-// ancora collegate a nessun modello (recurring_expense_id NULL), e le
-// raggruppa per categoria + importo (stesso affitto/abbonamento ripetuto nei
-// mesi ha lo stesso importo). Non scrive nulla: la creazione avviene solo
-// dopo conferma dell'utente tramite useImportRecurringCandidate.
+// Il flag is_recurring va valorizzato a mano dal form transazioni: non lo
+// imposta né l'import CSV/OFX né alcuna importazione bulk, quindi la stragrande
+// maggioranza delle spese realmente ricorrenti (affitto, bollette, abbonamenti
+// caricati da estratto conto) non lo ha mai avuto true. Il rilevamento si basa
+// perciò sul pattern reale: stessa categoria e importo (con una tolleranza,
+// per le bollette a consumo) ripetuto in almeno due mesi diversi. Una
+// transazione con is_recurring=true esplicito è comunque inclusa anche da sola,
+// per non perdere il segnale di chi lo ha già usato manualmente.
+export const CANDIDATE_MIN_MONTHS = 2
+const CANDIDATE_AMOUNT_TOLERANCE = 0.08
+
+// Cerca fra le transazioni di tipo 'expense' non ancora collegate a nessun
+// modello (recurring_expense_id NULL) quelle che sembrano ricorrenti, e le
+// raggruppa per candidati plausibili. Non scrive nulla: la creazione avviene
+// solo dopo conferma dell'utente tramite useImportRecurringCandidate.
 export function useDetectRecurringCandidates() {
   return useMutation({
     mutationFn: async (): Promise<RecurringCandidateGroup[]> => {
@@ -217,47 +228,86 @@ export function useDetectRecurringCandidates() {
 
       const { data: transactions, error } = await supabase
         .from('transactions')
-        .select('id, category_id, amount, date, description, payment_method')
+        .select('id, category_id, amount, date, description, payment_method, is_recurring, is_exceptional, installment_plan_id')
         .eq('user_id', user.user.id)
         .eq('type', 'expense')
-        .eq('is_recurring', true)
         .is('recurring_expense_id', null)
         .order('date', { ascending: true })
 
       if (error) throw error
       if (!transactions || transactions.length === 0) return []
 
-      const groups = new Map<string, typeof transactions>()
-      for (const t of transactions) {
-        const key = `${t.category_id ?? 'none'}::${Number(t.amount).toFixed(2)}`
-        const arr = groups.get(key) ?? []
+      // Una categoria è necessaria per raggruppare in modo affidabile; le rate
+      // di un piano PayPal e i movimenti eccezionali non sono candidati validi.
+      const candidates = transactions.filter(
+        (t) => t.category_id && !t.installment_plan_id && !t.is_exceptional
+      )
+
+      const byCategory = new Map<string, typeof candidates>()
+      for (const t of candidates) {
+        const arr = byCategory.get(t.category_id!) ?? []
         arr.push(t)
-        groups.set(key, arr)
+        byCategory.set(t.category_id!, arr)
       }
 
-      return Array.from(groups.entries())
-        .map(([key, txs]) => {
-          const mostRecent = txs[txs.length - 1]
-          // Descrizione più ricorrente nel gruppo, altrimenti l'ultima disponibile
-          const descCounts = new Map<string, number>()
-          txs.forEach((t) => {
-            if (t.description) descCounts.set(t.description, (descCounts.get(t.description) ?? 0) + 1)
-          })
-          const bestDescription = [...descCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+      const groups: RecurringCandidateGroup[] = []
 
-          return {
-            key,
-            categoryId: mostRecent.category_id,
-            amount: Number(mostRecent.amount),
-            suggestedName: bestDescription || mostRecent.description || '',
-            paymentMethod: mostRecent.payment_method,
-            dayOfMonth: Number(mostRecent.date.slice(8, 10)),
-            startDate: txs[0].date,
-            transactionIds: txs.map((t) => t.id),
-            occurrences: txs.length,
+      byCategory.forEach((txs, categoryId) => {
+        // Clusterizza per importo: ordina e accorpa i valori consecutivi entro
+        // la tolleranza rispetto alla media del cluster corrente.
+        const sorted = [...txs].sort((a, b) => Number(a.amount) - Number(b.amount))
+        let cluster: typeof txs = []
+
+        const flushCluster = () => {
+          if (cluster.length === 0) return
+          const distinctMonths = new Set(cluster.map((t) => t.date.slice(0, 7)))
+          const hasExplicitFlag = cluster.some((t) => t.is_recurring)
+          if (distinctMonths.size >= CANDIDATE_MIN_MONTHS || hasExplicitFlag) {
+            const mostRecent = cluster[cluster.length - 1]
+            const avgAmount = cluster.reduce((s, t) => s + Number(t.amount), 0) / cluster.length
+
+            const descCounts = new Map<string, number>()
+            const methodCounts = new Map<string, number>()
+            cluster.forEach((t) => {
+              if (t.description) descCounts.set(t.description, (descCounts.get(t.description) ?? 0) + 1)
+              if (t.payment_method) methodCounts.set(t.payment_method, (methodCounts.get(t.payment_method) ?? 0) + 1)
+            })
+            const bestDescription = [...descCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+            const bestMethod = [...methodCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+
+            groups.push({
+              key: `${categoryId}::${cluster[0].id}`,
+              categoryId,
+              amount: Math.round(avgAmount * 100) / 100,
+              suggestedName: bestDescription || mostRecent.description || '',
+              paymentMethod: bestMethod ?? null,
+              dayOfMonth: Number(mostRecent.date.slice(8, 10)),
+              startDate: cluster[0].date,
+              transactionIds: cluster.map((t) => t.id),
+              occurrences: cluster.length,
+              monthsCount: distinctMonths.size,
+            })
           }
-        })
-        .sort((a, b) => b.occurrences - a.occurrences)
+          cluster = []
+        }
+
+        for (const t of sorted) {
+          if (cluster.length === 0) {
+            cluster.push(t)
+            continue
+          }
+          const clusterAvg = cluster.reduce((s, c) => s + Number(c.amount), 0) / cluster.length
+          if (Math.abs(Number(t.amount) - clusterAvg) <= clusterAvg * CANDIDATE_AMOUNT_TOLERANCE) {
+            cluster.push(t)
+          } else {
+            flushCluster()
+            cluster.push(t)
+          }
+        }
+        flushCluster()
+      })
+
+      return groups.sort((a, b) => b.monthsCount - a.monthsCount || b.occurrences - a.occurrences)
     },
   })
 }
