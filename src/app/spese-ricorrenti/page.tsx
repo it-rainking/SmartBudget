@@ -11,6 +11,7 @@ import {
   useGenerateRecurringBackfill,
   useDetectRecurringCandidates,
   useImportRecurringCandidate,
+  CANDIDATE_MIN_MONTHS,
   type RecurringCandidateGroup,
 } from '@/hooks/useRecurringExpenses'
 import { useExpenseCategories } from '@/hooks/useCategories'
@@ -277,7 +278,7 @@ export default function SpeseRicorrentiPage() {
               <div className="flex-1">
                 <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Rileva spese ricorrenti dalle transazioni</p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Cerca fra le transazioni già segnate come ricorrenti ma non ancora collegate a un modello, e propone i modelli da creare
+                  Cerca fra le transazioni con categoria e importo simile ripetuti in almeno {CANDIDATE_MIN_MONTHS} mesi diversi (o già segnate come ricorrenti) e non ancora collegate a un modello
                 </p>
               </div>
               <button
@@ -302,7 +303,7 @@ export default function SpeseRicorrentiPage() {
                       className="flex-1 px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm min-w-0"
                     />
                     <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">
-                      {getCategoryLabel(candidate.categoryId)} · {fmt(candidate.amount)} · giorno {candidate.dayOfMonth} · {candidate.occurrences} transazion{candidate.occurrences === 1 ? 'e' : 'i'}
+                      {getCategoryLabel(candidate.categoryId)} · ~{fmt(candidate.amount)} · giorno {candidate.dayOfMonth} · {candidate.occurrences} transazion{candidate.occurrences === 1 ? 'e' : 'i'} in {candidate.monthsCount} mes{candidate.monthsCount === 1 ? 'e' : 'i'}
                     </span>
                     <button
                       onClick={() => handleImportCandidate(candidate)}
@@ -318,7 +319,8 @@ export default function SpeseRicorrentiPage() {
 
             {candidates && candidates.length === 0 && (
               <p className="text-xs text-zinc-500 dark:text-zinc-400 border-t border-zinc-100 dark:border-zinc-700 pt-2">
-                Nessuna transazione ricorrente da importare: o non ce ne sono, o sono già tutte collegate a un modello.
+                Nessun pattern ricorrente trovato. Lo strumento richiede una categoria assegnata e un importo simile ripetuto in
+                almeno {CANDIDATE_MIN_MONTHS} mesi diversi: se le transazioni sono senza categoria, o la spesa è comparsa una sola volta finora, non verrà proposta qui — puoi comunque aggiungerla a mano con &ldquo;Nuova spesa ricorrente&rdquo;.
               </p>
             )}
           </div>
