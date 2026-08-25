@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, Pause, Play, Repeat } from 'lucide-react'
+import { Plus, Pencil, Trash2, Pause, Play, Repeat, Search } from 'lucide-react'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import {
   useRecurringExpenses,
@@ -9,6 +9,9 @@ import {
   useUpdateRecurringExpense,
   useDeleteRecurringExpense,
   useGenerateRecurringBackfill,
+  useDetectRecurringCandidates,
+  useImportRecurringCandidate,
+  type RecurringCandidateGroup,
 } from '@/hooks/useRecurringExpenses'
 import { useExpenseCategories } from '@/hooks/useCategories'
 import { useToast } from '@/components/Toast'
@@ -18,6 +21,12 @@ import { formatCurrency, getLocalDateString, getPaymentMethods } from '@/lib/uti
 import type { RecurringExpense } from '@/types'
 
 const BACKFILL_MAX_MONTHS = 24
+
+// Strumento una tantum per popolare il pannello dalle transazioni già segnate
+// "ricorrente" prima che questo pannello esistesse. Non serve che resti
+// disponibile a lungo: una volta usato, si può rimettere a `false` per
+// nasconderlo senza rimuovere il codice.
+const SHOW_IMPORT_TOOL = true
 
 export default function SpeseRicorrentiPage() {
   const { showToast } = useToast()
@@ -33,11 +42,18 @@ export default function SpeseRicorrentiPage() {
   const updateRecurring = useUpdateRecurringExpense()
   const deleteRecurring = useDeleteRecurringExpense()
   const generateBackfill = useGenerateRecurringBackfill()
+  const detectCandidates = useDetectRecurringCandidates()
+  const importCandidate = useImportRecurringCandidate()
 
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<RecurringExpense | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<RecurringExpense | null>(null)
   const [backfillMonths, setBackfillMonths] = useState('3')
+
+  // Strumento di import da transazioni esistenti
+  const [candidates, setCandidates] = useState<RecurringCandidateGroup[] | null>(null)
+  const [candidateNames, setCandidateNames] = useState<Record<string, string>>({})
+  const [importingKey, setImportingKey] = useState<string | null>(null)
 
   // Form state
   const [fName, setFName] = useState('')
@@ -166,6 +182,47 @@ export default function SpeseRicorrentiPage() {
     }
   }
 
+  const handleDetectCandidates = async () => {
+    try {
+      const found = await detectCandidates.mutateAsync()
+      setCandidates(found)
+      setCandidateNames(
+        Object.fromEntries(found.map((c) => [c.key, c.suggestedName || getCategoryLabel(c.categoryId)]))
+      )
+      if (found.length === 0) {
+        showToast('Nessuna transazione ricorrente da importare')
+      }
+    } catch {
+      showToast('Errore durante la ricerca', 'error')
+    }
+  }
+
+  const handleImportCandidate = async (candidate: RecurringCandidateGroup) => {
+    const name = (candidateNames[candidate.key] || '').trim()
+    if (!name) {
+      showToast('Inserisci un nome per questo modello', 'error')
+      return
+    }
+    setImportingKey(candidate.key)
+    try {
+      await importCandidate.mutateAsync({
+        name,
+        categoryId: candidate.categoryId,
+        amount: candidate.amount,
+        dayOfMonth: candidate.dayOfMonth,
+        startDate: candidate.startDate,
+        paymentMethod: candidate.paymentMethod,
+        transactionIds: candidate.transactionIds,
+      })
+      setCandidates((prev) => prev?.filter((c) => c.key !== candidate.key) ?? null)
+      showToast(`"${name}" aggiunta al pannello e collegata a ${candidate.occurrences} transazioni`)
+    } catch {
+      showToast('Errore durante l\'importazione', 'error')
+    } finally {
+      setImportingKey(null)
+    }
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -212,6 +269,60 @@ export default function SpeseRicorrentiPage() {
             </button>
           </div>
         </div>
+
+        {/* Import da transazioni esistenti — strumento temporaneo, vedi SHOW_IMPORT_TOOL */}
+        {SHOW_IMPORT_TOOL && (
+          <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Rileva spese ricorrenti dalle transazioni</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Cerca fra le transazioni già segnate come ricorrenti ma non ancora collegate a un modello, e propone i modelli da creare
+                </p>
+              </div>
+              <button
+                onClick={handleDetectCandidates}
+                disabled={detectCandidates.isPending}
+                className="inline-flex items-center gap-2 py-2 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 disabled:opacity-60 transition-colors shrink-0"
+              >
+                <Search size={14} />
+                {detectCandidates.isPending ? 'Ricerca...' : 'Cerca'}
+              </button>
+            </div>
+
+            {candidates && candidates.length > 0 && (
+              <div className="divide-y divide-zinc-100 dark:divide-zinc-700 border-t border-zinc-100 dark:border-zinc-700 pt-2">
+                {candidates.map((candidate) => (
+                  <div key={candidate.key} className="py-2.5 flex flex-col sm:flex-row sm:items-center gap-2">
+                    <input
+                      type="text"
+                      value={candidateNames[candidate.key] ?? ''}
+                      onChange={(e) => setCandidateNames((prev) => ({ ...prev, [candidate.key]: e.target.value }))}
+                      placeholder="Nome del modello"
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm min-w-0"
+                    />
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400 shrink-0">
+                      {getCategoryLabel(candidate.categoryId)} · {fmt(candidate.amount)} · giorno {candidate.dayOfMonth} · {candidate.occurrences} transazion{candidate.occurrences === 1 ? 'e' : 'i'}
+                    </span>
+                    <button
+                      onClick={() => handleImportCandidate(candidate)}
+                      disabled={importingKey === candidate.key}
+                      className="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-medium transition-colors shrink-0"
+                    >
+                      {importingKey === candidate.key ? 'Importazione...' : 'Importa'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {candidates && candidates.length === 0 && (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 border-t border-zinc-100 dark:border-zinc-700 pt-2">
+                Nessuna transazione ricorrente da importare: o non ce ne sono, o sono già tutte collegate a un modello.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* List */}
         <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm overflow-hidden">
