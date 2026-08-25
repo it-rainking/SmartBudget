@@ -151,6 +151,7 @@ export function useEnsureCurrentMonthRecurring() {
         queryClient.invalidateQueries({ queryKey: ['transactions'] })
         queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
         queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
+        queryClient.invalidateQueries({ queryKey: ['recurring_expenses'] })
       }
     },
   })
@@ -179,7 +180,56 @@ export function useGenerateRecurringBackfill() {
         queryClient.invalidateQueries({ queryKey: ['transactions'] })
         queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
         queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
+        queryClient.invalidateQueries({ queryKey: ['recurring_expenses'] })
       }
+    },
+  })
+}
+
+// Occorrenze di spese ricorrenti già generate (righe in `transactions` con
+// recurring_expense_id valorizzato) che cadono nel mese richiesto. Usata dal
+// box "Spese ricorrenti" della dashboard mensile, accanto al riepilogo rate
+// PayPal: stesso pattern, diversa fonte (modelli invece che piani di rate).
+export interface RecurringOccurrence {
+  id: string
+  recurringExpenseId: string | null
+  name: string
+  amount: number
+  date: string
+  categoryIcon: string | null
+  isActive: boolean
+}
+
+export function useRecurringExpensesInMonth(month: number, year: number) {
+  const { startDate, endDate } = getMonthDateRange(month, year)
+
+  return useQuery({
+    queryKey: ['recurring_expenses', 'in_month', { month, year }],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('id, amount, date, description, recurring_expense_id, category:expense_categories(icon), recurring_expense:recurring_expenses(name, is_active)')
+        .eq('type', 'expense')
+        .not('recurring_expense_id', 'is', null)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: true })
+
+      if (error) throw error
+
+      return (data ?? []).map((t) => {
+        const recurring = t.recurring_expense as unknown as { name: string; is_active: boolean } | null
+        const category = t.category as unknown as { icon: string | null } | null
+        return {
+          id: t.id,
+          recurringExpenseId: t.recurring_expense_id,
+          name: recurring?.name || t.description || 'Spesa ricorrente',
+          amount: Number(t.amount),
+          date: t.date,
+          categoryIcon: category?.icon ?? null,
+          isActive: recurring?.is_active ?? true,
+        }
+      }) as RecurringOccurrence[]
     },
   })
 }
