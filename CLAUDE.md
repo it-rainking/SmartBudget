@@ -39,6 +39,7 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 /dashboard/mensile        → KPI mensili + saldo disponibile + grafici (incl. andamento saldo giornaliero)
 /dashboard/annuale        → Trend 12 mesi + grafici annuali
 /transazioni              → CRUD transazioni + import CSV/OFX
+/spese-ricorrenti         → Pannello modelli di spesa ricorrente: generazione automatica mensile + backfill su N mesi passati
 /budget                   → Budget previsto vs effettivo (⚠️ non linkata in sidebar: accesso disattivato al momento, codice mantenuto)
 /fatture                  → Fatture/abbonamenti + calendario (⚠️ non linkata in sidebar: strumento non in uso, codice mantenuto)
 /obiettivi                → Obiettivi finanziari con progress bar
@@ -64,7 +65,7 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 ### Middleware (`src/middleware.ts`)
 
 Gestisce redirect auth su ogni request:
-- **Route protette** (`/dashboard`, `/budget`, `/transazioni`, `/fatture`, `/obiettivi`, `/debiti`, `/investimenti`, `/settings`, `/istruzioni`, `/onboarding`, `/aggiorna-password`): redirect a `/login` se non autenticato
+- **Route protette** (`/dashboard`, `/budget`, `/transazioni`, `/spese-ricorrenti`, `/fatture`, `/obiettivi`, `/debiti`, `/investimenti`, `/settings`, `/istruzioni`, `/onboarding`, `/aggiorna-password`): redirect a `/login` se non autenticato
 - **Route auth** (`/login`, `/signup`): redirect a `/dashboard/mensile` se già autenticato
 - Rinnova la sessione Supabase SSR ad ogni request
 
@@ -85,7 +86,7 @@ Tutte le tabelle usano RLS con policy `user_id = auth.uid()`.
 | `debt_items` | total_amount, remaining_amount, interest_rate, monthly_payment, ... | UI in `/debiti` (strategie snowball/avalanche) |
 | `monthly_budgets` | month, year, notes | Header budget |
 | `monthly_budget_items` | budget_id, category_type, category_id, planned_amount | Dettaglio per categoria |
-| `transactions` | type (income/expense/saving/debt), category_id?, subcategory_id?, amount, date, description, payment_method, tags[], notes, is_recurring, recurring_id, installment_plan_id?, installment_number?, installment_count?, is_exceptional | category_id nullable (import CSV); campi installment_* valorizzati solo sulle rate di spese dilazionate (vedi sezione "Spese a rate"); `is_exceptional` = movimento una tantum escluso dai trend |
+| `transactions` | type (income/expense/saving/debt), category_id?, subcategory_id?, amount, date, description, payment_method, tags[], notes, is_recurring, recurring_id, recurring_expense_id?, installment_plan_id?, installment_number?, installment_count?, is_exceptional | category_id nullable (import CSV); campi installment_* valorizzati solo sulle rate di spese dilazionate (vedi sezione "Spese a rate"); `recurring_expense_id` collega l'occorrenza al modello in `recurring_expenses` (vedi sezione "Spese ricorrenti"), NULL se non collegata; `is_exceptional` = movimento una tantum escluso dai trend |
 | `invoices` | name, amount, due_date, paid_date, recurrence (once/weekly/monthly/quarterly/yearly), status (pending/paid/overdue/cancelled), description, paid_amount, category_id?, reminder_days, auto_renew | |
 | `goals` | name, type (saving/debt), target_amount, current_amount, deadline, icon, color, is_completed, completed_at | |
 | `notifications` | type (budget_exceeded/bill_due/goal_achieved/goal_progress/system), title, message, data, is_read, read_at | Notifiche persistite nel DB |
@@ -93,6 +94,7 @@ Tutte le tabelle usano RLS con policy `user_id = auth.uid()`.
 | `holdings` | user_id, asset_id (FK→assets), quantity, avg_cost, source, imported_at | Snapshot: sostituito integralmente a ogni import CSV, non delta |
 | `price_snapshots` | asset_id (FK→assets), price, change_pct, currency, source (gsheet/yahoo), fetched_at | Scritto solo dal cron `/api/cron/prices` (service role) |
 | `isin_ticker_lookup` | isin (PK), ticker_gf?, ticker_yahoo?, name?, asset_class? | Tabella globale (non per-utente) di riferimento ISIN→ticker, manutenuta manualmente |
+| `recurring_expenses` | name, category_id?, subcategory_id?, amount, day_of_month, payment_method?, notes?, start_date, is_active | Modello di spesa ricorrente, UI in `/spese-ricorrenti`; le occorrenze generate sono normali righe in `transactions` con `recurring_expense_id` valorizzato |
 
 ### Funzioni RPC
 
@@ -142,6 +144,7 @@ src/
 │   │   ├── mensile/page.tsx        # KPI, donut chart spese, bar chart, delta%
 │   │   └── annuale/page.tsx        # Year selector, line/bar charts, table
 │   ├── transazioni/page.tsx        # Lista + form + import CSV modal
+│   ├── spese-ricorrenti/page.tsx   # Pannello modelli ricorrenti + backfill arretrati
 │   ├── budget/page.tsx             # Tab spese/entrate/risparmi, input inline
 │   ├── fatture/page.tsx            # Lista + calendario + modal nuova fattura
 │   ├── obiettivi/page.tsx          # Grid card + modal creazione + modal progresso
@@ -159,6 +162,7 @@ src/
 │   ├── useCategories.ts            # useIncomeCategories, useExpenseCategories, useDeleteCategory, ecc.
 │   ├── useTransactions.ts          # useTransactions, useCreateTransaction, useCreateInstallmentPlan, useUpdateTransaction, useDeleteTransaction, useDeleteInstallmentPlan, useMonthlyKPIs
 │   ├── useInstallments.ts          # useInstallmentPlans — ricostruisce i piani di spese a rate (PayPal) che toccano un mese
+│   ├── useRecurringExpenses.ts     # useRecurringExpenses, useCreateRecurringExpense, useUpdateRecurringExpense, useDeleteRecurringExpense, useEnsureCurrentMonthRecurring, useGenerateRecurringBackfill
 │   ├── useBudget.ts                # useMonthlyBudget, useEnsureMonthlyBudget, useUpsertBudgetItem, useActualAmountsByCategory
 │   ├── useInvoices.ts              # useInvoices, useCreateInvoice, useUpdateInvoice, useMarkAsPaid, useDeleteInvoice
 │   ├── useGoals.ts                 # useGoals, useCreateGoal, useUpdateGoal, useAddGoalProgress, useCompleteGoal, useDeleteGoal
@@ -195,6 +199,7 @@ Tutti gli hook usano React Query. Chiavi query:
 ['income_categories'] / ['expense_categories'] / ['saving_categories']
 ['notifications']
 ['installment_plans', { month, year }]
+['recurring_expenses']
 ['investments_summary']
 ```
 
@@ -321,6 +326,18 @@ Nel form di nuova transazione (`transazioni/page.tsx`), quando `type = expense` 
 
 ---
 
+## Spese ricorrenti (pannello `/spese-ricorrenti`)
+
+Sistema separato dal semplice toggle "ricorrente" del form transazioni: qui una spesa ricorrente è un **modello** (`recurring_expenses`) da cui le occorrenze mensili vengono generate automaticamente, non solo marcate.
+
+- Un modello ha `name`, `category_id`/`subcategory_id` (categorie spesa), `amount`, `day_of_month` (1-31), `payment_method`, `notes`, `start_date` (prima ricorrenza generabile) e `is_active`.
+- Ogni occorrenza generata è una **normale riga in `transactions`** (`type: 'expense'`, `is_recurring: true`), con `recurring_expense_id` valorizzato — nessuna tabella di storico separata, stesso pattern delle rate PayPal: pesa su KPI/budget del proprio mese fin da subito.
+- **Generazione automatica in avanti**: `useEnsureCurrentMonthRecurring()` (in `useRecurringExpenses.ts`) crea le occorrenze mancanti del mese corrente per tutti i modelli attivi già iniziati (`start_date <= fine mese`). Viene chiamato una volta per sessione da `DashboardLayout` (hook `useAutoGenerateRecurringExpenses`), quindi si propaga automaticamente ad ogni apertura dell'app — non serve un cron dedicato.
+- **Backfill nel passato**: nel pannello, il controllo "Genera arretrati" chiama `useGenerateRecurringBackfill(mesi)`, che applica la stessa logica di generazione a ciascuno degli ultimi N mesi (fino a 24), sempre idempotente (salta i mesi che hanno già un'occorrenza per quel modello).
+- **Duplicati dal form transazioni**: quando si aggiunge manualmente una spesa con il toggle "Transazione ricorrente" attivo, `findSimilarRecurringExpense()` (in `utils.ts`) confronta categoria + importo (tolleranza 10%) con i modelli esistenti. Se trova un modello simile, il form mostra all'utente tre opzioni (collega al modello esistente / crea comunque un nuovo modello separato / registra solo questa transazione); se non trova nulla, propone una checkbox opzionale per salvarla anche come nuovo modello nel pannello.
+- Eliminare un modello non tocca le occorrenze già generate: `transactions.recurring_expense_id` passa a `NULL` (`ON DELETE SET NULL`), la transazione resta nello storico ma smette di ricevere nuove occorrenze.
+- Migrazione DB: `supabase/migrate_recurring_expenses.sql` (anche in `schema.sql`/`rls_policies.sql` per i nuovi progetti).
+
 ## Ambiente di Build
 
 - `.env.local` con `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` (gitignored)
@@ -370,6 +387,7 @@ npm test       # vitest run (solo modulo investimenti, vedi sezione Testing)
 - ✅ Budget: copia da mese precedente (`handleCopyFromPrevMonth` in `budget/page.tsx`)
 - ✅ Filtro per categoria nella lista transazioni
 - ✅ Spese PayPal a rate (toggle "Paga in 3 rate", generazione automatica delle rate nei 2 mesi successivi, sommario con stato nella dashboard mensile)
+- ✅ Spese ricorrenti (pannello `/spese-ricorrenti`: modelli con generazione automatica mensile in avanti + backfill su N mesi passati; rilevamento duplicati con collegamento/creazione modello dal form transazioni)
 
 ### Priority backlog
 - Aggregazione annuale lato SQL (view/RPC) invece di fetch raw + riduzione client-side (`useAnnualData.ts`)

@@ -21,6 +21,7 @@ ALTER TABLE public.assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.holdings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.price_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.isin_ticker_lookup ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recurring_expenses ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
 -- PROFILES POLICIES
@@ -236,6 +237,25 @@ CREATE POLICY "Users can update own goals"
 
 CREATE POLICY "Users can delete own goals"
     ON public.goals FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- ============================================
+-- RECURRING EXPENSES POLICIES
+-- ============================================
+CREATE POLICY "Users can view own recurring expenses"
+    ON public.recurring_expenses FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own recurring expenses"
+    ON public.recurring_expenses FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own recurring expenses"
+    ON public.recurring_expenses FOR UPDATE
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own recurring expenses"
+    ON public.recurring_expenses FOR DELETE
     USING (auth.uid() = user_id);
 
 -- ============================================

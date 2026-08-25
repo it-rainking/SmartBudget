@@ -354,6 +354,7 @@ export type Database = {
           notes: string | null
           is_recurring: boolean
           recurring_id: string | null
+          recurring_expense_id: string | null
           installment_plan_id: string | null
           installment_number: number | null
           installment_count: number | null
@@ -375,6 +376,7 @@ export type Database = {
           notes?: string | null
           is_recurring?: boolean
           recurring_id?: string | null
+          recurring_expense_id?: string | null
           installment_plan_id?: string | null
           installment_number?: number | null
           installment_count?: number | null
@@ -396,6 +398,7 @@ export type Database = {
           notes?: string | null
           is_recurring?: boolean
           recurring_id?: string | null
+          recurring_expense_id?: string | null
           installment_plan_id?: string | null
           installment_number?: number | null
           installment_count?: number | null
@@ -403,7 +406,15 @@ export type Database = {
           created_at?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: 'transactions_recurring_expense_id_fkey'
+            columns: ['recurring_expense_id']
+            isOneToOne: false
+            referencedRelation: 'recurring_expenses'
+            referencedColumns: ['id']
+          }
+        ]
       }
       invoices: {
         Row: {
@@ -699,6 +710,69 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      recurring_expenses: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          category_id: string | null
+          subcategory_id: string | null
+          amount: number
+          day_of_month: number
+          payment_method: string | null
+          notes: string | null
+          start_date: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          category_id?: string | null
+          subcategory_id?: string | null
+          amount: number
+          day_of_month: number
+          payment_method?: string | null
+          notes?: string | null
+          start_date: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          category_id?: string | null
+          subcategory_id?: string | null
+          amount?: number
+          day_of_month?: number
+          payment_method?: string | null
+          notes?: string | null
+          start_date?: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'recurring_expenses_category_id_fkey'
+            columns: ['category_id']
+            isOneToOne: false
+            referencedRelation: 'expense_categories'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'recurring_expenses_subcategory_id_fkey'
+            columns: ['subcategory_id']
+            isOneToOne: false
+            referencedRelation: 'expense_subcategories'
+            referencedColumns: ['id']
+          }
+        ]
       }
     }
     Views: {
