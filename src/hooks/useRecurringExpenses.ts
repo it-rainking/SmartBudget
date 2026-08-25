@@ -254,7 +254,15 @@ export function useDetectRecurringCandidates() {
 
       byCategory.forEach((txs, categoryId) => {
         // Clusterizza per importo: ordina e accorpa i valori consecutivi entro
-        // la tolleranza rispetto alla media del cluster corrente.
+        // la tolleranza rispetto al primo importo del cluster (l'"ancora"),
+        // non rispetto alla media che si sposta man mano che il cluster
+        // cresce. Con una media mobile una sequenza fitta di importi non
+        // correlati ma vicini fra loro (es. spese quotidiane della stessa
+        // categoria) trascina il cluster per "effetto catena" ben oltre
+        // l'importo originale, e può inglobare una transazione segnata
+        // is_recurring=true in un gruppo con nome/importo suggerito che non
+        // la rappresenta più: agli occhi dell'utente la spesa segnata come
+        // ricorrente sembra "non individuata".
         const sorted = [...txs].sort((a, b) => Number(a.amount) - Number(b.amount))
         let cluster: typeof txs = []
 
@@ -296,8 +304,8 @@ export function useDetectRecurringCandidates() {
             cluster.push(t)
             continue
           }
-          const clusterAvg = cluster.reduce((s, c) => s + Number(c.amount), 0) / cluster.length
-          if (Math.abs(Number(t.amount) - clusterAvg) <= clusterAvg * CANDIDATE_AMOUNT_TOLERANCE) {
+          const anchor = Number(cluster[0].amount)
+          if (Math.abs(Number(t.amount) - anchor) <= anchor * CANDIDATE_AMOUNT_TOLERANCE) {
             cluster.push(t)
           } else {
             flushCluster()
