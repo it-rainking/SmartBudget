@@ -38,6 +38,16 @@ const MONTHS = [
 const PAGE_SIZE = 20
 const UNCATEGORIZED = '__uncategorized__'
 
+// Estrae il messaggio reale da un errore Supabase/JS: senza, ogni problema
+// diventa un generico "errore" impossibile da diagnosticare.
+function errorMessage(err: unknown): string {
+  if (err && typeof err === 'object' && 'message' in err) {
+    const message = (err as { message?: unknown }).message
+    if (typeof message === 'string' && message.trim()) return message
+  }
+  return 'errore sconosciuto'
+}
+
 export default function TransazioniPage() {
   const currentDate = new Date()
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1)
@@ -107,6 +117,15 @@ export default function TransazioniPage() {
   const deleteInstallmentPlan = useDeleteInstallmentPlan()
   const initializeCategories = useInitializeCategories()
   const createRecurringExpense = useCreateRecurringExpense()
+
+  // Il pulsante Salva deve mostrarsi "in corso" per ogni mutation coinvolta nel
+  // salvataggio: senza createRecurringExpense sembrava non rispondere durante
+  // la creazione del modello di spesa ricorrente.
+  const isSaving =
+    createTransaction.isPending ||
+    createInstallmentPlan.isPending ||
+    updateTransaction.isPending ||
+    createRecurringExpense.isPending
 
   // Solo in creazione (non in modifica): se marco la spesa come ricorrente,
   // verifico se nel pannello Spese ricorrenti esiste già un modello simile
@@ -249,6 +268,12 @@ export default function TransazioniPage() {
     if (isSubmittingRef.current) return
     isSubmittingRef.current = true
 
+    // L'aggiunta al pannello Spese ricorrenti è un'operazione accessoria:
+    // viene eseguita DOPO che la transazione è stata salvata, così un errore
+    // sul modello (o una chiamata lenta) non fa più perdere la spesa appena
+    // inserita né blocca il pulsante Salva.
+    let addRecurringTemplate: (() => Promise<void>) | null = null
+
     try {
       const amount = parseFloat(formAmount)
       if (isNaN(amount) || amount <= 0) {
@@ -256,26 +281,20 @@ export default function TransazioniPage() {
         return
       }
 
-      // Risolve il collegamento al pannello Spese ricorrenti solo in
-      // creazione: collega a un modello simile esistente, ne crea uno nuovo
-      // (da questa transazione o perché l'utente l'ha chiesto esplicitamente
-      // pur non essendoci un simile), oppure lascia la transazione libera.
-      let recurringExpenseId: string | undefined
-      if (!editingTransaction && formType === 'expense' && formIsRecurring && !formIsInstallment) {
-        if (similarRecurringExpense && recurringChoice === 'link') {
-          recurringExpenseId = similarRecurringExpense.id
-        } else if ((similarRecurringExpense && recurringChoice === 'new') || (!similarRecurringExpense && saveAsRecurringTemplate)) {
-          const created = await createRecurringExpense.mutateAsync({
-            name: formDescription.trim() || getCategoryName(formCategoryId, 'expense').trim(),
-            category_id: formCategoryId || undefined,
-            amount,
-            day_of_month: Number(formDate.split('-')[2]),
-            payment_method: formPaymentMethod || undefined,
-            start_date: formDate,
-          })
-          recurringExpenseId = created.id
-        }
-      }
+      // Collegamento al pannello Spese ricorrenti, solo in creazione:
+      // - modello simile + "collega": la transazione nasce già collegata
+      // - "crea comunque un nuovo modello" o checkbox: il modello viene creato
+      //   dopo il salvataggio e collegato con un update
+      const isNewRecurringExpense =
+        !editingTransaction && formType === 'expense' && formIsRecurring && !formIsInstallment
+      const linkedRecurringId =
+        isNewRecurringExpense && similarRecurringExpense && recurringChoice === 'link'
+          ? similarRecurringExpense.id
+          : undefined
+      const wantsRecurringTemplate =
+        isNewRecurringExpense &&
+        ((!!similarRecurringExpense && recurringChoice === 'new') ||
+          (!similarRecurringExpense && saveAsRecurringTemplate))
 
       const payload = {
         type: formType,
@@ -286,7 +305,7 @@ export default function TransazioniPage() {
         payment_method: formPaymentMethod || undefined,
         is_recurring: formIsRecurring,
         is_exceptional: formIsExceptional,
-        recurring_expense_id: recurringExpenseId,
+        recurring_expense_id: linkedRecurringId,
       }
 
       if (editingTransaction) {
@@ -298,15 +317,46 @@ export default function TransazioniPage() {
         closeForm()
         showToast(`Spesa divisa in ${PAYPAL_INSTALLMENT_COUNT} rate mensili`)
       } else {
-        await createTransaction.mutateAsync(payload)
+        const created = await createTransaction.mutateAsync(payload)
+
+        if (wantsRecurringTemplate) {
+          // I valori del form vanno catturati prima di closeForm(), che li azzera
+          const templateData = {
+            name: formDescription.trim() || getCategoryName(formCategoryId, 'expense').trim(),
+            category_id: formCategoryId || undefined,
+            amount,
+            day_of_month: Number(formDate.split('-')[2]),
+            payment_method: formPaymentMethod || undefined,
+            start_date: formDate,
+          }
+          addRecurringTemplate = async () => {
+            try {
+              const template = await createRecurringExpense.mutateAsync(templateData)
+              await updateTransaction.mutateAsync({
+                id: created.id,
+                data: { recurring_expense_id: template.id },
+              })
+              showToast('Transazione aggiunta e salvata tra le spese ricorrenti')
+            } catch (err) {
+              console.error('Creazione del modello di spesa ricorrente fallita', err)
+              showToast(`Transazione salvata, modello ricorrente no: ${errorMessage(err)}`, 'error')
+            }
+          }
+        }
+
         closeForm()
-        showToast('Transazione aggiunta')
+        if (!addRecurringTemplate) showToast('Transazione aggiunta')
       }
-    } catch {
-      showToast('Errore durante il salvataggio', 'error')
+    } catch (err) {
+      console.error('Salvataggio transazione fallito', err)
+      showToast(`Errore durante il salvataggio: ${errorMessage(err)}`, 'error')
     } finally {
+      // Rilasciato prima del passo accessorio: il form è già chiuso e un nuovo
+      // inserimento non deve attendere la creazione del modello ricorrente.
       isSubmittingRef.current = false
     }
+
+    if (addRecurringTemplate) await addRecurringTemplate()
   }
 
   const handleInitCategories = async () => {
@@ -955,10 +1005,10 @@ export default function TransazioniPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={createTransaction.isPending || createInstallmentPlan.isPending || updateTransaction.isPending}
+                  disabled={isSaving}
                   className="flex-1 py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-medium transition-colors"
                 >
-                  {(createTransaction.isPending || createInstallmentPlan.isPending || updateTransaction.isPending) ? 'Salvataggio...' : editingTransaction ? 'Aggiorna' : 'Salva'}
+                  {isSaving ? 'Salvataggio...' : editingTransaction ? 'Aggiorna' : 'Salva'}
                 </button>
               </div>
             </form>

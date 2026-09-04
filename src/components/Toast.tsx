@@ -27,11 +27,15 @@ const ICONS = {
   info: Info,
 }
 
+let toastSeq = 0
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
 
   const showToast = useCallback((message: string, type: ToastType = 'success') => {
-    const id = Date.now()
+    // Contatore invece di Date.now(): due toast nello stesso millisecondo
+    // condividevano la chiave e sparivano insieme
+    const id = ++toastSeq
     setToasts((prev) => [...prev, { id, message, type }])
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3000)
   }, [])
@@ -45,7 +49,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           return (
             <div
               key={toast.id}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium text-white shadow-lg whitespace-nowrap transition-opacity ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-medium text-white shadow-lg max-w-[calc(100vw-2rem)] transition-opacity ${
                 toast.type === 'error'
                   ? 'bg-red-600'
                   : toast.type === 'info'
