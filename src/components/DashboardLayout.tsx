@@ -25,7 +25,11 @@ function useAutoGenerateRecurringExpenses() {
   useEffect(() => {
     if (hasRunRef.current) return
     hasRunRef.current = true
-    ensureRecurring.mutate()
+    // Senza onError un fallimento resterebbe invisibile: le occorrenze del mese
+    // semplicemente non comparirebbero, senza alcun indizio sul perché.
+    ensureRecurring.mutate(undefined, {
+      onError: (err) => console.error('Generazione automatica spese ricorrenti fallita', err),
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 }
