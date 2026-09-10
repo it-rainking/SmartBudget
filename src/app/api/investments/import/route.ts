@@ -2,22 +2,12 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { decodeCsvBuffer, detectNonCsvFormat, parseFinecoCsv } from '@/lib/investments/parseFinecoCsv'
+import { classifyFromCsv } from '@/lib/investments/classifyAsset'
 import { isKnownMarket, resolveTickerFromCsv } from '@/lib/investments/resolveTicker'
 import type { Database } from '@/types/database'
 import type { AssetClass, ImportDiff } from '@/types/investments'
 
 const DEFAULT_ASSET_CLASS: AssetClass = 'other'
-
-// Classe dedotta dalla colonna "Strumento" del CSV, solo quando è inequivocabile:
-// "ETF" non dice se è azionario o obbligazionario, quindi resta al lookup.
-function classifyFromInstrumentType(instrumentType: string | undefined, percentQuoted: boolean): AssetClass | null {
-  if (percentQuoted) return 'bond'
-  const t = instrumentType?.toLowerCase() ?? ''
-  if (!t) return null
-  if (/\betf\b|\betc\b|\betn\b/.test(t)) return null
-  if (t.includes('azion') || t.includes('stock') || t.includes('equity')) return 'stock'
-  return null
-}
 const MAX_CSV_BYTES = 5 * 1024 * 1024
 
 // POST /api/investments/import
@@ -133,7 +123,7 @@ export async function POST(req: Request) {
         ticker_yahoo: lookup?.ticker_yahoo || derived?.ticker_yahoo || existing?.ticker_yahoo || null,
         name: lookup?.name || row.name || existing?.name || row.isin,
         asset_class: (lookup?.asset_class as AssetClass | null)
-          ?? classifyFromInstrumentType(row.instrument_type, percentQuoted)
+          ?? classifyFromCsv(row.instrument_type, row.name, percentQuoted)
           ?? (existing?.asset_class as AssetClass | null)
           ?? DEFAULT_ASSET_CLASS,
         // La valuta arriva dal CSV: un titolo in USD lasciato a EUR falserebbe

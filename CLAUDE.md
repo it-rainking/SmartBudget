@@ -179,6 +179,7 @@ src/
     ├── utils.ts                    # formatCurrency, formatDate, formatMonth, getMonthDateRange, classNames
     ├── investments/parseFinecoCsv.ts # Parser CSV Fineco: separatore/codifica/riga header auto-rilevati, colonne per significato, dedup ISIN, valuta e fattore di quotazione per posizione
     ├── investments/resolveTicker.ts   # Deriva ticker_gf/ticker_yahoo da Simbolo + Mercato del CSV (solo mercati mappati)
+    ├── investments/classifyAsset.ts   # Classe dell'asset dedotta da tipo + nome del CSV quando il lookup non copre l'ISIN
     └── prices/                     # PriceProvider: googleSheets.ts (Sheet ponte), yahoo.ts (fallback), resolveQuote.ts
 ```
 

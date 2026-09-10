@@ -82,6 +82,28 @@ carico e per ogni prezzo successivo.
 Un **ETF obbligazionario** non è quotato in percentuale: resta `etf_bond` con
 divisore 1.
 
+Se `Valore di carico` manca, il ripiego guarda anche il **nome**: i titoli di
+Stato hanno nomi Fineco riconoscibili (`BTP-1FB33 5,75`, `GREECE-30GE28 3,75`).
+I nomi che contengono marcatori di fondo (`ETF`, `UCITS`, `SICAV`) sono esclusi,
+così un "Govt Bond UCITS ETF" non viene scambiato per un governativo.
+
+### Classe dell'asset
+
+Se l'ISIN non è in `isin_ticker_lookup`, la classe viene dedotta dal CSV:
+
+| Condizione | Classe |
+|---|---|
+| Quotato in percentuale del nominale | `bond` |
+| Nome/tipo da fondo (`ETF`, `UCITS`...) con marcatori obbligazionari (`Bond`, `Govt`, `Corp`, `High Yield`, `Aggregate`) | `etf_bond` |
+| Altri fondi | `etf_equity` |
+| Tipo `Azioni`/`Stock`/`Equity` | `stock` |
+| Nessuna delle precedenti | classe già presente, altrimenti `other` |
+
+La colonna `Strumento` dice solo "ETF" e non basta a distinguere un azionario da
+un obbligazionario: la discriminante è il nome del prodotto. Per una
+classificazione più fine (es. `etf_thematic`) usa `isin_ticker_lookup`, che ha
+sempre la precedenza.
+
 ### Layout dell'export Fineco
 
 Il file scaricato da Fineco (`Portafoglio di sintesi`) è UTF-8 con BOM, righe

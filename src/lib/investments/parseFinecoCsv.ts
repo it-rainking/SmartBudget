@@ -260,13 +260,32 @@ const PERCENT_QUOTED_KEYWORDS = ['obblig', 'bond', 'titoli di stato', 'titolo di
 const CANDIDATE_DIVISORS = [1, 100]
 const DIVISOR_TOLERANCE = 0.01
 
-export function isPercentQuotedType(instrumentType: string | undefined): boolean {
-  if (!instrumentType) return false
-  const t = instrumentType.toLowerCase()
-  // Un ETF obbligazionario quota in euro per quota, non in percentuale: la
-  // parola "obbligazionario" nel tipo non basta se lo strumento è un ETF.
-  if (/\betf\b|\betc\b|\betn\b/.test(t)) return false
-  return PERCENT_QUOTED_KEYWORDS.some((k) => t.includes(k))
+/**
+ * Un ETF obbligazionario quota in euro per quota, non in percentuale: la parola
+ * "bond"/"obbligazionario" nel nome o nel tipo non basta a farne un titolo
+ * quotato in percentuale. "UCITS" è il marcatore più affidabile sui fondi
+ * europei, dove non sempre compare la sigla ETF.
+ */
+export function isFundLike(text: string | undefined): boolean {
+  if (!text) return false
+  return /\betf\b|\betc\b|\betn\b|\bucits\b|\bsicav\b|\bfondo\b/i.test(text)
+}
+
+// I titoli di Stato non sempre hanno un tipo strumento utilizzabile, ma il nome
+// Fineco è riconoscibile: "BTP-1FB33 5,75", "GREECE-30GE28 3,75", "BUND...".
+const GOVERNMENT_BOND_NAME_RE = /^(btp|bot|cct|ctz|bund|oat|bonos|gilt|treasury|greece|italy|spain|portugal|france|germany)\b|^(btp|greece)-/i
+
+export function isPercentQuotedType(instrumentType: string | undefined, name?: string): boolean {
+  const haystack = [instrumentType, name].filter(Boolean).join(' ')
+  if (!haystack) return false
+  if (isFundLike(haystack)) return false
+
+  const t = instrumentType?.toLowerCase() ?? ''
+  if (PERCENT_QUOTED_KEYWORDS.some((k) => t.includes(k))) return true
+
+  // Ripiego sul nome: usato solo quando il confronto numerico con il valore di
+  // carico non ha potuto decidere.
+  return !!name && GOVERNMENT_BOND_NAME_RE.test(name.trim())
 }
 
 /**
@@ -285,7 +304,8 @@ export function detectPriceDivisor(
   avgCost: number,
   costValue: number,
   fxRate: number,
-  instrumentType: string | undefined
+  instrumentType: string | undefined,
+  name?: string
 ): number {
   const fxFactors = [1, ...(!isNaN(fxRate) && fxRate > 0 ? [fxRate, 1 / fxRate] : [])]
 
@@ -298,7 +318,7 @@ export function detectPriceDivisor(
     }
   }
 
-  return isPercentQuotedType(instrumentType) ? 100 : 1
+  return isPercentQuotedType(instrumentType, name) ? 100 : 1
 }
 
 // ---------------------------------------------------------------------------
@@ -514,7 +534,8 @@ export function parseFinecoCsv(csvText: string): ParseFinecoResult {
       avgCost,
       map.costValue >= 0 ? parseAmount(row[map.costValue]) : NaN,
       map.fxRate >= 0 ? parseAmount(row[map.fxRate]) : NaN,
-      instrumentType
+      instrumentType,
+      name
     )
     if (priceDivisor !== 1) {
       warnings.push(
