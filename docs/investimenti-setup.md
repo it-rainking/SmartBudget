@@ -22,9 +22,15 @@ on conflict (isin) do update set ticker_gf = excluded.ticker_gf, ticker_yahoo = 
 ### 1-bis. Migration quotazione obbligazioni
 
 Esegui anche `supabase/migrate_investments_bond_quotation.sql`: aggiunge
-`assets.price_divisor` (fattore di quotazione), la classe `bond` e aggiorna
+`assets.price_divisor` (fattore di quotazione), la classe `bond` e ricrea
 `get_investment_summary()`. Senza questa migration le posizioni obbligazionarie
 risultano valorizzate 100 volte il loro controvalore reale.
+
+Lo script elimina e ricrea `get_investment_summary()`: aggiungere una colonna al
+`RETURNS TABLE` cambia il tipo di ritorno della funzione e `CREATE OR REPLACE`
+non lo consente. È interamente ri-eseguibile (`IF NOT EXISTS` / `IF EXISTS` su
+colonna, vincoli e funzione), quindi si può rilanciare senza effetti collaterali
+se una prima esecuzione è fallita a metà.
 
 ## 2. Importare il portafoglio da Fineco
 
