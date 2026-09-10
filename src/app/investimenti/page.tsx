@@ -44,13 +44,16 @@ function daysSince(iso: string): number {
 
 export default function InvestimentiPage() {
   const { data: settings } = useSettings()
-  const { data: summary, isLoading } = useInvestments()
+  const { data: summary, isLoading, error: summaryError } = useInvestments()
   const importCsv = useImportCsv()
   const { showToast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [sortKey, setSortKey] = useState<SortKey>('weight')
   const [lastImportResult, setLastImportResult] = useState<{ diff: ImportDiff; warnings: string[] } | null>(null)
+  // L'errore di import resta a video: il toast dura 3 secondi e i messaggi del
+  // parser (colonne rilevate, formato del file) servono a capire cosa correggere.
+  const [importError, setImportError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
   const currency = settings?.currency || 'EUR'
@@ -74,25 +77,32 @@ export default function InvestimentiPage() {
   const positionsStale = summary?.positions_as_of ? daysSince(summary.positions_as_of) > POSITIONS_STALE_DAYS : false
 
   async function handleFile(file: File) {
+    setImportError(null)
     try {
       const result = await importCsv.mutateAsync(file)
       setLastImportResult(result)
       const { diff } = result
-      const parts = [`${diff.new_positions} nuove`, `${diff.changed_positions} variate`, `${diff.removed_positions} rimosse`]
-      showToast(`Import completato: ${parts.join(', ')}`, 'success')
+      showToast(`Import completato: ${diff.imported_positions} posizioni caricate`, 'success')
       if (diff.unmapped_isins.length > 0) {
         showToast(`${diff.unmapped_isins.length} ISIN senza ticker mappato`, 'info')
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Errore durante l\'import', 'error')
+      const message = err instanceof Error ? err.message : 'Errore durante l\'import'
+      setLastImportResult(null)
+      setImportError(message)
+      showToast(message, 'error')
     }
   }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     setIsDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (file) handleFile(file)
+    const file = e.dataTransfer.files?.[0]
+    if (file) {
+      handleFile(file)
+    } else {
+      setImportError('Nessun file riconosciuto nel trascinamento: seleziona il CSV con un click.')
+    }
   }
 
   const pnlColor = (n: number) => (n > 0 ? 'text-emerald-600' : n < 0 ? 'text-red-600' : 'text-zinc-500')
@@ -116,6 +126,16 @@ export default function InvestimentiPage() {
             Apri in Google Finance ↗
           </a>
         </div>
+
+        {summaryError && (
+          <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
+            <p className="font-medium mb-1">Portafoglio non caricato</p>
+            <p>{summaryError instanceof Error ? summaryError.message : 'Errore nel caricamento del portafoglio'}</p>
+            <p className="mt-1 text-xs">
+              Se è il primo utilizzo, verifica di aver eseguito la migration <code>supabase/migrate_investments.sql</code> sul progetto Supabase.
+            </p>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="bg-white dark:bg-zinc-800 rounded-xl p-12 shadow-sm border border-zinc-100 dark:border-zinc-700 text-center text-zinc-500 dark:text-zinc-400">
@@ -299,17 +319,32 @@ export default function InvestimentiPage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv"
+                  // Alcuni browser assegnano ai CSV scaricati un MIME Excel: un
+                  // accept troppo stretto li rende non selezionabili dal picker.
+                  accept=".csv,.txt,text/csv,text/plain,application/csv,application/vnd.ms-excel"
                   className="hidden"
                   disabled={importCsv.isPending}
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    // Reset del value: senza, ricaricare lo stesso file due volte
+                    // non emette un nuovo change e sembra che non succeda nulla.
+                    e.target.value = ''
+                    if (f) handleFile(f)
+                  }}
                 />
               </div>
+
+              {importError && (
+                <div className="px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
+                  <p className="font-medium mb-1">Import non riuscito</p>
+                  <p>{importError}</p>
+                </div>
+              )}
 
               {lastImportResult && (
                 <div className="space-y-2">
                   <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                    {lastImportResult.diff.new_positions} nuove · {lastImportResult.diff.changed_positions} variate · {lastImportResult.diff.removed_positions} rimosse
+                    {lastImportResult.diff.imported_positions} posizioni caricate · {lastImportResult.diff.new_positions} nuove · {lastImportResult.diff.changed_positions} variate · {lastImportResult.diff.removed_positions} rimosse
                   </div>
                   {lastImportResult.diff.unmapped_isins.length > 0 && (
                     <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-700 dark:text-amber-400">

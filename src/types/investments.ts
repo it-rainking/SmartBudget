@@ -80,6 +80,8 @@ export interface InvestmentSummary {
 }
 
 export interface ImportDiff {
+  /** Posizioni effettivamente scritte in holdings dall'ultimo import. */
+  imported_positions: number
   new_positions: number
   changed_positions: number
   removed_positions: number

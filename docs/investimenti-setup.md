@@ -30,6 +30,42 @@ Gli ISIN non presenti in `isin_ticker_lookup` vengono comunque importati (con
 `ticker_gf` vuoto) e segnalati in un banner: senza ticker mappato quella
 posizione non riceverà prezzi live finché non aggiungi la riga di lookup.
 
+### Cosa accetta il parser
+
+Il file non deve avere un formato esatto: separatore (`;`, `,`, tab, `|`),
+codifica (UTF-8 o Windows-1252) e riga di intestazione vengono rilevati
+automaticamente, anche se prima della tabella ci sono righe libere (titolo
+del report, numero di conto, righe vuote).
+
+| Serve | Nomi riconosciuti |
+|---|---|
+| ISIN | `ISIN`, `Codice ISIN`, oppure — se non c'è una colonna dedicata — la colonna che contiene codici in formato ISIN |
+| Quantità | `Quantità`, `Q.tà`, `Qta`, `Pezzi`, `Quote`, `Nominale` |
+| Prezzo di carico | `Prezzo medio di carico`, `Prz. Medio Carico`, `PMC`, `Prezzo carico`, `Costo medio`; in alternativa si ricava da `Valore di carico` ÷ quantità |
+| Nome (opzionale) | `Descrizione`, `Strumento`, `Titolo`, `Denominazione`, in mancanza `Simbolo`/`Ticker` |
+
+Altre regole:
+
+- Righe di totale, disclaimer in coda e posizioni con quantità 0 vengono
+  ignorate (le seconde con un warning a video).
+- Lo stesso ISIN presente su più righe (titolo su più mercati) viene aggregato:
+  quantità sommate, prezzo di carico mediato per quantità.
+- Importi sia in formato italiano (`1.234,56`) sia anglosassone (`1,234.56`),
+  con o senza simbolo di valuta.
+
+### Se l'import non va a buon fine
+
+L'errore viene mostrato in un riquadro rosso sotto l'area di upload (non solo
+come toast) e riporta le colonne effettivamente lette dal file: è il primo
+posto da guardare.
+
+| Messaggio | Causa | Rimedio |
+|---|---|---|
+| `Il file è un foglio Excel (.xlsx/.xls)` | export scaricato in formato Excel | apri il file e salvalo come CSV |
+| `Colonne mancanti nel CSV: ...` | l'export non contiene ISIN, quantità o prezzo di carico | riesporta includendo quelle colonne, o aggiungi l'alias in `parseFinecoCsv.ts` |
+| `Nessuna posizione valida trovata nel CSV` | tutte le righe scartate | leggi i warning elencati nel messaggio |
+| `Portafoglio non caricato` (banner in cima alla pagina) | la migration non è stata eseguita | esegui `supabase/migrate_investments.sql` (punto 1) |
+
 ## 3. Creare il Google Sheet ponte
 
 Google Finance non ha API pubbliche: il canale prezzi passa da un Google
