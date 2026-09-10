@@ -1,7 +1,15 @@
 import { readFileSync } from 'fs'
 import path from 'path'
 import { describe, expect, it } from 'vitest'
-import { decodeCsvBuffer, detectNonCsvFormat, parseAmount, parseFinecoCsv } from '@/lib/investments/parseFinecoCsv'
+import {
+  decodeCsvBuffer,
+  detectNonCsvFormat,
+  detectPriceDivisor,
+  isPercentQuotedType,
+  parseAmount,
+  parseFinecoCsv,
+} from '@/lib/investments/parseFinecoCsv'
+import { isKnownMarket, resolveTickerFromCsv } from '@/lib/investments/resolveTicker'
 
 const fixture = readFileSync(
   path.resolve(__dirname, '../fixtures/fineco_export_sample.csv'),
@@ -56,9 +64,13 @@ describe('parseFinecoCsv', () => {
       'VWCE;VANGUARD FTSE ALL-WORLD;IE00BK5BQT80;120;95,32;12.540,00',
     ].join('\n')
     const { rows } = parseFinecoCsv(csv)
-    expect(rows).toEqual([
-      { isin: 'IE00BK5BQT80', name: 'VANGUARD FTSE ALL-WORLD', quantity: 120, avg_cost: 95.32 },
-    ])
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      isin: 'IE00BK5BQT80',
+      name: 'VANGUARD FTSE ALL-WORLD',
+      quantity: 120,
+      avg_cost: 95.32,
+    })
   })
 
   it('riconosce le varianti di nome delle colonne', () => {
@@ -131,8 +143,11 @@ describe('export reale Fineco (Portafoglio di sintesi)', () => {
 
     expect(detectedColumns[0]).toBe('Titolo')
     expect(detectedColumns).toContain('P.zo medio di carico')
-    expect(rows).toHaveLength(3)
-    expect(warnings).toEqual([])
+    expect(rows).toHaveLength(4)
+    // L'unico warning atteso è quello sul titolo quotato in percentuale.
+    expect(warnings).toEqual([
+      expect.stringContaining('quotato in percentuale del nominale'),
+    ])
   })
 
   it('usa "Titolo" come nome e non "Strumento", che in Fineco è il tipo', () => {
@@ -141,6 +156,7 @@ describe('export reale Fineco (Portafoglio di sintesi)', () => {
       'VANGUARD FTSE ALL-WORLD UCITS ETF',
       'ISHARES CORE MSCI WORLD UCITS ETF',
       'APPLE INC',
+      'BTP 15AP26 3,5%',
     ])
   })
 
@@ -154,7 +170,7 @@ describe('export reale Fineco (Portafoglio di sintesi)', () => {
 
   it('riporta la valuta di ogni posizione', () => {
     const { rows } = parseFinecoCsv(readFixture('fineco_portafoglio_export.csv'))
-    expect(rows.map((r) => r.currency)).toEqual(['EUR', 'EUR', 'USD'])
+    expect(rows.map((r) => r.currency)).toEqual(['EUR', 'EUR', 'USD', 'EUR'])
   })
 
   it('sull\'export senza posizioni riconosce l\'header e non lancia errori di formato', () => {
@@ -162,6 +178,77 @@ describe('export reale Fineco (Portafoglio di sintesi)', () => {
     expect(rows).toHaveLength(0)
     expect(detectedColumns).toContain('ISIN')
     expect(detectedColumns).toContain('Quantità')
+  })
+})
+
+describe('titoli quotati in percentuale del nominale', () => {
+  const readFixture = (name: string) =>
+    decodeCsvBuffer(
+      new Uint8Array(readFileSync(path.resolve(__dirname, `../fixtures/${name}`))).buffer as ArrayBuffer
+    )
+
+  it('rileva il divisore 100 sulle obbligazioni e lascia 1 su ETF e azioni', () => {
+    const { rows } = parseFinecoCsv(readFixture('fineco_portafoglio_export.csv'))
+    const byIsin = Object.fromEntries(rows.map((r) => [r.isin, r]))
+
+    expect(byIsin['IT0005493250'].price_divisor).toBe(100)
+    expect(byIsin['IE00BK5BQT80'].price_divisor).toBe(1)
+    expect(byIsin['US0378331005'].price_divisor).toBe(1)
+  })
+
+  it('espone simbolo, mercato e tipo strumento di ogni posizione', () => {
+    const { rows } = parseFinecoCsv(readFixture('fineco_portafoglio_export.csv'))
+    const vwce = rows.find((r) => r.isin === 'IE00BK5BQT80')
+    expect(vwce).toMatchObject({ symbol: 'VWCE', market: 'MTA', instrument_type: 'ETF' })
+  })
+
+  it('deduce il divisore dal valore di carico, non dal nome dello strumento', () => {
+    // Nominale 10.000, prezzo 98,50%: solo /100 riproduce il valore di carico.
+    expect(detectPriceDivisor(10000, 98.5, 9850, NaN, undefined)).toBe(100)
+    // Azione: quantità * prezzo torna già senza divisore.
+    expect(detectPriceDivisor(10, 150, 1500, NaN, 'Obbligazioni')).toBe(1)
+  })
+
+  it('accetta il cambio in entrambe le direzioni, la convenzione non è dichiarata', () => {
+    expect(detectPriceDivisor(10, 150, 1620, 1.08, undefined)).toBe(1)
+    expect(detectPriceDivisor(10, 150, 1388.89, 1.08, undefined)).toBe(1)
+  })
+
+  it('ricade sul tipo strumento quando manca il valore di carico', () => {
+    expect(detectPriceDivisor(10000, 98.5, NaN, NaN, 'Obbligazioni')).toBe(100)
+    expect(detectPriceDivisor(120, 95.32, NaN, NaN, 'ETF')).toBe(1)
+  })
+
+  it('non tratta come percentuale un ETF obbligazionario', () => {
+    expect(isPercentQuotedType('ETF Obbligazionario')).toBe(false)
+    expect(isPercentQuotedType('Obbligazioni')).toBe(true)
+    expect(isPercentQuotedType('Titoli di Stato')).toBe(true)
+    expect(isPercentQuotedType('Azioni')).toBe(false)
+  })
+})
+
+describe('resolveTickerFromCsv', () => {
+  it('costruisce i ticker dai mercati noti', () => {
+    expect(resolveTickerFromCsv('VWCE', 'MTA')).toEqual({ ticker_gf: 'BIT:VWCE', ticker_yahoo: 'VWCE.MI' })
+    expect(resolveTickerFromCsv('AAPL', 'NASDAQ')).toEqual({ ticker_gf: 'NASDAQ:AAPL', ticker_yahoo: 'AAPL' })
+    expect(resolveTickerFromCsv('IWDA', 'Xetra')).toEqual({ ticker_gf: 'ETR:IWDA', ticker_yahoo: 'IWDA.DE' })
+  })
+
+  it('non inventa nulla su mercati sconosciuti o dati mancanti', () => {
+    expect(resolveTickerFromCsv('XYZ', 'Mercato Ignoto')).toBeNull()
+    expect(resolveTickerFromCsv('', 'MTA')).toBeNull()
+    expect(resolveTickerFromCsv('VWCE', undefined)).toBeNull()
+  })
+
+  it('non deriva ticker per i titoli quotati in percentuale', () => {
+    // Sul MOT il "simbolo" Fineco non è un ticker interrogabile.
+    expect(resolveTickerFromCsv('BTP26', 'MOT', { percentQuoted: true })).toBeNull()
+  })
+
+  it('riconosce i mercati mappati', () => {
+    expect(isKnownMarket('MTA')).toBe(true)
+    expect(isKnownMarket('Borsa Italiana')).toBe(true)
+    expect(isKnownMarket('Mercato Ignoto')).toBe(false)
   })
 })
 

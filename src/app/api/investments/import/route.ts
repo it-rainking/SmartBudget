@@ -2,10 +2,22 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { decodeCsvBuffer, detectNonCsvFormat, parseFinecoCsv } from '@/lib/investments/parseFinecoCsv'
+import { isKnownMarket, resolveTickerFromCsv } from '@/lib/investments/resolveTicker'
 import type { Database } from '@/types/database'
 import type { AssetClass, ImportDiff } from '@/types/investments'
 
 const DEFAULT_ASSET_CLASS: AssetClass = 'other'
+
+// Classe dedotta dalla colonna "Strumento" del CSV, solo quando è inequivocabile:
+// "ETF" non dice se è azionario o obbligazionario, quindi resta al lookup.
+function classifyFromInstrumentType(instrumentType: string | undefined, percentQuoted: boolean): AssetClass | null {
+  if (percentQuoted) return 'bond'
+  const t = instrumentType?.toLowerCase() ?? ''
+  if (!t) return null
+  if (/\betf\b|\betc\b|\betn\b/.test(t)) return null
+  if (t.includes('azion') || t.includes('stock') || t.includes('equity')) return 'stock'
+  return null
+}
 const MAX_CSV_BYTES = 5 * 1024 * 1024
 
 // POST /api/investments/import
@@ -92,23 +104,44 @@ export async function POST(req: Request) {
     const lookupByIsin = new Map((lookupRows ?? []).map((l) => [l.isin, l]))
 
     const unmappedIsins: string[] = []
+    const derivedTickers: { isin: string; ticker_gf: string }[] = []
+    const unknownMarkets = new Set<string>()
+
     const assetsToUpsert = parsedRows.map((row) => {
       const lookup = lookupByIsin.get(row.isin)
       const existing = existingByIsin.get(row.isin)
-      // Il lookup vince, ma un ticker/classe già impostati a mano non vanno
-      // sovrascritti con valori vuoti quando l'ISIN non è in tabella.
-      const tickerGf = lookup?.ticker_gf || existing?.ticker_gf || ''
-      if (!tickerGf) unmappedIsins.push(row.isin)
+      const percentQuoted = row.price_divisor !== 1
+
+      // Ordine di risoluzione del ticker: tabella di lookup (autorevole e
+      // manutenuta a mano) -> derivazione da Simbolo + Mercato del CSV ->
+      // valore già presente sull'asset. Un ticker/classe impostati in
+      // precedenza non vengono mai sovrascritti con un valore vuoto.
+      const derived = lookup?.ticker_gf ? null : resolveTickerFromCsv(row.symbol, row.market, { percentQuoted })
+      const tickerGf = lookup?.ticker_gf || derived?.ticker_gf || existing?.ticker_gf || ''
+      if (derived?.ticker_gf && !existing?.ticker_gf) {
+        derivedTickers.push({ isin: row.isin, ticker_gf: derived.ticker_gf })
+      }
+      if (!tickerGf) {
+        unmappedIsins.push(row.isin)
+        if (!percentQuoted && row.market && !isKnownMarket(row.market)) unknownMarkets.add(row.market)
+      }
+
       return {
         user_id: user.id,
         isin: row.isin,
         ticker_gf: tickerGf,
-        ticker_yahoo: lookup?.ticker_yahoo || existing?.ticker_yahoo || null,
+        ticker_yahoo: lookup?.ticker_yahoo || derived?.ticker_yahoo || existing?.ticker_yahoo || null,
         name: lookup?.name || row.name || existing?.name || row.isin,
-        asset_class: (lookup?.asset_class as AssetClass | null) ?? (existing?.asset_class as AssetClass | null) ?? DEFAULT_ASSET_CLASS,
+        asset_class: (lookup?.asset_class as AssetClass | null)
+          ?? classifyFromInstrumentType(row.instrument_type, percentQuoted)
+          ?? (existing?.asset_class as AssetClass | null)
+          ?? DEFAULT_ASSET_CLASS,
         // La valuta arriva dal CSV: un titolo in USD lasciato a EUR falserebbe
         // il controvalore mostrato accanto alla posizione.
         currency: row.currency || existing?.currency || 'EUR',
+        // Fattore di quotazione rilevato sul CSV: senza, le obbligazioni
+        // verrebbero valorizzate 100 volte il loro controvalore reale.
+        price_divisor: row.price_divisor,
       }
     })
 
@@ -156,6 +189,9 @@ export async function POST(req: Request) {
       }).length,
       removed_positions: [...beforeByIsin.keys()].filter((isin) => !afterIsins.has(isin)).length,
       unmapped_isins: unmappedIsins,
+      derived_tickers: derivedTickers,
+      unknown_markets: [...unknownMarkets],
+      percent_quoted_positions: parsedRows.filter((r) => r.price_divisor !== 1).length,
     }
 
     return NextResponse.json({ diff, warnings })

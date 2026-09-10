@@ -1,6 +1,6 @@
 // Tipi dominio per il modulo Investimenti
 
-export type AssetClass = 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'cash' | 'other'
+export type AssetClass = 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'bond' | 'cash' | 'other'
 export type PriceSource = 'gsheet' | 'yahoo'
 
 export interface Asset {
@@ -12,6 +12,8 @@ export interface Asset {
   name: string
   asset_class: AssetClass
   currency: string
+  /** 1 per azioni/ETF, 100 per i titoli quotati in percentuale del nominale. */
+  price_divisor: number
   created_at: string
   updated_at: string
 }
@@ -49,10 +51,13 @@ export interface InvestmentPosition {
   name: string
   asset_class: AssetClass
   currency: string
+  price_divisor: number
   quantity: number
   avg_cost: number
   imported_at: string
   last_price: number | null
+  /** true quando non esiste un prezzo di mercato: la posizione è valorizzata al costo. */
+  priced_at_cost: boolean
   change_pct: number | null
   price_source: PriceSource | null
   fetched_at: string | null
@@ -86,4 +91,10 @@ export interface ImportDiff {
   changed_positions: number
   removed_positions: number
   unmapped_isins: string[]
+  /** ISIN il cui ticker è stato dedotto da Simbolo + Mercato del CSV. */
+  derived_tickers: { isin: string; ticker_gf: string }[]
+  /** Mercati presenti nel CSV che non sappiamo tradurre in un ticker. */
+  unknown_markets: string[]
+  /** Posizioni quotate in percentuale del nominale (obbligazioni). */
+  percent_quoted_positions: number
 }

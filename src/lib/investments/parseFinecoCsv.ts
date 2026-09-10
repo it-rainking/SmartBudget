@@ -7,6 +7,18 @@ export interface ParsedHoldingRow {
   avg_cost: number
   /** Valuta di denominazione del titolo, quando l'export la espone. */
   currency?: string
+  /** Simbolo di borsa dal CSV (colonna "Simbolo"). */
+  symbol?: string
+  /** Mercato di quotazione dal CSV (colonna "Mercato"). */
+  market?: string
+  /** Tipo strumento dal CSV (colonna "Strumento"): ETF, Azioni, Obbligazioni... */
+  instrument_type?: string
+  /**
+   * Fattore di quotazione: 1 per azioni/ETF, 100 per i titoli quotati in
+   * percentuale del nominale (obbligazioni). Controvalore = quantità * prezzo /
+   * price_divisor.
+   */
+  price_divisor: number
 }
 
 export interface ParseFinecoResult {
@@ -181,6 +193,22 @@ function findNameColumn(headers: string[]): number {
   return -1
 }
 
+function isSymbolHeader(h: string): boolean {
+  return ['simbolo', 'ticker', 'sigla', 'symbol'].includes(h)
+}
+
+function isMarketHeader(h: string): boolean {
+  return ['mercato', 'borsa', 'market', 'exchange'].includes(h)
+}
+
+function isInstrumentTypeHeader(h: string): boolean {
+  return ['strumento', 'tipo', 'tipologia', 'tipo_strumento', 'categoria'].includes(h)
+}
+
+function isFxRateHeader(h: string): boolean {
+  return h.includes('cambio') && !h.includes('mercato')
+}
+
 function normalizeCurrency(raw: string | undefined): string | undefined {
   const code = raw?.trim().toUpperCase()
   return code && /^[A-Z]{3}$/.test(code) ? code : undefined
@@ -197,6 +225,10 @@ interface ColumnMap {
   costValue: number
   name: number
   currency: number
+  symbol: number
+  market: number
+  instrumentType: number
+  fxRate: number
 }
 
 function mapColumns(headers: string[]): ColumnMap {
@@ -208,11 +240,65 @@ function mapColumns(headers: string[]): ColumnMap {
     costValue: find(isCostValueHeader),
     name: findNameColumn(headers),
     currency: find(isCurrencyHeader),
+    symbol: find(isSymbolHeader),
+    market: find(isMarketHeader),
+    instrumentType: find(isInstrumentTypeHeader),
+    fxRate: find(isFxRateHeader),
   }
 }
 
 function mapScore(map: ColumnMap): number {
-  return [map.isin, map.quantity, map.avgCost, map.costValue, map.name, map.currency].filter((i) => i >= 0).length
+  return [map.isin, map.quantity, map.avgCost, map.costValue, map.name, map.currency, map.symbol, map.market]
+    .filter((i) => i >= 0).length
+}
+
+// ---------------------------------------------------------------------------
+// Fattore di quotazione (obbligazioni)
+// ---------------------------------------------------------------------------
+
+const PERCENT_QUOTED_KEYWORDS = ['obblig', 'bond', 'titoli di stato', 'titolo di stato', 'governat', 'btp', 'bot', 'cct', 'ctz']
+const CANDIDATE_DIVISORS = [1, 100]
+const DIVISOR_TOLERANCE = 0.01
+
+export function isPercentQuotedType(instrumentType: string | undefined): boolean {
+  if (!instrumentType) return false
+  const t = instrumentType.toLowerCase()
+  // Un ETF obbligazionario quota in euro per quota, non in percentuale: la
+  // parola "obbligazionario" nel tipo non basta se lo strumento è un ETF.
+  if (/\betf\b|\betc\b|\betn\b/.test(t)) return false
+  return PERCENT_QUOTED_KEYWORDS.some((k) => t.includes(k))
+}
+
+/**
+ * Le obbligazioni quotano in percentuale del nominale: Fineco riporta la
+ * quantità come nominale (10.000) e il prezzo come percentuale (98,50), quindi
+ * il controvalore è quantità * prezzo / 100.
+ *
+ * Il fattore non viene indovinato dal nome dello strumento ma **verificato sul
+ * file**: `Valore di carico` è il controvalore già calcolato da Fineco, quindi
+ * si prova quale divisore lo riproduce. Il cambio viene provato in entrambe le
+ * direzioni perché la convenzione della colonna non è dichiarata nell'export.
+ * Il tipo strumento resta come ripiego se il confronto non è possibile.
+ */
+export function detectPriceDivisor(
+  quantity: number,
+  avgCost: number,
+  costValue: number,
+  fxRate: number,
+  instrumentType: string | undefined
+): number {
+  const fxFactors = [1, ...(!isNaN(fxRate) && fxRate > 0 ? [fxRate, 1 / fxRate] : [])]
+
+  if (!isNaN(costValue) && costValue !== 0) {
+    for (const divisor of CANDIDATE_DIVISORS) {
+      for (const fx of fxFactors) {
+        const expected = (quantity * avgCost / divisor) * fx
+        if (Math.abs(expected - costValue) <= DIVISOR_TOLERANCE * Math.abs(costValue)) return divisor
+      }
+    }
+  }
+
+  return isPercentQuotedType(instrumentType) ? 100 : 1
 }
 
 // ---------------------------------------------------------------------------
@@ -345,7 +431,8 @@ export function parseFinecoCsv(csvText: string): ParseFinecoResult {
     .filter((row) => !isSummaryRow(row))
 
   const columnCount = Math.max(headers.length, ...dataRows.map((r) => r.length), 0)
-  const map: ColumnMap = detection?.map ?? { isin: -1, quantity: -1, avgCost: -1, costValue: -1, name: -1, currency: -1 }
+  const map: ColumnMap = detection?.map
+    ?? { isin: -1, quantity: -1, avgCost: -1, costValue: -1, name: -1, currency: -1, symbol: -1, market: -1, instrumentType: -1, fxRate: -1 }
 
   if (map.isin < 0) {
     map.isin = detectIsinColumn(dataRows, columnCount)
@@ -419,10 +506,37 @@ export function parseFinecoCsv(csvText: string): ParseFinecoResult {
     }
 
     const name = (map.name >= 0 ? row[map.name]?.trim() : '') || isin
+    const symbol = map.symbol >= 0 ? row[map.symbol]?.trim() || undefined : undefined
+    const market = map.market >= 0 ? row[map.market]?.trim() || undefined : undefined
+    const instrumentType = map.instrumentType >= 0 ? row[map.instrumentType]?.trim() || undefined : undefined
+    const priceDivisor = detectPriceDivisor(
+      quantity,
+      avgCost,
+      map.costValue >= 0 ? parseAmount(row[map.costValue]) : NaN,
+      map.fxRate >= 0 ? parseAmount(row[map.fxRate]) : NaN,
+      instrumentType
+    )
+    if (priceDivisor !== 1) {
+      warnings.push(
+        `Riga ${rowNum} (${isin}): titolo quotato in percentuale del nominale, controvalore calcolato come quantità × prezzo / ${priceDivisor}.`
+      )
+    }
+
     const existing = byIsin.get(isin)
 
     if (!existing) {
-      byIsin.set(isin, { isin, name, quantity, avg_cost: avgCost, currency, totalCost: quantity * avgCost })
+      byIsin.set(isin, {
+        isin,
+        name,
+        quantity,
+        avg_cost: avgCost,
+        currency,
+        symbol,
+        market,
+        instrument_type: instrumentType,
+        price_divisor: priceDivisor,
+        totalCost: quantity * avgCost,
+      })
       return
     }
 
@@ -438,12 +552,16 @@ export function parseFinecoCsv(csvText: string): ParseFinecoResult {
     warnings.push(`ISIN ${isin}: più righe nel CSV, quantità sommate e prezzo di carico mediato.`)
   }
 
-  const rows: ParsedHoldingRow[] = [...byIsin.values()].map(({ isin, name, quantity, avg_cost, currency }) => ({
-    isin,
-    name,
-    quantity: Math.round(quantity * 1e6) / 1e6,
-    avg_cost: Math.round(avg_cost * 1e4) / 1e4,
-    ...(currency ? { currency } : {}),
+  const rows: ParsedHoldingRow[] = [...byIsin.values()].map((r) => ({
+    isin: r.isin,
+    name: r.name,
+    quantity: Math.round(r.quantity * 1e6) / 1e6,
+    avg_cost: Math.round(r.avg_cost * 1e4) / 1e4,
+    price_divisor: r.price_divisor,
+    ...(r.currency ? { currency: r.currency } : {}),
+    ...(r.symbol ? { symbol: r.symbol } : {}),
+    ...(r.market ? { market: r.market } : {}),
+    ...(r.instrument_type ? { instrument_type: r.instrument_type } : {}),
   }))
 
   return { rows, warnings, detectedColumns }

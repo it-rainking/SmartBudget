@@ -19,6 +19,13 @@ values ('IEXXXXXXXXXX', 'BIT:TICKER', 'TICKER.MI', 'Nome ETF', 'etf_equity')
 on conflict (isin) do update set ticker_gf = excluded.ticker_gf, ticker_yahoo = excluded.ticker_yahoo;
 ```
 
+### 1-bis. Migration quotazione obbligazioni
+
+Esegui anche `supabase/migrate_investments_bond_quotation.sql`: aggiunge
+`assets.price_divisor` (fattore di quotazione), la classe `bond` e aggiorna
+`get_investment_summary()`. Senza questa migration le posizioni obbligazionarie
+risultano valorizzate 100 volte il loro controvalore reale.
+
 ## 2. Importare il portafoglio da Fineco
 
 Fineco → Patrimonio → Portafoglio titoli → Esporta (CSV). Carica il file nella
@@ -26,9 +33,48 @@ pagina `/investimenti` (drag & drop o click). L'import sostituisce
 integralmente le posizioni esistenti — è pensato per essere ripetuto a ogni
 aggiornamento del portafoglio, non per operazioni incrementali.
 
-Gli ISIN non presenti in `isin_ticker_lookup` vengono comunque importati (con
-`ticker_gf` vuoto) e segnalati in un banner: senza ticker mappato quella
-posizione non riceverà prezzi live finché non aggiungi la riga di lookup.
+### Come viene risolto il ticker
+
+Ordine di precedenza, dal più autorevole:
+
+1. **`isin_ticker_lookup`** — la tabella manuale vince sempre.
+2. **Derivazione da `Simbolo` + `Mercato` del CSV** — il broker ci dà entrambi,
+   quindi non c'è niente da indovinare: `VWCE` + `MTA` → `BIT:VWCE` (Google
+   Finance) e `VWCE.MI` (Yahoo). I ticker dedotti sono elencati nel riquadro
+   verde a fine import: **vanno incollati nella colonna A del Sheet ponte**.
+3. **Valore già presente sull'asset** — un ticker impostato prima non viene mai
+   sovrascritto con un valore vuoto.
+
+La derivazione avviene solo per i mercati in tabella (`resolveTicker.ts`: Borsa
+Italiana, Xetra, NYSE/NASDAQ/ARCA/AMEX, Londra, Parigi, Amsterdam, Bruxelles,
+SIX, BME). Su un mercato sconosciuto **non** viene inventato nulla: l'ISIN resta
+non mappato e il mercato viene elencato nel banner, così si può aggiungere la
+riga di lookup a mano (o la mappatura del mercato nel codice).
+
+Nessuna derivazione per i titoli quotati in percentuale (obbligazioni): sul MOT
+il "simbolo" Fineco non è un ticker interrogabile da Google Finance.
+
+Una posizione senza prezzo di mercato non vale zero: viene **valorizzata al
+costo di carico** (P&L 0) e la tabella mostra "al costo" al posto del prezzo.
+Azzerarla la farebbe sparire dal totale e mostrerebbe una perdita del 100% mai
+avvenuta.
+
+### Obbligazioni: quotazione in percentuale
+
+Le obbligazioni quotano in percentuale del valore nominale. Fineco riporta
+quantità = nominale (es. `10.000`) e prezzo = percentuale (es. `98,50`): il
+controvalore è `10.000 × 98,50 / 100 = 9.850 €`, non 985.000 €.
+
+Il fattore non viene dedotto dal nome dello strumento ma **verificato sul file**:
+il parser prova quale divisore riproduce la colonna `Valore di carico`, che
+Fineco ha già calcolato (il cambio viene provato in entrambe le direzioni,
+perché la convenzione della colonna non è dichiarata nell'export). Il tipo
+strumento (`Obbligazioni`, `Titoli di Stato`) resta come ripiego se quella
+colonna manca. Il risultato finisce in `assets.price_divisor` e vale per il
+carico e per ogni prezzo successivo.
+
+Un **ETF obbligazionario** non è quotato in percentuale: resta `etf_bond` con
+divisore 1.
 
 ### Layout dell'export Fineco
 
@@ -71,6 +117,8 @@ del report, numero di conto, righe vuote).
 | Prezzo di carico | ...anche `P.zo medio di carico` (nome usato da Fineco) |
 | Nome (opzionale) | `Titolo`, `Descrizione`, `Denominazione`; in mancanza `Strumento`, poi `Simbolo`/`Ticker` |
 | Valuta (opzionale) | `Valuta`, `Divisa`, `Currency` |
+| Simbolo / Mercato (opzionali) | `Simbolo`/`Ticker`, `Mercato`/`Borsa` — usati per derivare il ticker |
+| Tipo strumento (opzionale) | `Strumento`, `Tipo`, `Tipologia` — usato per classe e quotazione |
 
 Altre regole:
 
