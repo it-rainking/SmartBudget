@@ -5,6 +5,8 @@ export interface ParsedHoldingRow {
   name: string
   quantity: number
   avg_cost: number
+  /** Valuta di denominazione del titolo, quando l'export la espone. */
+  currency?: string
 }
 
 export interface ParseFinecoResult {
@@ -146,7 +148,10 @@ function isQuantityHeader(h: string): boolean {
 function isAvgCostHeader(h: string): boolean {
   if (h.includes('controvalore') || h.includes('valore') || h.includes('importo') || h.includes('totale')) return false
   if (['pmc', 'prezzo_medio', 'prezzo_di_carico', 'prezzo_carico', 'costo_medio', 'carico_medio', 'avg_cost'].includes(h)) return true
-  const isPrice = h.includes('prezzo') || h.startsWith('prz') || h.includes('costo') || h.includes('pmc') || h.includes('price')
+  // "P.zo medio di carico" è il nome usato dall'export Fineco: normalizzato
+  // diventa "p_zo_medio_di_carico", quindi né "prezzo" né "prz" lo intercettano.
+  const isPrice = h.includes('prezzo') || h.startsWith('prz') || h.startsWith('p_zo') || h.startsWith('pzo')
+    || h.includes('costo') || h.includes('pmc') || h.includes('price')
   const isCarico = h.includes('carico') || h.includes('medio')
   return isPrice && isCarico
 }
@@ -160,8 +165,11 @@ function isCostValueHeader(h: string): boolean {
 
 // Nome descrittivo prima del simbolo: "Descrizione" è più utile di "Simbolo"
 // quando l'export espone entrambe le colonne.
+// Nell'export Fineco "Strumento" è il tipo (ETF/Azioni/Fondo), non il nome:
+// va cercato solo se non c'è una colonna descrittiva vera.
 const NAME_KEYS_BY_PRIORITY = [
-  ['descrizione', 'denominazione', 'strumento', 'titolo', 'prodotto', 'nome', 'name'],
+  ['descrizione', 'denominazione', 'titolo', 'prodotto', 'nome', 'name'],
+  ['strumento'],
   ['simbolo', 'ticker', 'codice_strumento'],
 ]
 
@@ -173,12 +181,22 @@ function findNameColumn(headers: string[]): number {
   return -1
 }
 
+function normalizeCurrency(raw: string | undefined): string | undefined {
+  const code = raw?.trim().toUpperCase()
+  return code && /^[A-Z]{3}$/.test(code) ? code : undefined
+}
+
+function isCurrencyHeader(h: string): boolean {
+  return ['valuta', 'divisa', 'currency', 'ccy'].includes(h)
+}
+
 interface ColumnMap {
   isin: number
   quantity: number
   avgCost: number
   costValue: number
   name: number
+  currency: number
 }
 
 function mapColumns(headers: string[]): ColumnMap {
@@ -189,11 +207,12 @@ function mapColumns(headers: string[]): ColumnMap {
     avgCost: find(isAvgCostHeader),
     costValue: find(isCostValueHeader),
     name: findNameColumn(headers),
+    currency: find(isCurrencyHeader),
   }
 }
 
 function mapScore(map: ColumnMap): number {
-  return [map.isin, map.quantity, map.avgCost, map.costValue, map.name].filter((i) => i >= 0).length
+  return [map.isin, map.quantity, map.avgCost, map.costValue, map.name, map.currency].filter((i) => i >= 0).length
 }
 
 // ---------------------------------------------------------------------------
@@ -309,7 +328,9 @@ function isSummaryRow(row: string[]): boolean {
  * Fineco può elencare lo stesso titolo su più mercati).
  */
 export function parseFinecoCsv(csvText: string): ParseFinecoResult {
-  const text = csvText.replace(/^﻿/, '').trim()
+  // Line ending normalizzati: papaparse deduce il terminatore dalle prime righe
+  // e un file con \r\n misto a \n gli fa collassare la coda in un'unica riga.
+  const text = csvText.replace(/^﻿/, '').replace(/\r\n?/g, '\n').trim()
   if (!text) {
     throw new Error('Il file CSV è vuoto.')
   }
@@ -324,7 +345,7 @@ export function parseFinecoCsv(csvText: string): ParseFinecoResult {
     .filter((row) => !isSummaryRow(row))
 
   const columnCount = Math.max(headers.length, ...dataRows.map((r) => r.length), 0)
-  const map: ColumnMap = detection?.map ?? { isin: -1, quantity: -1, avgCost: -1, costValue: -1, name: -1 }
+  const map: ColumnMap = detection?.map ?? { isin: -1, quantity: -1, avgCost: -1, costValue: -1, name: -1, currency: -1 }
 
   if (map.isin < 0) {
     map.isin = detectIsinColumn(dataRows, columnCount)
@@ -371,22 +392,37 @@ export function parseFinecoCsv(csvText: string): ParseFinecoResult {
       return
     }
 
+    const currency = map.currency >= 0 ? normalizeCurrency(row[map.currency]) : undefined
+
+    // Il PMC è espresso nella valuta del titolo, come il prezzo che arriva dal
+    // price feed: è quello il valore da confrontare per il P&L. Il "Valore di
+    // carico" Fineco è invece già convertito in euro, quindi va usato solo come
+    // ripiego e su un titolo in valuta estera va segnalato.
     let avgCost = map.avgCost >= 0 ? parseAmount(row[map.avgCost]) : NaN
+    let derivedFromCostValue = false
     if (isNaN(avgCost) && map.costValue >= 0) {
       const costValue = parseAmount(row[map.costValue])
-      if (!isNaN(costValue)) avgCost = costValue / quantity
+      if (!isNaN(costValue)) {
+        avgCost = costValue / quantity
+        derivedFromCostValue = true
+      }
     }
     if (isNaN(avgCost)) {
       warnings.push(`Riga ${rowNum} (${isin}): prezzo medio di carico non valido, riga scartata.`)
       return
     }
     if (avgCost < 0) avgCost = Math.abs(avgCost)
+    if (derivedFromCostValue && currency && currency !== 'EUR') {
+      warnings.push(
+        `Riga ${rowNum} (${isin}): prezzo di carico ricavato dal valore in euro su un titolo in ${currency}, il P&L può risultare distorto.`
+      )
+    }
 
     const name = (map.name >= 0 ? row[map.name]?.trim() : '') || isin
     const existing = byIsin.get(isin)
 
     if (!existing) {
-      byIsin.set(isin, { isin, name, quantity, avg_cost: avgCost, totalCost: quantity * avgCost })
+      byIsin.set(isin, { isin, name, quantity, avg_cost: avgCost, currency, totalCost: quantity * avgCost })
       return
     }
 
@@ -402,11 +438,12 @@ export function parseFinecoCsv(csvText: string): ParseFinecoResult {
     warnings.push(`ISIN ${isin}: più righe nel CSV, quantità sommate e prezzo di carico mediato.`)
   }
 
-  const rows: ParsedHoldingRow[] = [...byIsin.values()].map(({ isin, name, quantity, avg_cost }) => ({
+  const rows: ParsedHoldingRow[] = [...byIsin.values()].map(({ isin, name, quantity, avg_cost, currency }) => ({
     isin,
     name,
     quantity: Math.round(quantity * 1e6) / 1e6,
     avg_cost: Math.round(avg_cost * 1e4) / 1e4,
+    ...(currency ? { currency } : {}),
   }))
 
   return { rows, warnings, detectedColumns }
