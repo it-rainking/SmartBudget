@@ -45,23 +45,31 @@ export async function POST(req: Request) {
 
   let parsedRows: ReturnType<typeof parseFinecoCsv>['rows']
   let warnings: string[]
+  let detectedColumns: string[]
   try {
     const result = parseFinecoCsv(csvText)
     parsedRows = result.rows
     warnings = result.warnings
+    detectedColumns = result.detectedColumns
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'CSV non valido' }, { status: 400 })
   }
 
   if (parsedRows.length === 0) {
-    const detail = warnings.length > 0 ? ` Dettaglio: ${warnings.join(' ')}` : ''
+    // Intestazione riconosciuta ma zero righe: è il caso dell'export scaricato
+    // senza posizioni aperte, non un problema di formato del file.
+    const detail = warnings.length > 0
+      ? ` Dettaglio: ${warnings.join(' ')}`
+      : detectedColumns.length > 0
+        ? ' Il file contiene solo l\'intestazione: riesporta il portafoglio con le posizioni aperte.'
+        : ''
     return NextResponse.json({ error: `Nessuna posizione valida trovata nel CSV.${detail}` }, { status: 400 })
   }
 
   try {
     // Stato precedente (per il diff), prima di sostituire le holdings.
     const [{ data: existingAssets }, { data: existingHoldings }] = await Promise.all([
-      supabase.from('assets').select('id, isin, ticker_gf, ticker_yahoo, name, asset_class').eq('user_id', user.id),
+      supabase.from('assets').select('id, isin, ticker_gf, ticker_yahoo, name, asset_class, currency').eq('user_id', user.id),
       supabase.from('holdings').select('asset_id, quantity, avg_cost').eq('user_id', user.id),
     ])
     const existingByIsin = new Map((existingAssets ?? []).map((a) => [a.isin, a]))
@@ -98,6 +106,9 @@ export async function POST(req: Request) {
         ticker_yahoo: lookup?.ticker_yahoo || existing?.ticker_yahoo || null,
         name: lookup?.name || row.name || existing?.name || row.isin,
         asset_class: (lookup?.asset_class as AssetClass | null) ?? (existing?.asset_class as AssetClass | null) ?? DEFAULT_ASSET_CLASS,
+        // La valuta arriva dal CSV: un titolo in USD lasciato a EUR falserebbe
+        // il controvalore mostrato accanto alla posizione.
+        currency: row.currency || existing?.currency || 'EUR',
       }
     })
 

@@ -120,6 +120,51 @@ describe('parseFinecoCsv', () => {
   })
 })
 
+describe('export reale Fineco (Portafoglio di sintesi)', () => {
+  const readFixture = (name: string) =>
+    decodeCsvBuffer(
+      new Uint8Array(readFileSync(path.resolve(__dirname, `../fixtures/${name}`))).buffer as ArrayBuffer
+    )
+
+  it('parsa il layout completo: preambolo, BOM, CRLF, header a riga 3', () => {
+    const { rows, warnings, detectedColumns } = parseFinecoCsv(readFixture('fineco_portafoglio_export.csv'))
+
+    expect(detectedColumns[0]).toBe('Titolo')
+    expect(detectedColumns).toContain('P.zo medio di carico')
+    expect(rows).toHaveLength(3)
+    expect(warnings).toEqual([])
+  })
+
+  it('usa "Titolo" come nome e non "Strumento", che in Fineco è il tipo', () => {
+    const { rows } = parseFinecoCsv(readFixture('fineco_portafoglio_export.csv'))
+    expect(rows.map((r) => r.name)).toEqual([
+      'VANGUARD FTSE ALL-WORLD UCITS ETF',
+      'ISHARES CORE MSCI WORLD UCITS ETF',
+      'APPLE INC',
+    ])
+  })
+
+  it('legge il PMC da "P.zo medio di carico", non dal valore di carico in euro', () => {
+    const { rows } = parseFinecoCsv(readFixture('fineco_portafoglio_export.csv'))
+    const apple = rows.find((r) => r.isin === 'US0378331005')
+    // 1.620,00 € / 10 darebbe 162: il carico in valuta del titolo è 150.
+    expect(apple?.avg_cost).toBe(150)
+    expect(apple?.currency).toBe('USD')
+  })
+
+  it('riporta la valuta di ogni posizione', () => {
+    const { rows } = parseFinecoCsv(readFixture('fineco_portafoglio_export.csv'))
+    expect(rows.map((r) => r.currency)).toEqual(['EUR', 'EUR', 'USD'])
+  })
+
+  it('sull\'export senza posizioni riconosce l\'header e non lancia errori di formato', () => {
+    const { rows, detectedColumns } = parseFinecoCsv(readFixture('fineco_portafoglio_vuoto.csv'))
+    expect(rows).toHaveLength(0)
+    expect(detectedColumns).toContain('ISIN')
+    expect(detectedColumns).toContain('Quantità')
+  })
+})
+
 describe('parseAmount', () => {
   it('interpreta il formato italiano', () => {
     expect(parseAmount('1.234,56')).toBe(1234.56)

@@ -30,6 +30,32 @@ Gli ISIN non presenti in `isin_ticker_lookup` vengono comunque importati (con
 `ticker_gf` vuoto) e segnalati in un banner: senza ticker mappato quella
 posizione non riceverà prezzi live finché non aggiungi la riga di lookup.
 
+### Layout dell'export Fineco
+
+Il file scaricato da Fineco (`Portafoglio di sintesi`) è UTF-8 con BOM, righe
+CRLF, separatore virgola, e ha questa forma:
+
+```
+Portafoglio di sintesi,,,,,...
+,,,,,...
+Titolo,ISIN,Simbolo,Mercato,Strumento,Valuta,Quantità,P.zo medio di carico,Cambio di carico,Valore di carico,P.zo di mercato,...
+<una riga per posizione>
+Totale,,,,,...
+EUR,,,,,...
+```
+
+Due dettagli specifici di questo export:
+
+- **`Strumento` non è il nome del titolo** ma il tipo (ETF, Azioni, Fondo): il
+  nome viene preso da `Titolo`.
+- **`P.zo medio di carico` è nella valuta del titolo**, mentre `Valore di
+  carico` è già convertito in euro. Il parser usa il primo, così il carico è
+  confrontabile con il prezzo che arriva dal price feed; la valuta di ogni
+  posizione viene letta da `Valuta` e salvata su `assets.currency`.
+
+Se l'export contiene solo intestazione e riga `Totale` (nessuna posizione),
+l'import lo dice esplicitamente: va riscaricato con le posizioni aperte.
+
 ### Cosa accetta il parser
 
 Il file non deve avere un formato esatto: separatore (`;`, `,`, tab, `|`),
@@ -42,7 +68,9 @@ del report, numero di conto, righe vuote).
 | ISIN | `ISIN`, `Codice ISIN`, oppure — se non c'è una colonna dedicata — la colonna che contiene codici in formato ISIN |
 | Quantità | `Quantità`, `Q.tà`, `Qta`, `Pezzi`, `Quote`, `Nominale` |
 | Prezzo di carico | `Prezzo medio di carico`, `Prz. Medio Carico`, `PMC`, `Prezzo carico`, `Costo medio`; in alternativa si ricava da `Valore di carico` ÷ quantità |
-| Nome (opzionale) | `Descrizione`, `Strumento`, `Titolo`, `Denominazione`, in mancanza `Simbolo`/`Ticker` |
+| Prezzo di carico | ...anche `P.zo medio di carico` (nome usato da Fineco) |
+| Nome (opzionale) | `Titolo`, `Descrizione`, `Denominazione`; in mancanza `Strumento`, poi `Simbolo`/`Ticker` |
+| Valuta (opzionale) | `Valuta`, `Divisa`, `Currency` |
 
 Altre regole:
 
@@ -63,7 +91,7 @@ posto da guardare.
 |---|---|---|
 | `Il file è un foglio Excel (.xlsx/.xls)` | export scaricato in formato Excel | apri il file e salvalo come CSV |
 | `Colonne mancanti nel CSV: ...` | l'export non contiene ISIN, quantità o prezzo di carico | riesporta includendo quelle colonne, o aggiungi l'alias in `parseFinecoCsv.ts` |
-| `Nessuna posizione valida trovata nel CSV` | tutte le righe scartate | leggi i warning elencati nel messaggio |
+| `Nessuna posizione valida trovata nel CSV` | tutte le righe scartate, oppure export con la sola intestazione | leggi i warning elencati nel messaggio |
 | `Portafoglio non caricato` (banner in cima alla pagina) | la migration non è stata eseguita | esegui `supabase/migrate_investments.sql` (punto 1) |
 
 ## 3. Creare il Google Sheet ponte
