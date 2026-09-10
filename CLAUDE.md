@@ -90,7 +90,7 @@ Tutte le tabelle usano RLS con policy `user_id = auth.uid()`.
 | `invoices` | name, amount, due_date, paid_date, recurrence (once/weekly/monthly/quarterly/yearly), status (pending/paid/overdue/cancelled), description, paid_amount, category_id?, reminder_days, auto_renew | |
 | `goals` | name, type (saving/debt), target_amount, current_amount, deadline, icon, color, is_completed, completed_at | |
 | `notifications` | type (budget_exceeded/bill_due/goal_achieved/goal_progress/system), title, message, data, is_read, read_at | Notifiche persistite nel DB |
-| `assets` | user_id, isin, ticker_gf, ticker_yahoo?, name, asset_class, currency | Un asset (ISIN) per utente, UI in `/investimenti`; `currency` popolata dalla colonna `Valuta` del CSV Fineco (default EUR) |
+| `assets` | user_id, isin, ticker_gf, ticker_yahoo?, name, asset_class, currency, price_divisor | Un asset (ISIN) per utente, UI in `/investimenti`; `currency` popolata dalla colonna `Valuta` del CSV Fineco (default EUR); `price_divisor` = fattore di quotazione (1 per azioni/ETF, 100 per obbligazioni quotate in % del nominale) |
 | `holdings` | user_id, asset_id (FK→assets), quantity, avg_cost, source, imported_at | Snapshot: sostituito integralmente a ogni import CSV, non delta |
 | `price_snapshots` | asset_id (FK→assets), price, change_pct, currency, source (gsheet/yahoo), fetched_at | Scritto solo dal cron `/api/cron/prices` (service role) |
 | `isin_ticker_lookup` | isin (PK), ticker_gf?, ticker_yahoo?, name?, asset_class? | Tabella globale (non per-utente) di riferimento ISIN→ticker, manutenuta manualmente |
@@ -107,6 +107,8 @@ Chiamata durante l'onboarding per creare le categorie default dell'utente.
 get_investment_summary(p_user_id uuid)
 ```
 Join holdings↔assets↔ultimo price_snapshot (LATERAL) in una sola query; usata da `GET /api/investments/summary` che calcola market_value/P&L/pesi lato TypeScript.
+
+**Controvalore**: sempre `quantità × prezzo / assets.price_divisor`. Il divisore vale 1 per azioni/ETF e 100 per i titoli quotati in percentuale del nominale (obbligazioni), dove la "quantità" Fineco è il valore nominale. Una posizione senza `price_snapshot` è valorizzata al costo di carico (`priced_at_cost: true`), non a zero. Migrazione DB: `supabase/migrate_investments_bond_quotation.sql`.
 
 ### Tipi TypeScript
 
@@ -175,7 +177,8 @@ src/
     ├── supabase-server.ts          # createServerClient() — client lato server (cookies)
     ├── queryClient.ts              # QueryClient config (staleTime 5min, retry 1, no refocus)
     ├── utils.ts                    # formatCurrency, formatDate, formatMonth, getMonthDateRange, classNames
-    ├── investments/parseFinecoCsv.ts # Parser CSV Fineco: separatore/codifica/riga header auto-rilevati, colonne per significato, dedup ISIN, valuta per posizione
+    ├── investments/parseFinecoCsv.ts # Parser CSV Fineco: separatore/codifica/riga header auto-rilevati, colonne per significato, dedup ISIN, valuta e fattore di quotazione per posizione
+    ├── investments/resolveTicker.ts   # Deriva ticker_gf/ticker_yahoo da Simbolo + Mercato del CSV (solo mercati mappati)
     └── prices/                     # PriceProvider: googleSheets.ts (Sheet ponte), yahoo.ts (fallback), resolveQuote.ts
 ```
 

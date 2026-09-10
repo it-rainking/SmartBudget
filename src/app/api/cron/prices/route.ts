@@ -24,12 +24,16 @@ export async function POST(req: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: assets } = await supabase
+  const { data: allAssets } = await supabase
     .from('assets')
     .select('id, ticker_gf, ticker_yahoo')
-    .neq('ticker_gf', '')
 
-  if (!assets?.length) return NextResponse.json({ ok: true, updated: 0 })
+  // Basta uno dei due ticker: un asset con il solo ticker Yahoo (ticker dedotto
+  // dal CSV, o mercato non coperto dal Sheet ponte) deve comunque ricevere il
+  // prezzo dal fallback.
+  const assets = (allAssets ?? []).filter((a) => a.ticker_gf || a.ticker_yahoo)
+
+  if (!assets.length) return NextResponse.json({ ok: true, updated: 0 })
 
   let sheetsProvider: PriceProvider | null = null
   try {

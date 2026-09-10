@@ -568,8 +568,9 @@ export type Database = {
           ticker_gf: string
           ticker_yahoo: string | null
           name: string
-          asset_class: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'cash' | 'other'
+          asset_class: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'bond' | 'cash' | 'other'
           currency: string
+          price_divisor: number
           created_at: string
           updated_at: string
         }
@@ -580,8 +581,9 @@ export type Database = {
           ticker_gf?: string
           ticker_yahoo?: string | null
           name: string
-          asset_class: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'cash' | 'other'
+          asset_class: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'bond' | 'cash' | 'other'
           currency?: string
+          price_divisor?: number
           created_at?: string
           updated_at?: string
         }
@@ -592,8 +594,9 @@ export type Database = {
           ticker_gf?: string
           ticker_yahoo?: string | null
           name?: string
-          asset_class?: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'cash' | 'other'
+          asset_class?: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'bond' | 'cash' | 'other'
           currency?: string
+          price_divisor?: number
           created_at?: string
           updated_at?: string
         }
@@ -687,7 +690,7 @@ export type Database = {
           ticker_gf: string | null
           ticker_yahoo: string | null
           name: string | null
-          asset_class: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'cash' | 'other' | null
+          asset_class: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'bond' | 'cash' | 'other' | null
           created_at: string
           updated_at: string
         }
@@ -696,7 +699,7 @@ export type Database = {
           ticker_gf?: string | null
           ticker_yahoo?: string | null
           name?: string | null
-          asset_class?: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'cash' | 'other' | null
+          asset_class?: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'bond' | 'cash' | 'other' | null
           created_at?: string
           updated_at?: string
         }
@@ -705,7 +708,7 @@ export type Database = {
           ticker_gf?: string | null
           ticker_yahoo?: string | null
           name?: string | null
-          asset_class?: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'cash' | 'other' | null
+          asset_class?: 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'bond' | 'cash' | 'other' | null
           created_at?: string
           updated_at?: string
         }
@@ -794,6 +797,7 @@ export type Database = {
           name: string
           asset_class: string
           currency: string
+          price_divisor: number
           quantity: number
           avg_cost: number
           imported_at: string

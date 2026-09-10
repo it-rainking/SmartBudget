@@ -255,8 +255,12 @@ CREATE TABLE public.assets (
     ticker_gf TEXT NOT NULL DEFAULT '',
     ticker_yahoo TEXT,
     name TEXT NOT NULL,
-    asset_class TEXT NOT NULL CHECK (asset_class IN ('etf_equity', 'etf_bond', 'etf_thematic', 'stock', 'cash', 'other')),
+    asset_class TEXT NOT NULL CHECK (asset_class IN ('etf_equity', 'etf_bond', 'etf_thematic', 'stock', 'bond', 'cash', 'other')),
     currency TEXT NOT NULL DEFAULT 'EUR',
+    -- Fattore di quotazione: 1 per azioni/ETF, 100 per i titoli quotati in
+    -- percentuale del nominale (obbligazioni). Il controvalore è sempre
+    -- quantita * prezzo / price_divisor.
+    price_divisor NUMERIC(10,4) NOT NULL DEFAULT 1 CHECK (price_divisor > 0),
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     UNIQUE(user_id, isin)
@@ -302,7 +306,7 @@ CREATE TABLE public.isin_ticker_lookup (
     ticker_gf TEXT,
     ticker_yahoo TEXT,
     name TEXT,
-    asset_class TEXT CHECK (asset_class IN ('etf_equity', 'etf_bond', 'etf_thematic', 'stock', 'cash', 'other')),
+    asset_class TEXT CHECK (asset_class IN ('etf_equity', 'etf_bond', 'etf_thematic', 'stock', 'bond', 'cash', 'other')),
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
@@ -463,6 +467,7 @@ RETURNS TABLE (
     name TEXT,
     asset_class TEXT,
     currency TEXT,
+    price_divisor NUMERIC,
     quantity NUMERIC,
     avg_cost NUMERIC,
     imported_at TIMESTAMPTZ,
@@ -486,6 +491,7 @@ BEGIN
         a.name,
         a.asset_class,
         a.currency,
+        a.price_divisor,
         h.quantity,
         h.avg_cost,
         h.imported_at,

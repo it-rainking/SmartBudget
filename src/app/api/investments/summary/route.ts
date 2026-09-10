@@ -23,15 +23,25 @@ export async function GET() {
 
   const rawRows = rows ?? []
 
-  const totalMarketValue = rawRows.reduce((sum, r) => sum + (r.last_price ?? 0) * Number(r.quantity), 0)
+  // Controvalore = quantità * prezzo / price_divisor. Il divisore vale 1 per
+  // azioni ed ETF e 100 per i titoli quotati in percentuale del nominale
+  // (obbligazioni), dove la "quantità" Fineco è il valore nominale.
+  const valueOf = (price: number, quantity: number, divisor: number) => (price * quantity) / divisor
 
   const positions: InvestmentPosition[] = rawRows.map((r) => {
     const quantity = Number(r.quantity)
     const avgCost = Number(r.avg_cost)
-    const cost = quantity * avgCost
-    const marketValue = r.last_price !== null ? r.last_price * quantity : 0
+    const priceDivisor = Number(r.price_divisor) || 1
+    const cost = valueOf(avgCost, quantity, priceDivisor)
+    // Senza prezzo di mercato la posizione viene valorizzata al costo: metterla
+    // a zero la farebbe sparire dal totale e mostrerebbe una perdita del 100%
+    // che non è mai avvenuta.
+    const pricedAtCost = r.last_price === null
+    const marketValue = pricedAtCost ? cost : valueOf(r.last_price!, quantity, priceDivisor)
     const pnlAbs = marketValue - cost
     return {
+      priced_at_cost: pricedAtCost,
+      price_divisor: priceDivisor,
       holding_id: r.holding_id,
       asset_id: r.asset_id,
       isin: r.isin,
@@ -50,11 +60,16 @@ export async function GET() {
       market_value: marketValue,
       pnl_abs: pnlAbs,
       pnl_pct: cost > 0 ? (pnlAbs / cost) * 100 : 0,
-      weight_pct: totalMarketValue > 0 ? (marketValue / totalMarketValue) * 100 : 0,
+      weight_pct: 0,
     }
   })
 
-  const totalCost = positions.reduce((sum, p) => sum + p.quantity * p.avg_cost, 0)
+  const totalMarketValue = positions.reduce((sum, p) => sum + p.market_value, 0)
+  for (const p of positions) {
+    p.weight_pct = totalMarketValue > 0 ? (p.market_value / totalMarketValue) * 100 : 0
+  }
+
+  const totalCost = positions.reduce((sum, p) => sum + (p.quantity * p.avg_cost) / p.price_divisor, 0)
   const totalPnlAbs = totalMarketValue - totalCost
 
   const byAssetClassMap = new Map<string, number>()

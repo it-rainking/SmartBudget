@@ -13,6 +13,7 @@ const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
   etf_bond: 'ETF Obbligazionari',
   etf_thematic: 'ETF Tematici',
   stock: 'Azioni',
+  bond: 'Obbligazioni',
   cash: 'Liquidità',
   other: 'Altro',
 }
@@ -22,6 +23,7 @@ const ASSET_CLASS_COLORS: Record<AssetClass, string> = {
   etf_bond: '#3b82f6',
   etf_thematic: '#8b5cf6',
   stock: '#f59e0b',
+  bond: '#0ea5e9',
   cash: '#6b7280',
   other: '#94a3b8',
 }
@@ -247,7 +249,7 @@ export default function InvestimentiPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-zinc-50 dark:bg-zinc-700/40 border-b border-zinc-100 dark:border-zinc-700">
-                        {['Nome', 'Quantità', 'Carico', 'Ultimo prezzo', 'P&L', 'Peso'].map((h) => (
+                        {['Nome', 'Quantità / nominale', 'Carico', 'Ultimo prezzo', 'P&L', 'Peso'].map((h) => (
                           <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
                             {h}
                           </th>
@@ -261,12 +263,22 @@ export default function InvestimentiPage() {
                             <div className="font-medium text-zinc-800 dark:text-zinc-200">{p.name}</div>
                             <div className="text-xs text-zinc-400 dark:text-zinc-500">
                               {p.ticker_gf || 'ticker non mappato'} · {p.currency}
+                              {p.price_divisor !== 1 && ' · quotato in % del nominale'}
                             </div>
                           </td>
                           <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">{p.quantity}</td>
                           <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">{fmt(p.avg_cost)}</td>
                           <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
-                            {p.last_price !== null ? fmt(p.last_price) : '—'}
+                            {p.priced_at_cost ? (
+                              <span
+                                className="text-amber-600 dark:text-amber-400"
+                                title="Nessun prezzo di mercato disponibile: la posizione è valorizzata al costo di carico"
+                              >
+                                al costo
+                              </span>
+                            ) : (
+                              fmt(p.last_price!)
+                            )}
                           </td>
                           <td className={`px-4 py-2.5 font-medium whitespace-nowrap ${pnlColor(p.pnl_abs)}`}>
                             {fmt(p.pnl_abs)} ({p.pnl_pct.toFixed(1)}%)
@@ -346,6 +358,31 @@ export default function InvestimentiPage() {
                   <div className="text-sm text-zinc-600 dark:text-zinc-400">
                     {lastImportResult.diff.imported_positions} posizioni caricate · {lastImportResult.diff.new_positions} nuove · {lastImportResult.diff.changed_positions} variate · {lastImportResult.diff.removed_positions} rimosse
                   </div>
+                  {lastImportResult.diff.percent_quoted_positions > 0 && (
+                    <div className="px-4 py-3 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg text-sm text-sky-700 dark:text-sky-400">
+                      {lastImportResult.diff.percent_quoted_positions} posizioni quotate in percentuale del nominale
+                      (obbligazioni): il controvalore è calcolato come quantità × prezzo / 100.
+                    </div>
+                  )}
+                  {lastImportResult.diff.derived_tickers.length > 0 && (
+                    <div className="px-4 py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg text-sm text-emerald-700 dark:text-emerald-400">
+                      <p className="font-medium mb-1">
+                        {lastImportResult.diff.derived_tickers.length} ticker dedotti da Simbolo + Mercato del CSV
+                      </p>
+                      <p className="text-xs">
+                        {lastImportResult.diff.derived_tickers.map((t) => `${t.isin} → ${t.ticker_gf}`).join(' · ')}
+                      </p>
+                      <p className="text-xs mt-1">
+                        Ricordati di aggiornare la colonna A del Google Sheet ponte con i nuovi ticker.
+                      </p>
+                    </div>
+                  )}
+                  {lastImportResult.diff.unknown_markets.length > 0 && (
+                    <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-700 dark:text-amber-400">
+                      Mercati non riconosciuti: {lastImportResult.diff.unknown_markets.join(', ')}. Le posizioni su
+                      questi mercati restano senza prezzi live finché non aggiungi la riga in <code>isin_ticker_lookup</code>.
+                    </div>
+                  )}
                   {lastImportResult.diff.unmapped_isins.length > 0 && (
                     <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-700 dark:text-amber-400">
                       {lastImportResult.diff.unmapped_isins.length} ISIN senza ticker mappato: {lastImportResult.diff.unmapped_isins.join(', ')}.
