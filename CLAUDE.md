@@ -175,7 +175,7 @@ src/
     ├── supabase-server.ts          # createServerClient() — client lato server (cookies)
     ├── queryClient.ts              # QueryClient config (staleTime 5min, retry 1, no refocus)
     ├── utils.ts                    # formatCurrency, formatDate, formatMonth, getMonthDateRange, classNames
-    ├── investments/parseFinecoCsv.ts # Parser papaparse per CSV Fineco (separatore/decimali auto)
+    ├── investments/parseFinecoCsv.ts # Parser CSV Fineco: separatore/codifica/riga header auto-rilevati, colonne per significato, dedup ISIN
     └── prices/                     # PriceProvider: googleSheets.ts (Sheet ponte), yahoo.ts (fallback), resolveQuote.ts
 ```
 
