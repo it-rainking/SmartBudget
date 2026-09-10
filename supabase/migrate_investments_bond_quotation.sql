@@ -38,7 +38,13 @@ ALTER TABLE public.isin_ticker_lookup
 
 -- 3. Il riepilogo deve esporre il divisore: il controvalore si calcola nella
 --    API route e senza questo campo non saprebbe quando dividere.
-CREATE OR REPLACE FUNCTION public.get_investment_summary(p_user_id UUID)
+--
+-- La funzione va eliminata prima di ricrearla: aggiungere una colonna al
+-- RETURNS TABLE cambia il tipo di ritorno, e CREATE OR REPLACE non lo consente
+-- ("cannot change return type of existing function").
+DROP FUNCTION IF EXISTS public.get_investment_summary(UUID);
+
+CREATE FUNCTION public.get_investment_summary(p_user_id UUID)
 RETURNS TABLE (
     holding_id UUID,
     asset_id UUID,
