@@ -3,6 +3,7 @@ import path from 'path'
 import { describe, expect, it } from 'vitest'
 import {
   decodeCsvBuffer,
+  detectDecimalSeparator,
   detectNonCsvFormat,
   detectPriceDivisor,
   isPercentQuotedType,
@@ -276,6 +277,13 @@ describe('resolveTickerFromCsv', () => {
     expect(resolveTickerFromCsv('VWCE', 'MTA')).toEqual({ ticker_gf: 'BIT:VWCE', ticker_yahoo: 'VWCE.MI' })
   })
 
+  // Suffissi visti nell'export reale oltre a quelli in stile Yahoo.
+  it('toglie i codici di piazza tedeschi e in stile Reuters', () => {
+    expect(resolveTickerFromCsv('SPYJ.FRA', 'Xetra')).toEqual({ ticker_gf: 'ETR:SPYJ', ticker_yahoo: 'SPYJ.DE' })
+    expect(resolveTickerFromCsv('GOOG.O', 'NASDAQ')).toEqual({ ticker_gf: 'NASDAQ:GOOG', ticker_yahoo: 'GOOG' })
+    expect(resolveTickerFromCsv('IONQ.N', 'NYSE')).toEqual({ ticker_gf: 'NYSE:IONQ', ticker_yahoo: 'IONQ' })
+  })
+
   it('non scambia per suffisso un punto che fa parte del ticker', () => {
     // BRK.B è il ticker intero, ".B" non è una piazza.
     expect(resolveTickerFromCsv('BRK.B', 'NYSE')).toEqual({ ticker_gf: 'NYSE:BRK.B', ticker_yahoo: 'BRK.B' })
@@ -308,6 +316,61 @@ describe('parseAmount', () => {
     expect(parseAmount('n/d')).toBeNaN()
     expect(parseAmount('')).toBeNaN()
     expect(parseAmount('-')).toBeNaN()
+  })
+})
+
+// Il portafoglio reale ha mostrato prezzi obbligazionari a 3 decimali (96.442)
+// letti come novantaseimila: il totale usciva 1000 volte più grande.
+describe('detectDecimalSeparator', () => {
+  it('decide dal numero che ha entrambi i separatori', () => {
+    expect(detectDecimalSeparator(['1.234,56'])).toBe(',')
+    expect(detectDecimalSeparator(['1,234.56'])).toBe('.')
+  })
+
+  it('decide da un separatore seguito da un numero di cifre diverso da 3', () => {
+    // "84,07": la virgola non può essere un separatore di migliaia.
+    expect(detectDecimalSeparator(['84,07', '96,442'])).toBe(',')
+    expect(detectDecimalSeparator(['84.07', '96.442'])).toBe('.')
+  })
+
+  it('non risponde quando il file non dà indizi', () => {
+    expect(detectDecimalSeparator(['1.234'])).toBeNull()
+    expect(detectDecimalSeparator(['1000', '250'])).toBeNull()
+    expect(detectDecimalSeparator([])).toBeNull()
+  })
+
+  it('un valore a 3 decimali non decide da solo', () => {
+    // È esattamente il caso ambiguo: serve un altro numero nel file.
+    expect(detectDecimalSeparator(['96.442'])).toBeNull()
+  })
+})
+
+describe('prezzi a tre decimali', () => {
+  const csv = [
+    'Strumento;ISIN;Quantità;Prezzo medio di carico;Valore di carico',
+    'BTP-1FB33;IT0003256820;2000;91,34;1826,80',
+    'BTP-1MZ67;IT0005217390;1000;96,442;964,42',
+  ].join('\n')
+
+  it('non moltiplica per mille i prezzi a tre decimali', () => {
+    const { rows, decimalSeparator } = parseFinecoCsv(csv)
+    expect(decimalSeparator).toBe(',')
+
+    const btp = rows.find((r) => r.isin === 'IT0005217390')
+    expect(btp?.avg_cost).toBe(96.442)
+    expect(btp?.price_divisor).toBe(100)
+  })
+
+  it('vale anche quando il file usa il punto come decimale', () => {
+    const usStyle = [
+      'Strumento;ISIN;Quantità;Prezzo medio di carico;Valore di carico',
+      'BTP-1FB33;IT0003256820;2000;91.34;1826.80',
+      'BTP-1MZ67;IT0005217390;1000;96.442;964.42',
+    ].join('\n')
+
+    const { rows, decimalSeparator } = parseFinecoCsv(usStyle)
+    expect(decimalSeparator).toBe('.')
+    expect(rows.find((r) => r.isin === 'IT0005217390')?.avg_cost).toBe(96.442)
   })
 })
 

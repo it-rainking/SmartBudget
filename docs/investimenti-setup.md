@@ -160,6 +160,27 @@ del report, numero di conto, righe vuote).
 | Simbolo / Mercato (opzionali) | `Simbolo`/`Ticker`, `Mercato`/`Borsa` — usati per derivare il ticker |
 | Tipo strumento (opzionale) | `Strumento`, `Tipo`, `Tipologia` — usato per classe e quotazione |
 
+### Convenzione decimale
+
+Il separatore decimale viene dedotto **una volta sull'intero file**, non valore
+per valore: preso da solo, `96.442` può essere novantaseimila o 96 virgola 442,
+e i prezzi obbligazionari hanno tre decimali proprio come i separatori di
+migliaia hanno tre cifre.
+
+Dentro lo stesso file però lo stesso carattere non può essere decimale in una
+riga e separatore di migliaia in un'altra, e basta un valore a decidere per
+tutti: un numero con entrambi i separatori (`1.234,56`), oppure un separatore
+seguito da un numero di cifre diverso da tre (`84,07`, dove la virgola non può
+separare le migliaia). Se il file non contiene nessuno dei due indizi si ricade
+sull'euristica per singolo numero.
+
+### Portafogli in più valute
+
+L'app **non converte le valute**: se il portafoglio contiene posizioni in EUR e
+in USD, valore totale e P&L sommano importi non omogenei. La pagina lo segnala
+con un banner che elenca le valute presenti. Le singole posizioni restano
+corrette, perché prezzo e carico di ciascuna sono nella stessa valuta.
+
 Altre regole:
 
 - Righe di totale, disclaimer in coda e posizioni con quantità 0 vengono

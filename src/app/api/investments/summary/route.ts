@@ -100,6 +100,7 @@ export async function GET() {
     total_pnl_pct: totalCost > 0 ? (totalPnlAbs / totalCost) * 100 : 0,
     positions_as_of: positionsAsOf,
     prices_as_of: pricesAsOf,
+    currencies: [...new Set(positions.map((p) => p.currency))].sort(),
   }
 
   return NextResponse.json(summary)

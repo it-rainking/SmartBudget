@@ -26,6 +26,8 @@ export interface ParseFinecoResult {
   warnings: string[]
   /** Header effettivamente riconosciuto: usato nei messaggi d'errore per capire cosa ha letto il parser. */
   detectedColumns: string[]
+  /** Separatore decimale dedotto dal file, null se il file non dava indizi. */
+  decimalSeparator: DecimalSeparator | null
 }
 
 // 2 lettere (country code) + 10 alfanumerici. Volutamente più permissiva del
@@ -101,13 +103,69 @@ export function detectNonCsvFormat(buffer: ArrayBuffer): string | null {
 // Numeri
 // ---------------------------------------------------------------------------
 
+export type DecimalSeparator = '.' | ','
+
 /**
- * Parsa un importo senza dare per scontata la convenzione italiana: separatore
- * decimale dedotto dall'ultimo separatore presente ("1.234,56" -> 1234.56,
- * "1,234.56" -> 1234.56). Con soli punti si distingue migliaia da decimali
- * dalla lunghezza dei gruppi ("1.234" -> 1234, "95.32" -> 95.32).
+ * Deduce dall'intero file quale carattere è il separatore decimale.
+ *
+ * Sul singolo valore la domanda non ha risposta: "96.442" può essere
+ * novantaseimila o 96 virgola 442. Ma dentro lo stesso file lo stesso carattere
+ * non può essere decimale in una riga e separatore di migliaia in un'altra, e
+ * basta un valore a decidere per tutti:
+ *
+ * - un numero con entrambi i separatori ("1.234,56") è la prova diretta: quello
+ *   più a destra è il decimale;
+ * - un separatore seguito da un numero di cifre diverso da 3 ("84,07") non può
+ *   essere un separatore di migliaia, quindi è il decimale.
+ *
+ * Ritorna null quando il file non contiene nessuno dei due indizi: in quel caso
+ * ogni valore resta ambiguo e si ricade sull'euristica per singolo numero.
  */
-export function parseAmount(raw: string | undefined | null): number {
+export function detectDecimalSeparator(values: (string | undefined)[]): DecimalSeparator | null {
+  let dotIsDecimal = false
+  let commaIsDecimal = false
+
+  for (const raw of values) {
+    const s = (raw ?? '').replace(/[^0-9.,]/g, '')
+    if (!s) continue
+
+    const lastComma = s.lastIndexOf(',')
+    const lastDot = s.lastIndexOf('.')
+
+    // Entrambi presenti: prova diretta, decide da sola per tutto il file.
+    if (lastComma >= 0 && lastDot >= 0) return lastComma > lastDot ? ',' : '.'
+
+    const sep: DecimalSeparator | null = lastComma >= 0 ? ',' : lastDot >= 0 ? '.' : null
+    if (!sep) continue
+
+    const index = sep === ',' ? lastComma : lastDot
+    const occurrences = s.split(sep).length - 1
+    const digitsAfter = s.length - index - 1
+    if (occurrences === 1 && digitsAfter !== 3) {
+      if (sep === '.') dotIsDecimal = true
+      else commaIsDecimal = true
+    }
+  }
+
+  // Indizi discordanti (file malformato): meglio nessuna risposta che una sbagliata.
+  if (dotIsDecimal === commaIsDecimal) return null
+  return dotIsDecimal ? '.' : ','
+}
+
+function parseWithSeparator(cleaned: string, decimal: DecimalSeparator): string {
+  const thousands = decimal === ',' ? '.' : ','
+  return cleaned.split(thousands).join('').replace(decimal, '.')
+}
+
+/**
+ * Parsa un importo. Con `decimal` noto (dedotto dal file, vedi
+ * detectDecimalSeparator) la conversione è deterministica; senza, si ricade
+ * sull'euristica per singolo valore: separatore decimale dedotto dall'ultimo
+ * separatore presente ("1.234,56" -> 1234.56, "1,234.56" -> 1234.56) e, con un
+ * solo tipo di separatore, dalla lunghezza dei gruppi ("1.234" -> 1234,
+ * "95.32" -> 95.32).
+ */
+export function parseAmount(raw: string | undefined | null, decimal?: DecimalSeparator | null): number {
   if (raw === undefined || raw === null) return NaN
   const original = raw.replace(/ /g, ' ').trim()
   if (!original) return NaN
@@ -116,6 +174,12 @@ export function parseAmount(raw: string | undefined | null): number {
   const negative = /^\(.*\)$/.test(original) || /-/.test(original)
   const cleaned = original.replace(/[^0-9.,]/g, '')
   if (!cleaned || !/[0-9]/.test(cleaned)) return NaN
+
+  if (decimal) {
+    const value = parseFloat(parseWithSeparator(cleaned, decimal))
+    if (isNaN(value)) return NaN
+    return negative ? -Math.abs(value) : value
+  }
 
   const lastComma = cleaned.lastIndexOf(',')
   const lastDot = cleaned.lastIndexOf('.')
@@ -476,6 +540,15 @@ export function parseFinecoCsv(csvText: string): ParseFinecoResult {
   const byIsin = new Map<string, ParsedHoldingRow & { totalCost: number }>()
   const duplicated = new Set<string>()
 
+  // La convenzione decimale si decide una volta sull'intero file, non valore per
+  // valore: "96.442" da solo è ambiguo, ma un altro numero dello stesso file
+  // scioglie il dubbio per tutti. Si guardano le colonne numeriche, dove i
+  // separatori hanno un significato: nei nomi dei titoli un punto non lo ha.
+  const numericColumns = [map.quantity, map.avgCost, map.costValue, map.fxRate].filter((i) => i >= 0)
+  const decimalSeparator = detectDecimalSeparator(
+    dataRows.flatMap((row) => numericColumns.map((c) => row[c]))
+  )
+
   dataRows.forEach((row, index) => {
     // Numero di riga nel file originale, per un warning utilizzabile dall'utente.
     const rowNum = (detection ? detection.index + 1 : 0) + index + 1
@@ -483,7 +556,7 @@ export function parseFinecoCsv(csvText: string): ParseFinecoResult {
     if (nonEmpty < 2) return
 
     const isin = extractIsin(row[map.isin])
-    const quantity = parseAmount(row[map.quantity])
+    const quantity = parseAmount(row[map.quantity], decimalSeparator)
 
     if (!isin) {
       // Righe di coda/disclaimer: segnalate solo se sembrano davvero posizioni.
@@ -505,10 +578,10 @@ export function parseFinecoCsv(csvText: string): ParseFinecoResult {
     // price feed: è quello il valore da confrontare per il P&L. Il "Valore di
     // carico" Fineco è invece già convertito in euro, quindi va usato solo come
     // ripiego e su un titolo in valuta estera va segnalato.
-    let avgCost = map.avgCost >= 0 ? parseAmount(row[map.avgCost]) : NaN
+    let avgCost = map.avgCost >= 0 ? parseAmount(row[map.avgCost], decimalSeparator) : NaN
     let derivedFromCostValue = false
     if (isNaN(avgCost) && map.costValue >= 0) {
-      const costValue = parseAmount(row[map.costValue])
+      const costValue = parseAmount(row[map.costValue], decimalSeparator)
       if (!isNaN(costValue)) {
         avgCost = costValue / quantity
         derivedFromCostValue = true
@@ -532,8 +605,8 @@ export function parseFinecoCsv(csvText: string): ParseFinecoResult {
     const priceDivisor = detectPriceDivisor(
       quantity,
       avgCost,
-      map.costValue >= 0 ? parseAmount(row[map.costValue]) : NaN,
-      map.fxRate >= 0 ? parseAmount(row[map.fxRate]) : NaN,
+      map.costValue >= 0 ? parseAmount(row[map.costValue], decimalSeparator) : NaN,
+      map.fxRate >= 0 ? parseAmount(row[map.fxRate], decimalSeparator) : NaN,
       instrumentType,
       name
     )
@@ -585,5 +658,5 @@ export function parseFinecoCsv(csvText: string): ParseFinecoResult {
     ...(r.instrument_type ? { instrument_type: r.instrument_type } : {}),
   }))
 
-  return { rows, warnings, detectedColumns }
+  return { rows, warnings, detectedColumns, decimalSeparator }
 }

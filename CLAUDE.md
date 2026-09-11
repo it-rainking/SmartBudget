@@ -108,6 +108,8 @@ get_investment_summary(p_user_id uuid)
 ```
 Join holdings↔assets↔ultimo price_snapshot (LATERAL) in una sola query; usata da `GET /api/investments/summary` che calcola market_value/P&L/pesi lato TypeScript.
 
+**Valute**: `InvestmentSummary.currencies` elenca le valute presenti; con più di una i totali sommano importi non convertiti e la pagina lo segnala (l'app non fa conversione valutaria).
+
 **Controvalore**: sempre `quantità × prezzo / assets.price_divisor`. Il divisore vale 1 per azioni/ETF e 100 per i titoli quotati in percentuale del nominale (obbligazioni), dove la "quantità" Fineco è il valore nominale. Una posizione senza `price_snapshot` è valorizzata al costo di carico (`priced_at_cost: true`), non a zero. Migrazione DB: `supabase/migrate_investments_bond_quotation.sql`.
 
 ### Tipi TypeScript

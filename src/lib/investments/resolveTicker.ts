@@ -96,18 +96,24 @@ function normalizeMarket(market: string): string {
 // Suffissi di piazza in stile Yahoo. Servono a riconoscerli in coda al simbolo,
 // non a generarli: la generazione usa yahooSuffix della mappa mercati.
 const MARKET_SUFFIXES = new Set([
+  // Stile Yahoo
   '.MI', '.AS', '.DE', '.L', '.PA', '.BR', '.SW', '.MC', '.VI', '.ST',
   '.F', '.CO', '.HE', '.LS', '.IR', '.OL', '.WA', '.PR',
+  // Piazze tedesche, come le scrive Fineco: "SPYJ.FRA", "SX8PEX.FRA"
+  '.FRA', '.SG', '.BE', '.DU', '.MU', '.HM', '.HA', '.STU', '.GER',
+  // Codici di venue in stile Reuters: "GOOG.O" (Nasdaq), "IONQ.N" (NYSE)
+  '.O', '.N', '.OQ',
 ])
 
 /**
  * Il "Simbolo" dell'export Fineco arriva già con il suffisso di piazza
- * (`RACE.MI`, `2HCA.AS`). Va tolto prima di comporre i ticker, altrimenti
- * Google Finance riceve `BIT:RACE.MI` e Yahoo `RACE.MI.MI`: entrambi
- * inesistenti, e la posizione resta senza prezzo.
+ * (`RACE.MI`, `SPYJ.FRA`, `GOOG.O`). Va tolto prima di comporre i ticker,
+ * altrimenti Google Finance riceve `BIT:RACE.MI` e Yahoo `RACE.MI.MI`:
+ * entrambi inesistenti, e la posizione resta senza prezzo.
  *
- * Solo i suffissi noti vengono rimossi: un punto fa parte del ticker in nomi
- * come `BRK.B`, che deve restare intero.
+ * Solo i suffissi in elenco vengono rimossi. Un punto può far parte del ticker
+ * — `BRK.A`, `BRK.B` sono classi di azioni, non piazze — quindi la lista è
+ * esplicita invece di "tutto quello che segue l'ultimo punto".
  */
 function stripMarketSuffix(symbol: string): string {
   const dot = symbol.lastIndexOf('.')

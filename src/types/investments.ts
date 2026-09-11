@@ -82,6 +82,11 @@ export interface InvestmentSummary {
   total_pnl_pct: number
   positions_as_of: string | null
   prices_as_of: string | null
+  /**
+   * Valute presenti nel portafoglio. Con più di una i totali sommano importi
+   * non omogenei: l'app non converte, quindi la UI deve dirlo.
+   */
+  currencies: string[]
 }
 
 export interface ImportDiff {
