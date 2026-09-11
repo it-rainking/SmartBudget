@@ -226,11 +226,52 @@ notifiche esistente — il price fetcher le riusa, nessuna nuova variabile.
 
 ## 6. Cron
 
+Il price fetcher è un endpoint POST protetto da `CRON_SECRET`: qualcosa deve
+chiamarlo periodicamente. **Chi lo chiama dipende da dove gira il deploy.**
+
+### Railway (e qualunque host che non sia Vercel)
+
+`vercel.json` **non viene letto**: le sue entry `crons` sono inerti. Lo
+scheduler è in GitHub Actions, `.github/workflows/cron-prices.yml` e
+`cron-notifications.yml`, che chiamano gli endpoint dall'esterno.
+
+Servono due **secret del repository** (GitHub → Settings → Secrets and
+variables → Actions):
+
+| Secret | Valore |
+|---|---|
+| `APP_URL` | URL pubblico dell'app, es. `https://smartbudget.up.railway.app` |
+| `CRON_SECRET` | lo stesso valore della variabile d'ambiente sul deploy |
+
+Entrambi i workflow hanno `workflow_dispatch`: dalla scheda **Actions** si
+lanciano a mano con un click, utile per provare senza aspettare la schedule.
+
+Note su GitHub Actions: i workflow schedulati girano solo sul branch di
+default, possono partire con qualche minuto di ritardo quando la coda è
+carica, e vengono disattivati dopo 60 giorni di inattività del repository.
+
+### Vercel
+
 `vercel.json` include già l'entry per `/api/cron/prices` (ogni 30 minuti,
 8-18 CET, giorni feriali). Su **Vercel Hobby** i cron sono limitati a
 un'esecuzione al giorno: se sei su questo piano, riduci la schedule a
 `"0 8 * * 1-5"` o passa a un piano Pro, altrimenti solo la prima esecuzione
 del giorno verrà effettivamente eseguita.
+
+Se dovessi girare su Vercel **e** tenere attivi i workflow, i job partirebbero
+due volte: disattiva l'uno o l'altro. Nessuno dei due endpoint fa danni se
+eseguito due volte (i prezzi aggiungono uno snapshot, le notifiche sono
+deduplicate), ma è lavoro sprecato.
+
+### Verifica manuale
+
+```sh
+curl -X POST https://<tuo-dominio>/api/cron/prices \
+  -H "Authorization: Bearer <CRON_SECRET>"
+```
+
+Risponde `{"ok":true,"updated":N,"total":M}`: `updated` è il numero di
+posizioni che hanno ricevuto un prezzo, `total` quelle con almeno un ticker.
 
 ## Fuori scope (V1)
 

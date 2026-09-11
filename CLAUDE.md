@@ -350,6 +350,8 @@ Sistema separato dal semplice toggle "ricorrente" del form transazioni: qui una 
 - Warning `baseline-browser-mapping` a ogni build: non bloccante, ignorare
 - Warning `middleware → proxy`: non bloccante (Next.js 16 depreca il nome `middleware`)
 
+**Job schedulati**: gli endpoint `/api/cron/prices` e `/api/notifications/process` sono POST protetti da `CRON_SECRET` e vanno chiamati dall'esterno. `vercel.json` li schedula **solo su Vercel**; il deploy attuale è su Railway, dove quelle entry sono inerti, quindi lo scheduler vive in `.github/workflows/cron-prices.yml` e `cron-notifications.yml` (secret del repository: `APP_URL`, `CRON_SECRET`; entrambi lanciabili a mano da Actions con `workflow_dispatch`).
+
 **Scripts**:
 ```
 npm run dev    # next dev (Turbopack)

@@ -1,0 +1,25 @@
+name: Notifiche automatiche
+
+# Vedi cron-prices.yml: su Railway le entry di vercel.json non vengono eseguite.
+# 06:00 UTC ~ 07:00/08:00 in Italia a seconda dell'ora legale.
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  process-notifications:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Elabora la coda notifiche
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::Configura i secret APP_URL e CRON_SECRET nel repository"
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            -X POST "${APP_URL%/}/api/notifications/process" \
+            -H "Authorization: Bearer ${CRON_SECRET}"
