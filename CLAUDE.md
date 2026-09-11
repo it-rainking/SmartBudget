@@ -59,7 +59,7 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 /api/investments/summary  → GET: riepilogo portafoglio (market_value, P&L, pesi)
 /api/investments/tickers  → GET: lista ticker_gf dell'utente, testo incollabile nel Sheet ponte
 /api/cron/prices          → POST: price fetcher (Google Sheet ponte + fallback Yahoo), protetto da CRON_SECRET
-/api/health               → GET: health check
+/api/health               → GET: health check + commit della build in esecuzione (`commit`/`commit_short`, letto da VERCEL_/RAILWAY_GIT_COMMIT_SHA): serve a verificare che il deploy sia allineato al repo
 ```
 
 ### Middleware (`src/middleware.ts`)
