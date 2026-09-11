@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { buildFxTable, fxRate, normalizeCurrency } from '@/lib/prices/fx'
 import type { Database } from '@/types/database'
 import type { AssetClassBreakdown, InvestmentPosition, InvestmentSummary } from '@/types/investments'
 
@@ -8,6 +9,11 @@ import type { AssetClassBreakdown, InvestmentPosition, InvestmentSummary } from 
 // Riepilogo portafoglio: get_investment_summary() fa il join holdings <->
 // assets <-> ultimo price_snapshot in una sola query; qui si calcolano
 // market_value/P&L/pesi e i badge di provenienza (positions_as_of / prices_as_of).
+//
+// Valute: ogni posizione mantiene i valori nella propria valuta e riceve in più
+// i valori convertiti nella valuta di riferimento dell'utente (settings.currency),
+// usando i cambi aggiornati dal cron in `fx_rates`. Totali, pesi e ripartizione
+// per classe sono calcolati sui valori convertiti, così sommano importi omogenei.
 export async function GET() {
   const cookieStore = await cookies()
   const supabase = createServerClient<Database>(
@@ -18,10 +24,17 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
 
-  const { data: rows, error } = await supabase.rpc('get_investment_summary', { p_user_id: user.id })
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const [summaryRes, settingsRes, fxRes] = await Promise.all([
+    supabase.rpc('get_investment_summary', { p_user_id: user.id }),
+    supabase.from('settings').select('currency').eq('user_id', user.id).maybeSingle(),
+    supabase.from('fx_rates').select('base, quote, rate, fetched_at'),
+  ])
+  if (summaryRes.error) return NextResponse.json({ error: summaryRes.error.message }, { status: 500 })
 
-  const rawRows = rows ?? []
+  const rawRows = summaryRes.data ?? []
+  const baseCurrency = normalizeCurrency(settingsRes.data?.currency)
+  const fxRows = fxRes.data ?? []
+  const fxTable = buildFxTable(fxRows)
 
   // Controvalore = quantità * prezzo / price_divisor. Il divisore vale 1 per
   // azioni ed ETF e 100 per i titoli quotati in percentuale del nominale
@@ -39,7 +52,16 @@ export async function GET() {
     const pricedAtCost = r.last_price === null
     const marketValue = pricedAtCost ? cost : valueOf(r.last_price!, quantity, priceDivisor)
     const pnlAbs = marketValue - cost
+    const currency = normalizeCurrency(r.currency)
+    // Cambio verso la valuta di riferimento: 1 se la posizione è già in quella
+    // valuta, null se il cron non ha ancora scaricato la coppia. Null non viene
+    // sostituito con 1: sommare dollari come fossero euro falsa il totale.
+    const rate = fxRate(fxTable, currency, baseCurrency)
     return {
+      fx_rate: rate,
+      market_value_base: rate === null ? null : marketValue * rate,
+      cost_base: rate === null ? null : cost * rate,
+      pnl_abs_base: rate === null ? null : pnlAbs * rate,
       priced_at_cost: pricedAtCost,
       price_divisor: priceDivisor,
       holding_id: r.holding_id,
@@ -49,7 +71,7 @@ export async function GET() {
       ticker_yahoo: r.ticker_yahoo,
       name: r.name,
       asset_class: r.asset_class as InvestmentPosition['asset_class'],
-      currency: r.currency,
+      currency,
       quantity,
       avg_cost: avgCost,
       imported_at: r.imported_at,
@@ -64,17 +86,22 @@ export async function GET() {
     }
   })
 
-  const totalMarketValue = positions.reduce((sum, p) => sum + p.market_value, 0)
+  // I totali sommano solo i valori convertiti: una posizione senza cambio resta
+  // fuori (e viene dichiarata in unconverted_currencies) invece di inquinare la
+  // somma con una valuta diversa.
+  const converted = positions.filter((p) => p.market_value_base !== null)
+  const totalMarketValue = converted.reduce((sum, p) => sum + p.market_value_base!, 0)
   for (const p of positions) {
-    p.weight_pct = totalMarketValue > 0 ? (p.market_value / totalMarketValue) * 100 : 0
+    p.weight_pct =
+      totalMarketValue > 0 && p.market_value_base !== null ? (p.market_value_base / totalMarketValue) * 100 : 0
   }
 
-  const totalCost = positions.reduce((sum, p) => sum + (p.quantity * p.avg_cost) / p.price_divisor, 0)
+  const totalCost = converted.reduce((sum, p) => sum + p.cost_base!, 0)
   const totalPnlAbs = totalMarketValue - totalCost
 
   const byAssetClassMap = new Map<string, number>()
-  for (const p of positions) {
-    byAssetClassMap.set(p.asset_class, (byAssetClassMap.get(p.asset_class) ?? 0) + p.market_value)
+  for (const p of converted) {
+    byAssetClassMap.set(p.asset_class, (byAssetClassMap.get(p.asset_class) ?? 0) + p.market_value_base!)
   }
   const by_asset_class: AssetClassBreakdown[] = [...byAssetClassMap.entries()].map(([asset_class, marketValue]) => ({
     asset_class: asset_class as AssetClassBreakdown['asset_class'],
@@ -91,6 +118,13 @@ export async function GET() {
     null
   )
 
+  // Il cambio più vecchio fra quelli disponibili: è il dato che invecchia per
+  // primo, quindi è quello onesto da mostrare come "aggiornato al".
+  const usedCurrencies = new Set(positions.map((p) => p.currency))
+  const fxAsOf = fxRows
+    .filter((f) => usedCurrencies.has(normalizeCurrency(f.base)) && normalizeCurrency(f.quote) === baseCurrency)
+    .reduce<string | null>((min, f) => (!min || f.fetched_at < min ? f.fetched_at : min), null)
+
   const summary: InvestmentSummary = {
     positions,
     by_asset_class,
@@ -101,6 +135,11 @@ export async function GET() {
     positions_as_of: positionsAsOf,
     prices_as_of: pricesAsOf,
     currencies: [...new Set(positions.map((p) => p.currency))].sort(),
+    base_currency: baseCurrency,
+    unconverted_currencies: [
+      ...new Set(positions.filter((p) => p.fx_rate === null).map((p) => p.currency)),
+    ].sort(),
+    fx_as_of: fxAsOf,
   }
 
   return NextResponse.json(summary)

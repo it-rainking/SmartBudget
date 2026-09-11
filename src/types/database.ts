@@ -714,6 +714,30 @@ export type Database = {
         }
         Relationships: []
       }
+      fx_rates: {
+        Row: {
+          base: string
+          quote: string
+          rate: number
+          source: 'gsheet' | 'yahoo'
+          fetched_at: string
+        }
+        Insert: {
+          base: string
+          quote: string
+          rate: number
+          source: 'gsheet' | 'yahoo'
+          fetched_at?: string
+        }
+        Update: {
+          base?: string
+          quote?: string
+          rate?: number
+          source?: 'gsheet' | 'yahoo'
+          fetched_at?: string
+        }
+        Relationships: []
+      }
       recurring_expenses: {
         Row: {
           id: string

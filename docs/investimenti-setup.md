@@ -176,10 +176,27 @@ sull'euristica per singolo numero.
 
 ### Portafogli in più valute
 
-L'app **non converte le valute**: se il portafoglio contiene posizioni in EUR e
-in USD, valore totale e P&L sommano importi non omogenei. La pagina lo segnala
-con un banner che elenca le valute presenti. Le singole posizioni restano
-corrette, perché prezzo e carico di ciascuna sono nella stessa valuta.
+Le posizioni in valuta diversa da quella del profilo (`settings.currency`)
+vengono **convertite** prima di entrare nei totali: il cron prezzi scarica i
+cambi insieme alle quotazioni e li salva in `fx_rates`, il riepilogo li applica
+a controvalore, costo e P&L. Valore totale, P&L, pesi e ripartizione per classe
+sono quindi omogenei.
+
+Cosa resta visibile in pagina:
+
+- Gli importi della singola posizione (carico, ultimo prezzo, P&L) restano
+  nella **valuta di quotazione**; sotto il nome compare il controvalore
+  convertito e il cambio applicato.
+- Un banner informativo indica in quale valuta sono espressi i totali e a
+  quando risale il cambio usato.
+- Se per una valuta il cambio non è ancora disponibile (cron mai eseguito, o
+  coppia non risolta da nessuna delle due sorgenti), quelle posizioni restano
+  **fuori dai totali** con peso 0% e un banner ambra lo dichiara: meglio un
+  totale parziale e dichiarato che una somma di euro e dollari.
+
+I cambi arrivano dalle stesse due sorgenti dei prezzi: `CURRENCY:USDEUR` sul
+Sheet ponte (se la riga c'è) e `USDEUR=X` su Yahoo come fallback. Nessuna
+configurazione aggiuntiva è necessaria.
 
 Altre regole:
 
@@ -221,6 +238,10 @@ Sheet con formule `GOOGLEFINANCE()`, letto in sola lettura via Sheets API.
 4. Cella `G1`: `=NOW()` — usata dal price fetcher per capire se il foglio
    viene ancora aperto/ricalcolato (se più vecchia di 2 ore, il fetcher passa
    al fallback Yahoo per tutti i ticker).
+5. *(facoltativo)* Aggiungi in colonna A anche i cambi che ti servono, con la
+   sintassi `CURRENCY:USDEUR` (una riga per coppia, stesse formule B-E). Se non
+   le metti il cron li prende comunque da Yahoo: la riga sul foglio serve solo
+   a non dipendere dal fallback.
 
 ## 4. Creare il service account Google
 

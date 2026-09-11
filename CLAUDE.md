@@ -58,7 +58,7 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 /api/investments/import   → POST: import CSV Fineco (sostituisce integralmente le holdings)
 /api/investments/summary  → GET: riepilogo portafoglio (market_value, P&L, pesi)
 /api/investments/tickers  → GET: lista ticker_gf dell'utente, testo incollabile nel Sheet ponte
-/api/cron/prices          → POST: price fetcher (Google Sheet ponte + fallback Yahoo), protetto da CRON_SECRET
+/api/cron/prices          → POST: price fetcher (Google Sheet ponte + fallback Yahoo) + aggiornamento cambi valuta (`fx_rates`), protetto da CRON_SECRET
 /api/health               → GET: health check + commit della build in esecuzione (`commit`/`commit_short`, letto da VERCEL_/RAILWAY_GIT_COMMIT_SHA): serve a verificare che il deploy sia allineato al repo
 ```
 
@@ -94,6 +94,7 @@ Tutte le tabelle usano RLS con policy `user_id = auth.uid()`.
 | `holdings` | user_id, asset_id (FK→assets), quantity, avg_cost, source, imported_at | Snapshot: sostituito integralmente a ogni import CSV, non delta |
 | `price_snapshots` | asset_id (FK→assets), price, change_pct, currency, source (gsheet/yahoo), fetched_at | Scritto solo dal cron `/api/cron/prices` (service role) |
 | `isin_ticker_lookup` | isin (PK), ticker_gf?, ticker_yahoo?, name?, asset_class? | Tabella globale (non per-utente) di riferimento ISIN→ticker, manutenuta manualmente |
+| `fx_rates` | base, quote (PK composita), rate, source (gsheet/yahoo), fetched_at | Cambi valuta, tabella globale (non per-utente): una riga per coppia aggiornata in place dal cron `/api/cron/prices` (service role), letta da `/api/investments/summary` |
 | `recurring_expenses` | name, category_id?, subcategory_id?, amount, day_of_month, payment_method?, notes?, start_date, is_active | Modello di spesa ricorrente, UI in `/spese-ricorrenti`; le occorrenze generate sono normali righe in `transactions` con `recurring_expense_id` valorizzato |
 
 ### Funzioni RPC
@@ -108,7 +109,7 @@ get_investment_summary(p_user_id uuid)
 ```
 Join holdings↔assets↔ultimo price_snapshot (LATERAL) in una sola query; usata da `GET /api/investments/summary` che calcola market_value/P&L/pesi lato TypeScript.
 
-**Valute**: `InvestmentSummary.currencies` elenca le valute presenti; con più di una i totali sommano importi non convertiti e la pagina lo segnala (l'app non fa conversione valutaria).
+**Valute**: le posizioni in valuta diversa da `settings.currency` vengono convertite prima di entrare nei totali, usando i cambi che il cron prezzi salva in `fx_rates` (stesse due sorgenti dei prezzi: `CURRENCY:USDEUR` sul Sheet ponte, `USDEUR=X` su Yahoo). Ogni `InvestmentPosition` porta i valori nella propria valuta più `fx_rate`/`market_value_base`/`cost_base`/`pnl_abs_base`; totali, pesi e ripartizione per classe sono calcolati sui valori convertiti. Se il cambio di una valuta manca, `fx_rate` è `null`, quelle posizioni restano **fuori** dai totali (peso 0%) e la valuta finisce in `InvestmentSummary.unconverted_currencies`, che la pagina segnala — mai una somma di valute diverse. `base_currency` è la valuta dei totali, `fx_as_of` la data del cambio più vecchio usato. Migrazione DB: `supabase/migrate_investments_fx.sql`.
 
 **Controvalore**: sempre `quantità × prezzo / assets.price_divisor`. Il divisore vale 1 per azioni/ETF e 100 per i titoli quotati in percentuale del nominale (obbligazioni), dove la "quantità" Fineco è il valore nominale. Una posizione senza `price_snapshot` è valorizzata al costo di carico (`priced_at_cost: true`), non a zero. Migrazione DB: `supabase/migrate_investments_bond_quotation.sql`.
 
@@ -139,7 +140,7 @@ src/
 │   │   │   ├── import/route.ts     # Import CSV Fineco (sostituisce le holdings)
 │   │   │   ├── summary/route.ts    # Riepilogo portafoglio (market_value, P&L, pesi)
 │   │   │   └── tickers/route.ts    # Lista ticker_gf per il Sheet ponte
-│   │   └── cron/prices/route.ts    # Price fetcher (Sheet ponte + fallback Yahoo)
+│   │   └── cron/prices/route.ts    # Price fetcher (Sheet ponte + fallback Yahoo) + cambi valuta
 │   ├── auth/callback/route.ts      # Supabase OAuth callback
 │   ├── login/page.tsx              # Login → check onboarding → redirect
 │   ├── signup/page.tsx             # Registrazione
@@ -182,7 +183,7 @@ src/
     ├── investments/parseFinecoCsv.ts # Parser CSV Fineco: separatore/codifica/riga header auto-rilevati, colonne per significato, dedup ISIN, valuta e fattore di quotazione per posizione
     ├── investments/resolveTicker.ts   # Deriva ticker_gf/ticker_yahoo da Simbolo + Mercato del CSV (solo mercati mappati)
     ├── investments/classifyAsset.ts   # Classe dell'asset dedotta da tipo + nome del CSV quando il lookup non copre l'ISIN
-    └── prices/                     # PriceProvider: googleSheets.ts (Sheet ponte), yahoo.ts (fallback), resolveQuote.ts
+    └── prices/                     # PriceProvider: googleSheets.ts (Sheet ponte), yahoo.ts (fallback), resolveQuote.ts, fx.ts (cambi valuta)
 ```
 
 ---
