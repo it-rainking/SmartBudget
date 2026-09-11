@@ -166,6 +166,12 @@ export default function InvestimentiPage() {
                     </p>
                   </div>
                 </div>
+                {summary.currencies.length > 1 && (
+                  <div className="mt-4 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-700 dark:text-amber-400">
+                    Portafoglio in più valute ({summary.currencies.join(', ')}): i totali sommano importi
+                    non convertiti. Valore e P&amp;L complessivi vanno letti con questa avvertenza.
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-700">
                   <span
                     className={`text-xs px-2.5 py-1 rounded-full font-medium ${
