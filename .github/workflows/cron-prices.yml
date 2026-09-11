@@ -1,0 +1,31 @@
+name: Prezzi investimenti
+
+# Lo scheduler dei job non può stare nell'app: vercel.json vale solo su Vercel e
+# su Railway non viene letto. GitHub Actions chiama l'endpoint dall'esterno, così
+# la schedulazione è indipendente da dove gira il deploy.
+#
+# Gli orari di GitHub Actions sono in UTC: la finestra 6-17 copre l'orario di
+# Borsa Italiana (9:00-17:30 CET) sia con l'ora solare sia con l'ora legale.
+on:
+  schedule:
+    - cron: '*/30 6-17 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  fetch-prices:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggiorna i prezzi del portafoglio
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::Configura i secret APP_URL e CRON_SECRET nel repository"
+            exit 1
+          fi
+          # --fail-with-body: un 401/500 deve far fallire il job in modo visibile,
+          # mostrando però il corpo della risposta con il motivo.
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            -X POST "${APP_URL%/}/api/cron/prices" \
+            -H "Authorization: Bearer ${CRON_SECRET}"

@@ -264,6 +264,23 @@ describe('resolveTickerFromCsv', () => {
     expect(resolveTickerFromCsv('BTP26', 'MOT')).toBeNull()
   })
 
+  // Il Simbolo Fineco arriva già con il suffisso di piazza: senza rimuoverlo
+  // Google riceve "BIT:RACE.MI" e Yahoo "RACE.MI.MI", entrambi inesistenti.
+  it('toglie dal simbolo il suffisso di piazza già presente', () => {
+    expect(resolveTickerFromCsv('RACE.MI', 'AFF')).toEqual({ ticker_gf: 'BIT:RACE', ticker_yahoo: 'RACE.MI' })
+    expect(resolveTickerFromCsv('BC.MI', 'AFF')).toEqual({ ticker_gf: 'BIT:BC', ticker_yahoo: 'BC.MI' })
+    expect(resolveTickerFromCsv('2HCA.AS', 'EURONEXTNL')).toEqual({ ticker_gf: 'AMS:2HCA', ticker_yahoo: '2HCA.AS' })
+  })
+
+  it('funziona anche quando il simbolo è già senza suffisso', () => {
+    expect(resolveTickerFromCsv('VWCE', 'MTA')).toEqual({ ticker_gf: 'BIT:VWCE', ticker_yahoo: 'VWCE.MI' })
+  })
+
+  it('non scambia per suffisso un punto che fa parte del ticker', () => {
+    // BRK.B è il ticker intero, ".B" non è una piazza.
+    expect(resolveTickerFromCsv('BRK.B', 'NYSE')).toEqual({ ticker_gf: 'NYSE:BRK.B', ticker_yahoo: 'BRK.B' })
+  })
+
   it('non segnala come sconosciuti i mercati noti ma senza ticker', () => {
     // "Non so cosa sia" e "so cosa è, ma il ticker va messo a mano" sono due
     // messaggi diversi per chi legge il banner dell'import.

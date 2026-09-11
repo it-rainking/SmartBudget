@@ -93,8 +93,30 @@ function normalizeMarket(market: string): string {
     .replace(/[^a-z0-9]/g, '')
 }
 
+// Suffissi di piazza in stile Yahoo. Servono a riconoscerli in coda al simbolo,
+// non a generarli: la generazione usa yahooSuffix della mappa mercati.
+const MARKET_SUFFIXES = new Set([
+  '.MI', '.AS', '.DE', '.L', '.PA', '.BR', '.SW', '.MC', '.VI', '.ST',
+  '.F', '.CO', '.HE', '.LS', '.IR', '.OL', '.WA', '.PR',
+])
+
+/**
+ * Il "Simbolo" dell'export Fineco arriva già con il suffisso di piazza
+ * (`RACE.MI`, `2HCA.AS`). Va tolto prima di comporre i ticker, altrimenti
+ * Google Finance riceve `BIT:RACE.MI` e Yahoo `RACE.MI.MI`: entrambi
+ * inesistenti, e la posizione resta senza prezzo.
+ *
+ * Solo i suffissi noti vengono rimossi: un punto fa parte del ticker in nomi
+ * come `BRK.B`, che deve restare intero.
+ */
+function stripMarketSuffix(symbol: string): string {
+  const dot = symbol.lastIndexOf('.')
+  if (dot <= 0) return symbol
+  return MARKET_SUFFIXES.has(symbol.slice(dot)) ? symbol.slice(0, dot) : symbol
+}
+
 function normalizeSymbol(symbol: string): string {
-  return symbol.trim().toUpperCase().replace(/\s+/g, '')
+  return stripMarketSuffix(symbol.trim().toUpperCase().replace(/\s+/g, ''))
 }
 
 /**
