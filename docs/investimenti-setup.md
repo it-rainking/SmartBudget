@@ -45,9 +45,12 @@ Ordine di precedenza, dal più autorevole:
 
 1. **`isin_ticker_lookup`** — la tabella manuale vince sempre.
 2. **Derivazione da `Simbolo` + `Mercato` del CSV** — il broker ci dà entrambi,
-   quindi non c'è niente da indovinare: `VWCE` + `MTA` → `BIT:VWCE` (Google
-   Finance) e `VWCE.MI` (Yahoo). I ticker dedotti sono elencati nel riquadro
-   verde a fine import: **vanno incollati nella colonna A del Sheet ponte**.
+   quindi non c'è niente da indovinare: `RACE.MI` + `AFF` → `BIT:RACE` (Google
+   Finance) e `RACE.MI` (Yahoo). Il `Simbolo` Fineco arriva già con il suffisso
+   di piazza: viene rimosso prima di comporre i ticker, altrimenti Google
+   riceverebbe `BIT:RACE.MI` e Yahoo `RACE.MI.MI`. I ticker dedotti sono
+   elencati nel riquadro verde a fine import: se usi il Sheet ponte, **vanno
+   incollati nella sua colonna A**.
 3. **Valore già presente sull'asset** — un ticker impostato prima non viene mai
    sovrascritto con un valore vuoto.
 
