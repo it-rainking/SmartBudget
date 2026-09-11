@@ -52,13 +52,22 @@ Ordine di precedenza, dal più autorevole:
    sovrascritto con un valore vuoto.
 
 La derivazione avviene solo per i mercati in tabella (`resolveTicker.ts`: Borsa
-Italiana, Xetra, NYSE/NASDAQ/ARCA/AMEX, Londra, Parigi, Amsterdam, Bruxelles,
-SIX, BME). Su un mercato sconosciuto **non** viene inventato nulla: l'ISIN resta
-non mappato e il mercato viene elencato nel banner, così si può aggiungere la
-riga di lookup a mano (o la mappatura del mercato nel codice).
+Italiana incluso il codice Fineco `AFF`, Xetra, NYSE/NASDAQ/ARCA/AMEX, Londra,
+Euronext Parigi/Amsterdam/Bruxelles con i codici `EURONEXTNL`/`FR`/`BE`, SIX,
+BME). Su un mercato sconosciuto **non** viene inventato nulla: l'ISIN resta non
+mappato e il mercato viene elencato nel banner, così si può aggiungere la riga
+di lookup a mano (o la mappatura del mercato nel codice).
 
-Nessuna derivazione per i titoli quotati in percentuale (obbligazioni): sul MOT
-il "simbolo" Fineco non è un ticker interrogabile da Google Finance.
+Alcuni mercati sono riconosciuti ma **non espongono un ticker utilizzabile**, e
+non compaiono fra quelli "non riconosciuti":
+
+| Mercato | Perché |
+|---|---|
+| `EQUIDUCT` | MTF paneuropeo in duplice quotazione: il simbolo non identifica una piazza di Google Finance, e il listino primario quota spesso in una valuta diversa dal carico — dedurlo darebbe un P&L sbagliato |
+| `MOT`, `EuroTLX`, `ExtraMOT`, `Hi-MTF` | Mercati obbligazionari: il "simbolo" Fineco non è un ticker |
+
+Su questi il ticker va impostato a mano in `isin_ticker_lookup`, scegliendo
+consapevolmente la piazza (e quindi la valuta) con cui confrontare il carico.
 
 Una posizione senza prezzo di mercato non vale zero: viene **valorizzata al
 costo di carico** (P&L 0) e la tabella mostra "al costo" al posto del prezzo.

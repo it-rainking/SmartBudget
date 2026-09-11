@@ -250,6 +250,26 @@ describe('resolveTickerFromCsv', () => {
     expect(isKnownMarket('Borsa Italiana')).toBe(true)
     expect(isKnownMarket('Mercato Ignoto')).toBe(false)
   })
+
+  // Codici osservati in un export Fineco reale.
+  it('mappa i codici mercato usati da Fineco', () => {
+    expect(resolveTickerFromCsv('CUCINELLI', 'AFF')).toEqual({ ticker_gf: 'BIT:CUCINELLI', ticker_yahoo: 'CUCINELLI.MI' })
+    expect(resolveTickerFromCsv('ASML', 'EURONEXTNL')).toEqual({ ticker_gf: 'AMS:ASML', ticker_yahoo: 'ASML.AS' })
+  })
+
+  it('non deriva ticker dai mercati che non ne espongono uno', () => {
+    // Equiduct: stessi titoli in duplice quotazione, il simbolo non identifica
+    // una piazza di Google Finance.
+    expect(resolveTickerFromCsv('AAPL', 'EQUIDUCT')).toBeNull()
+    expect(resolveTickerFromCsv('BTP26', 'MOT')).toBeNull()
+  })
+
+  it('non segnala come sconosciuti i mercati noti ma senza ticker', () => {
+    // "Non so cosa sia" e "so cosa è, ma il ticker va messo a mano" sono due
+    // messaggi diversi per chi legge il banner dell'import.
+    expect(isKnownMarket('EQUIDUCT')).toBe(true)
+    expect(isKnownMarket('MOT')).toBe(true)
+  })
 })
 
 describe('parseAmount', () => {
