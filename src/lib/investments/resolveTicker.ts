@@ -62,7 +62,27 @@ const MARKETS: Record<string, MarketMapping> = {
   zurigo: { gfPrefix: 'SWX', yahooSuffix: '.SW' },
   bme: { gfPrefix: 'BME', yahooSuffix: '.MC' },
   madrid: { gfPrefix: 'BME', yahooSuffix: '.MC' },
+  // Codici osservati negli export Fineco reali.
+  aff: { gfPrefix: 'BIT', yahooSuffix: '.MI' },
+  euronextnl: { gfPrefix: 'AMS', yahooSuffix: '.AS' },
+  euronextfr: { gfPrefix: 'EPA', yahooSuffix: '.PA' },
+  euronextbe: { gfPrefix: 'EBR', yahooSuffix: '.BR' },
 }
+
+/**
+ * Mercati riconosciuti ma da cui non si ricava un ticker interrogabile.
+ *
+ * Equiduct è un MTF paneuropeo su cui gli stessi titoli sono negoziati in
+ * duplice quotazione: il simbolo non identifica una piazza di Google Finance, e
+ * il prezzo del listino primario è spesso in un'altra valuta rispetto al
+ * carico, quindi dedurlo darebbe un P&L sbagliato. MOT ed EuroTLX sono i
+ * mercati obbligazionari: lì il "simbolo" Fineco non è un ticker.
+ *
+ * Sono elencati esplicitamente per non farli comparire fra i "mercati non
+ * riconosciuti": il ticker va impostato a mano in isin_ticker_lookup, e questa
+ * è un'informazione diversa da "non so cosa sia questo mercato".
+ */
+const UNQUOTABLE_MARKETS = new Set(['equiduct', 'mot', 'eurotlx', 'tlx', 'himtf', 'hi_mtf', 'extramot'])
 
 function normalizeMarket(market: string): string {
   return market
@@ -94,7 +114,10 @@ export function resolveTickerFromCsv(
   if (options.percentQuoted) return null
   if (!symbol?.trim() || !market?.trim()) return null
 
-  const mapping = MARKETS[normalizeMarket(market)]
+  const normalized = normalizeMarket(market)
+  if (UNQUOTABLE_MARKETS.has(normalized)) return null
+
+  const mapping = MARKETS[normalized]
   if (!mapping) return null
 
   const cleanSymbol = normalizeSymbol(symbol)
@@ -106,7 +129,14 @@ export function resolveTickerFromCsv(
   }
 }
 
-/** Mercati riconosciuti, per i messaggi diagnostici dell'import. */
+/**
+ * Mercati che sappiamo cosa sono, per i messaggi diagnostici dell'import:
+ * include sia quelli da cui deriviamo il ticker sia quelli per cui va
+ * impostato a mano. Serve a non segnalare come "sconosciuto" un mercato che
+ * conosciamo benissimo ma che semplicemente non espone un ticker.
+ */
 export function isKnownMarket(market: string | undefined): boolean {
-  return !!market?.trim() && normalizeMarket(market) in MARKETS
+  if (!market?.trim()) return false
+  const normalized = normalizeMarket(market)
+  return normalized in MARKETS || UNQUOTABLE_MARKETS.has(normalized)
 }
