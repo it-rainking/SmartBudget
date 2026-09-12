@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { isSheetStale, parseSheetQuotes } from '@/lib/prices/googleSheets'
 import { resolveAssetQuote } from '@/lib/prices/resolveQuote'
+import { parseChartResponse } from '@/lib/prices/yahooChart'
 import type { PriceProvider } from '@/lib/prices/types'
 
 describe('parseSheetQuotes', () => {
@@ -69,5 +70,40 @@ describe('resolveAssetQuote', () => {
     const result = await resolveAssetQuote('BIT:UNKNOWN', null, sheets, yahoo)
     expect(result).toBeNull()
     expect(yahoo.getQuote).not.toHaveBeenCalled()
+  })
+})
+
+describe('parseChartResponse', () => {
+  const chartJson = (meta: Record<string, unknown>) => ({ chart: { result: [{ meta }] } })
+
+  it('estrae prezzo, valuta e variazione dal chiuso precedente', () => {
+    expect(
+      parseChartResponse(chartJson({ regularMarketPrice: 110, chartPreviousClose: 100, currency: 'USD' }))
+    ).toEqual({ price: 110, changePct: 10, currency: 'USD' })
+  })
+
+  it('accetta previousClose quando chartPreviousClose manca', () => {
+    const quote = parseChartResponse(chartJson({ regularMarketPrice: 90, previousClose: 100, currency: 'EUR' }))
+    expect(quote?.changePct).toBeCloseTo(-10, 10)
+  })
+
+  it('lascia null la variazione senza chiuso precedente utilizzabile', () => {
+    expect(parseChartResponse(chartJson({ regularMarketPrice: 50, chartPreviousClose: 0 }))).toEqual({
+      price: 50,
+      changePct: null,
+      currency: 'EUR',
+    })
+  })
+
+  it('usa EUR quando la valuta manca', () => {
+    expect(parseChartResponse(chartJson({ regularMarketPrice: 50 }))?.currency).toBe('EUR')
+  })
+
+  it('ritorna null su risposte senza prezzo utilizzabile', () => {
+    expect(parseChartResponse(chartJson({ regularMarketPrice: 'n/d' }))).toBeNull()
+    expect(parseChartResponse(chartJson({}))).toBeNull()
+    expect(parseChartResponse({ chart: { result: [] } })).toBeNull()
+    expect(parseChartResponse({})).toBeNull()
+    expect(parseChartResponse(null)).toBeNull()
   })
 })
