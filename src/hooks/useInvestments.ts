@@ -51,27 +51,41 @@ export function useImportCsv() {
   })
 }
 
-// Prezzo inserito a mano per le posizioni senza quotazione automatica (tipico:
+export interface ManualPriceInput {
+  assetId: string
+  price: number
+  pricedAt: string
+  note?: string | null
+}
+
+// Prezzi inseriti a mano per le posizioni senza quotazione automatica (tipico:
 // titoli di stato sul MOT). Scrive direttamente via client browser come gli
 // altri hook di dominio: la tabella è per-utente e protetta da RLS, non serve
 // passare da una API route.
-export function useSetManualPrice() {
+//
+// L'input è un array anche quando la riga è una sola: l'aggiornamento
+// periodico riguarda tutte le posizioni insieme, e un solo upsert evita che
+// metà dei prezzi entri e metà no se la connessione cade a metà strada.
+export function useSetManualPrices() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (input: { assetId: string; price: number; pricedAt: string; note?: string | null }) => {
+    mutationFn: async (inputs: ManualPriceInput[]) => {
+      if (inputs.length === 0) return
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Sessione scaduta: rifai il login.')
 
+      const now = new Date().toISOString()
       const { error } = await supabase.from('manual_prices').upsert(
-        {
+        inputs.map((input) => ({
           user_id: user.id,
           asset_id: input.assetId,
           price: input.price,
           priced_at: input.pricedAt,
           note: input.note ?? null,
-          updated_at: new Date().toISOString(),
-        },
+          updated_at: now,
+        })),
         { onConflict: 'user_id,asset_id' }
       )
       if (error) throw new Error(error.message)

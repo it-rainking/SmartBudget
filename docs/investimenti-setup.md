@@ -222,6 +222,18 @@ precedenza e quello manuale resta come storia.
 Per i titoli quotati in percentuale del nominale va inserita **la percentuale**
 (es. `96,44`), non il controvalore: al resto pensa `price_divisor`.
 
+**Il giro periodico.** Quando uno di questi prezzi manca o supera i 30 giorni,
+in cima alla pagina compare un banner ambra con il pulsante *Aggiorna prezzi*.
+Apre un pannello con tutte le posizioni interessate e una **query già pronta da
+copiare**: la si incolla in un assistente (Perplexity, o qualunque altro) o in un
+motore di ricerca, si riportano i prezzi nei campi, si sceglie la data a cui si
+riferiscono e — volendo — la fonte, e si salva in un colpo solo. Le righe
+lasciate vuote restano come sono.
+
+La query chiede di proposito **prezzo, valuta, data e unità di quotazione**: un
+numero senza quelle informazioni non è verificabile, e non si saprebbe in quale
+unità inserirlo.
+
 Migrazione DB: `supabase/migrate_investments_manual_prices.sql`.
 
 ### Se l'import non va a buon fine

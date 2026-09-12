@@ -202,7 +202,16 @@ La tabella posizioni è divisa in tab come il portafoglio Fineco: **Tutte**, **E
 
 Ogni tab mostra i propri totali (controvalore, P&L, peso sul portafoglio) calcolati **sui valori convertiti** in valuta di riferimento, con le posizioni prive di cambio escluse — stessa regola dei totali di portafoglio.
 
-Le posizioni con `price_origin` diverso da `market` espongono un pulsante *inserisci* / *aggiorna* che apre il modal del prezzo manuale (`ManualPriceModal`, componente separato così il form si azzera a ogni apertura). Hook: `useSetManualPrice` / `useDeleteManualPrice` in `useInvestments.ts`, che scrivono via client browser (tabella per-utente protetta da RLS, nessuna API route di mezzo).
+### Prezzi manuali: promemoria e aggiornamento in blocco
+
+Le posizioni con `price_origin` diverso da `market` espongono un pulsante *inserisci* / *aggiorna* nella colonna del prezzo. Sopra i totali compare inoltre un banner che le riassume:
+
+- **ambra + "Aggiorna prezzi"** quando almeno una non ha prezzo o ce l'ha più vecchio di `MANUAL_PRICE_STALE_DAYS` (30 giorni);
+- **neutro** quando sono tutte aggiornate, con l'età del prezzo più vecchio.
+
+Entrambi i percorsi aprono lo stesso componente, `ManualPricesPanel`: riceve una lista di posizioni — una sola dalla riga, tutte quelle da rinfrescare dal banner. Il pannello genera una **query pronta da copiare** con gli ISIN, che chiede esplicitamente prezzo, valuta, data e unità di quotazione (un numero nudo non sarebbe verificabile né inseribile senza ambiguità); si compilano i campi, si scelgono data e fonte comuni, e si salva tutto in un unico upsert. Le righe lasciate vuote non vengono toccate: in un giro su nove titoli è normale non recuperarli tutti.
+
+Hook: `useSetManualPrices` (input sempre array, anche per una riga sola) e `useDeleteManualPrice` in `useInvestments.ts`, che scrivono via client browser — tabella per-utente protetta da RLS, nessuna API route di mezzo.
 
 ```
 ```
