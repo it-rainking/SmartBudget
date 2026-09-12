@@ -22,32 +22,77 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const supabase = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  // Le env vanno verificate prima di creare il client: con una chiave mancante
+  // createClient non protesta, ma ogni query fallisce in silenzio e il job
+  // sembrerebbe girare a vuoto su un portafoglio vuoto.
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceRoleKey) {
+    const missing = [
+      !supabaseUrl && 'NEXT_PUBLIC_SUPABASE_URL',
+      !serviceRoleKey && 'SUPABASE_SERVICE_ROLE_KEY',
+    ].filter(Boolean)
+    return NextResponse.json(
+      { error: `Configurazione incompleta: ${missing.join(', ')} non impostata/e nell'ambiente` },
+      { status: 500 }
+    )
+  }
 
-  const { data: allAssets } = await supabase
+  const supabase = createClient<Database>(supabaseUrl, serviceRoleKey)
+
+  const { data: allAssets, error: assetsError } = await supabase
     .from('assets')
     .select('id, ticker_gf, ticker_yahoo, currency')
+
+  // Una lettura fallita non è un portafoglio vuoto: senza questo controllo un
+  // errore di credenziali o di rete uscirebbe come { ok: true, updated: 0 },
+  // indistinguibile da un giro andato a buon fine con niente da aggiornare.
+  if (assetsError) {
+    return NextResponse.json(
+      { error: `Lettura degli asset fallita: ${assetsError.message}` },
+      { status: 500 }
+    )
+  }
 
   // Basta uno dei due ticker: un asset con il solo ticker Yahoo (ticker dedotto
   // dal CSV, o mercato non coperto dal Sheet ponte) deve comunque ricevere il
   // prezzo dal fallback.
   const assets = (allAssets ?? []).filter((a) => a.ticker_gf || a.ticker_yahoo)
 
-  if (!assets.length) return NextResponse.json({ ok: true, updated: 0 })
-
-  let sheetsProvider: PriceProvider | null = null
-  try {
-    sheetsProvider = await createGoogleSheetsProvider()
-  } catch {
-    // Sheet ponte non configurato (env mancanti) o Sheets API non raggiungibile:
-    // si prosegue con il solo fallback Yahoo per tutti gli asset.
-    sheetsProvider = null
+  // Portafoglio davvero senza asset quotabili: `total` distingue questo caso da
+  // un errore, e `assets_total` dice se il problema è che mancano i ticker.
+  if (!assets.length) {
+    return NextResponse.json({
+      ok: true,
+      updated: 0,
+      total: 0,
+      assets_total: (allAssets ?? []).length,
+    })
   }
 
-  const fxUpdated = await refreshFxRates(supabase, allAssets ?? [], sheetsProvider)
+  let sheetsProvider: PriceProvider | null = null
+  let sheetError: string | null = null
+  try {
+    sheetsProvider = await createGoogleSheetsProvider()
+  } catch (e) {
+    // Sheet ponte non configurato (env mancanti) o Sheets API non raggiungibile:
+    // si prosegue con il solo fallback Yahoo per tutti gli asset. Il motivo entra
+    // nella risposta: sapere su quale delle due sorgenti si sta contando è la
+    // prima cosa da guardare quando non arriva nessun prezzo.
+    sheetsProvider = null
+    sheetError = e instanceof Error ? e.message : String(e)
+  }
+
+  let fxUpdated = { updated: 0, total: 0 }
+  let fxError: string | null = null
+  try {
+    fxUpdated = await refreshFxRates(supabase, allAssets, sheetsProvider)
+  } catch (e) {
+    // I cambi non devono far saltare i prezzi: si riportano nella risposta e il
+    // giro prosegue, così un portafoglio in euro resta aggiornato comunque.
+    fxError = e instanceof Error ? e.message : String(e)
+  }
+
 
   const snapshots: Database['public']['Tables']['price_snapshots']['Insert'][] = []
   for (const asset of assets) {
@@ -73,6 +118,9 @@ export async function POST(req: Request) {
     total: assets.length,
     fx_updated: fxUpdated.updated,
     fx_total: fxUpdated.total,
+    price_source: sheetsProvider ? 'gsheet+yahoo' : 'yahoo',
+    ...(sheetError ? { sheet_error: sheetError } : {}),
+    ...(fxError ? { fx_error: fxError } : {}),
   })
 }
 
@@ -87,7 +135,9 @@ async function refreshFxRates(
   assets: { currency: string }[],
   sheetsProvider: PriceProvider | null
 ): Promise<{ updated: number; total: number }> {
-  const { data: settingsRows } = await supabase.from('settings').select('currency')
+  const { data: settingsRows, error: settingsError } = await supabase.from('settings').select('currency')
+  if (settingsError) throw new Error(`Lettura delle valute di conto fallita: ${settingsError.message}`)
+
   const pairs = fxPairsNeeded(
     assets.map((a) => a.currency),
     (settingsRows ?? []).map((s) => s.currency)
@@ -109,7 +159,10 @@ async function refreshFxRates(
   }
 
   if (rows.length > 0) {
-    await supabase.from('fx_rates').upsert(rows, { onConflict: 'base,quote' })
+    const { error } = await supabase.from('fx_rates').upsert(rows, { onConflict: 'base,quote' })
+    // Tipicamente: migrazione fx non ancora applicata. Vale la pena dirlo — senza
+    // cambi il riepilogo lascia le posizioni in valuta estera fuori dai totali.
+    if (error) throw new Error(`Scrittura dei cambi fallita: ${error.message}`)
   }
   return { updated: rows.length, total: pairs.length }
 }
