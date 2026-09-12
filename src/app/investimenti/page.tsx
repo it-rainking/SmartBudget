@@ -433,19 +433,9 @@ export default function InvestimentiPage() {
       <div className="space-y-6">
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Investimenti</h1>
-            <p className="text-zinc-600 dark:text-zinc-400">Portafoglio titoli importato da Fineco, prezzi da Google Finance</p>
-          </div>
-          <a
-            href="https://www.google.com/finance/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400 hover:underline"
-          >
-            Apri in Google Finance ↗
-          </a>
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Investimenti</h1>
+          <p className="text-zinc-600 dark:text-zinc-400">Portafoglio titoli importato da Fineco, prezzi da Google Finance</p>
         </div>
 
         {summaryError && (
