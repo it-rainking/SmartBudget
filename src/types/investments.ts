@@ -2,6 +2,7 @@
 
 export type AssetClass = 'etf_equity' | 'etf_bond' | 'etf_thematic' | 'stock' | 'bond' | 'cash' | 'other'
 export type PriceSource = 'gsheet' | 'yahoo'
+export type PriceOrigin = 'market' | 'manual' | 'cost'
 
 export interface Asset {
   id: string
@@ -56,8 +57,16 @@ export interface InvestmentPosition {
   avg_cost: number
   imported_at: string
   last_price: number | null
-  /** true quando non esiste un prezzo di mercato: la posizione è valorizzata al costo. */
-  priced_at_cost: boolean
+  /**
+   * Da dove viene il prezzo usato per il controvalore, in ordine di precedenza:
+   * `market` (snapshot del cron), `manual` (inserito dall'utente per le
+   * posizioni senza quotazione), `cost` (nessuno dei due: si usa il carico).
+   */
+  price_origin: PriceOrigin
+  /** Prezzo inserito a mano, se presente — indipendente da quale sia stato usato. */
+  manual_price: number | null
+  /** Data a cui il prezzo manuale si riferisce (YYYY-MM-DD). */
+  manual_priced_at: string | null
   change_pct: number | null
   price_source: PriceSource | null
   fetched_at: string | null
@@ -73,6 +82,18 @@ export interface InvestmentPosition {
   cost_base: number | null
   /** P&L assoluto nella valuta di riferimento; null se il cambio manca. */
   pnl_abs_base: number | null
+}
+
+/** Prezzo inserito a mano per una posizione senza quotazione automatica. */
+export interface ManualPrice {
+  id: string
+  user_id: string
+  asset_id: string
+  price: number
+  priced_at: string
+  note: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface AssetClassBreakdown {

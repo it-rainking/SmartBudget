@@ -738,6 +738,54 @@ export type Database = {
         }
         Relationships: []
       }
+      manual_prices: {
+        Row: {
+          id: string
+          user_id: string
+          asset_id: string
+          price: number
+          priced_at: string
+          note: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          asset_id: string
+          price: number
+          priced_at?: string
+          note?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          asset_id?: string
+          price?: number
+          priced_at?: string
+          note?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'manual_prices_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'manual_prices_asset_id_fkey'
+            columns: ['asset_id']
+            isOneToOne: false
+            referencedRelation: 'assets'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       recurring_expenses: {
         Row: {
           id: string
@@ -829,6 +877,8 @@ export type Database = {
           change_pct: number | null
           price_source: 'gsheet' | 'yahoo' | null
           fetched_at: string | null
+          manual_price: number | null
+          manual_priced_at: string | null
         }[]
       }
     }

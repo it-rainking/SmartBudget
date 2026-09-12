@@ -1,10 +1,10 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useToast } from '@/components/Toast'
 import { useSettings } from '@/hooks/useSettings'
-import { useImportCsv, useInvestments } from '@/hooks/useInvestments'
+import { useDeleteManualPrice, useImportCsv, useInvestments, useSetManualPrice } from '@/hooks/useInvestments'
 import { formatCurrency } from '@/lib/utils'
 import type { AssetClass, ImportDiff, InvestmentPosition } from '@/types/investments'
 
@@ -28,9 +28,27 @@ const ASSET_CLASS_COLORS: Record<AssetClass, string> = {
   other: '#94a3b8',
 }
 
+// Tab per tipo di strumento, come nel portafoglio Fineco. Gli ETF stanno in un
+// tab solo perché è così che si ragiona quando si guarda l'asset allocation
+// ("quanto ho in ETF"), ma dentro restano separati per sotto-classe: un ETF
+// obbligazionario e uno azionario non sono la stessa cosa.
+const TABS = [
+  { key: 'all', label: 'Tutte', classes: null },
+  { key: 'etf', label: 'ETF', classes: ['etf_equity', 'etf_bond', 'etf_thematic'] },
+  { key: 'stock', label: 'Azioni', classes: ['stock'] },
+  { key: 'bond', label: 'Obbligazioni', classes: ['bond'] },
+  { key: 'other', label: 'Altro', classes: ['cash', 'other'] },
+] as const satisfies readonly { key: string; label: string; classes: readonly AssetClass[] | null }[]
+
+type TabKey = (typeof TABS)[number]['key']
+
 const POSITIONS_STALE_DAYS = 30
 
 type SortKey = 'weight' | 'name' | 'pnl'
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10)
+}
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -44,6 +62,154 @@ function daysSince(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
 }
 
+// Form del prezzo manuale. Componente separato perché il suo stato deve
+// azzerarsi a ogni apertura: montandolo solo quando serve, non c'è da
+// sincronizzare i campi con la posizione selezionata.
+function ManualPriceModal({
+  position,
+  onClose,
+}: {
+  position: InvestmentPosition
+  onClose: () => void
+}) {
+  const setManualPrice = useSetManualPrice()
+  const deleteManualPrice = useDeleteManualPrice()
+  const { showToast } = useToast()
+
+  const [price, setPrice] = useState(position.manual_price !== null ? String(position.manual_price) : '')
+  const [pricedAt, setPricedAt] = useState(position.manual_priced_at ?? todayIso())
+  const [note, setNote] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const isPercentQuoted = position.price_divisor !== 1
+  const parsed = Number(price.replace(',', '.'))
+  const valid = price.trim() !== '' && isFinite(parsed) && parsed > 0
+
+  async function handleSave() {
+    if (!valid) {
+      setError('Inserisci un prezzo maggiore di zero.')
+      return
+    }
+    setError(null)
+    try {
+      await setManualPrice.mutateAsync({
+        assetId: position.asset_id,
+        price: parsed,
+        pricedAt,
+        note: note.trim() || null,
+      })
+      showToast('Prezzo aggiornato', 'success')
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Errore nel salvataggio')
+    }
+  }
+
+  async function handleDelete() {
+    setError(null)
+    try {
+      await deleteManualPrice.mutateAsync(position.asset_id)
+      showToast('Prezzo manuale rimosso', 'success')
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Errore nella rimozione')
+    }
+  }
+
+  const busy = setManualPrice.isPending || deleteManualPrice.isPending
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+      <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-100 dark:border-zinc-700 w-full max-w-md p-6 space-y-4">
+        <div>
+          <h3 className="text-base font-semibold text-zinc-800 dark:text-zinc-200">Prezzo manuale</h3>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{position.name}</p>
+          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">{position.isin}</p>
+        </div>
+
+        <div className="px-3 py-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg text-xs text-sky-700 dark:text-sky-400">
+          {isPercentQuoted
+            ? 'Titolo quotato in percentuale del nominale: inserisci la percentuale (es. 96,44), non il controvalore.'
+            : `Prezzo per unità, in ${position.currency}.`}
+        </div>
+
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-sm text-zinc-600 dark:text-zinc-400">Prezzo</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder={isPercentQuoted ? '96,44' : '100,00'}
+              autoFocus
+              className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-sm text-zinc-600 dark:text-zinc-400">Data del prezzo</span>
+            <input
+              type="date"
+              value={pricedAt}
+              max={todayIso()}
+              onChange={(e) => setPricedAt(e.target.value)}
+              className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-sm text-zinc-600 dark:text-zinc-400">Nota (facoltativa)</span>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="es. prezzo di chiusura Borsa Italiana"
+              className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
+            />
+          </label>
+        </div>
+
+        {error && (
+          <div className="px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
+            {error}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-2 pt-1">
+          {position.manual_price !== null ? (
+            <button
+              onClick={handleDelete}
+              disabled={busy}
+              className="text-sm text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+            >
+              Rimuovi
+            </button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              disabled={busy}
+              className="px-4 py-2 text-sm rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50"
+            >
+              Annulla
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={busy || !valid}
+              className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {busy ? 'Salvataggio...' : 'Salva'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function InvestimentiPage() {
   const { data: settings } = useSettings()
   const { data: summary, isLoading, error: summaryError } = useInvestments()
@@ -52,6 +218,8 @@ export default function InvestimentiPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [sortKey, setSortKey] = useState<SortKey>('weight')
+  const [activeTab, setActiveTab] = useState<TabKey>('all')
+  const [priceModal, setPriceModal] = useState<InvestmentPosition | null>(null)
   const [lastImportResult, setLastImportResult] = useState<{ diff: ImportDiff; warnings: string[] } | null>(null)
   // L'errore di import resta a video: il toast dura 3 secondi e i messaggi del
   // parser (colonne rilevate, formato del file) servono a capire cosa correggere.
@@ -67,11 +235,43 @@ export default function InvestimentiPage() {
   const fmtIn = (n: number, cur: string) => formatCurrency(n, cur)
 
   const positions = summary?.positions ?? []
-  const sortedPositions = [...positions].sort((a, b) => {
+
+  // Un tab senza posizioni non viene mostrato: meglio due tab pieni che cinque
+  // di cui tre vuoti. "Tutte" resta sempre, anche a portafoglio vuoto.
+  const visibleTabs = TABS.filter(
+    (t) => t.classes === null || positions.some((p) => (t.classes as readonly AssetClass[]).includes(p.asset_class))
+  )
+  const currentTab = visibleTabs.find((t) => t.key === activeTab) ?? visibleTabs[0]
+  const tabClasses = currentTab?.classes ?? null
+  const tabPositions = tabClasses
+    ? positions.filter((p) => (tabClasses as readonly AssetClass[]).includes(p.asset_class))
+    : positions
+
+  const sortedPositions = [...tabPositions].sort((a, b) => {
     if (sortKey === 'name') return a.name.localeCompare(b.name)
     if (sortKey === 'pnl') return b.pnl_pct - a.pnl_pct
     return b.weight_pct - a.weight_pct
   })
+
+  // Sul tab ETF le righe restano raggruppate per sotto-classe: senza quella
+  // separazione "ETF" diventa un calderone in cui azionario e obbligazionario
+  // si confondono.
+  const groupedPositions: { label: string | null; rows: InvestmentPosition[] }[] =
+    currentTab?.key === 'etf'
+      ? (['etf_equity', 'etf_bond', 'etf_thematic'] as const)
+          .map((cls) => ({
+            label: ASSET_CLASS_LABELS[cls],
+            rows: sortedPositions.filter((p) => p.asset_class === cls),
+          }))
+          .filter((g) => g.rows.length > 0)
+      : [{ label: null, rows: sortedPositions }]
+
+  // Totali del tab, calcolati sui valori già convertiti: le posizioni senza
+  // cambio restano fuori, come nei totali di portafoglio.
+  const tabMarketValue = tabPositions.reduce((sum, p) => sum + (p.market_value_base ?? 0), 0)
+  const tabCost = tabPositions.reduce((sum, p) => sum + (p.cost_base ?? 0), 0)
+  const tabPnlAbs = tabMarketValue - tabCost
+  const tabWeight = tabPositions.reduce((sum, p) => sum + p.weight_pct, 0)
 
   // Variazione del giorno sui valori già convertiti: le posizioni senza cambio
   // non entrano nel totale, quindi non devono entrare neanche qui.
@@ -246,8 +446,41 @@ export default function InvestimentiPage() {
             {/* Tabella posizioni */}
             {positions.length > 0 && (
               <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-100 dark:border-zinc-700 overflow-hidden">
-                <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-700 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Posizioni</h3>
+                <div className="px-6 pt-4 border-b border-zinc-100 dark:border-zinc-700">
+                  <div className="flex gap-1 overflow-x-auto -mb-px">
+                    {visibleTabs.map((t) => {
+                      const isActive = currentTab?.key === t.key
+                      return (
+                        <button
+                          key={t.key}
+                          onClick={() => setActiveTab(t.key)}
+                          className={`whitespace-nowrap px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                            isActive
+                              ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400'
+                              : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
+                          }`}
+                        >
+                          {t.label}
+                          <span className="ml-1.5 text-xs text-zinc-400 dark:text-zinc-500">
+                            {t.classes === null
+                              ? positions.length
+                              : positions.filter((p) => (t.classes as readonly AssetClass[]).includes(p.asset_class)).length}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-700 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+                    <span className="font-semibold text-zinc-800 dark:text-zinc-200">{fmt(tabMarketValue)}</span>
+                    <span className={pnlColor(tabPnlAbs)}>
+                      {fmt(tabPnlAbs)} ({tabCost > 0 ? ((tabPnlAbs / tabCost) * 100).toFixed(2) : '0.00'}%)
+                    </span>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {tabWeight.toFixed(1)}% del portafoglio
+                    </span>
+                  </div>
                   <div className="flex gap-1">
                     {([
                       { key: 'weight', label: 'Peso' },
@@ -280,39 +513,69 @@ export default function InvestimentiPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-50 dark:divide-zinc-700/50">
-                      {sortedPositions.map((p: InvestmentPosition) => (
-                        <tr key={p.holding_id} className="hover:bg-zinc-50 dark:hover:bg-zinc-700/30">
-                          <td className="px-4 py-2.5">
-                            <div className="font-medium text-zinc-800 dark:text-zinc-200">{p.name}</div>
-                            <div className="text-xs text-zinc-400 dark:text-zinc-500">
-                              {p.ticker_gf || 'ticker non mappato'} · {p.currency}
-                              {p.price_divisor !== 1 && ' · quotato in % del nominale'}
-                              {p.fx_rate === null && ' · cambio non disponibile'}
-                              {p.fx_rate !== null && p.fx_rate !== 1 &&
-                                ` · ${fmt(p.market_value_base!)} al cambio ${p.fx_rate.toFixed(4)}`}
-                            </div>
-                          </td>
-                          <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">{p.quantity}</td>
-                          <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">{fmtIn(p.avg_cost, p.currency)}</td>
-                          <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
-                            {p.priced_at_cost ? (
-                              <span
-                                className="text-amber-600 dark:text-amber-400"
-                                title="Nessun prezzo di mercato disponibile: la posizione è valorizzata al costo di carico"
+                      {groupedPositions.map((group) => (
+                        <Fragment key={group.label ?? 'all'}>
+                          {group.label && (
+                            <tr className="bg-zinc-50/70 dark:bg-zinc-700/20">
+                              <td
+                                colSpan={6}
+                                className="px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400"
                               >
-                                al costo
-                              </span>
-                            ) : (
-                              fmtIn(p.last_price!, p.currency)
-                            )}
-                          </td>
-                          <td className={`px-4 py-2.5 font-medium whitespace-nowrap ${pnlColor(p.pnl_abs)}`}>
-                            {fmtIn(p.pnl_abs, p.currency)} ({p.pnl_pct.toFixed(1)}%)
-                          </td>
-                          <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
-                            {p.weight_pct.toFixed(1)}%
-                          </td>
-                        </tr>
+                                {group.label}
+                                <span className="ml-1.5 font-normal normal-case tracking-normal">
+                                  · {group.rows.length}
+                                </span>
+                              </td>
+                            </tr>
+                          )}
+                          {group.rows.map((p: InvestmentPosition) => (
+                            <tr key={p.holding_id} className="hover:bg-zinc-50 dark:hover:bg-zinc-700/30">
+                              <td className="px-4 py-2.5">
+                                <div className="font-medium text-zinc-800 dark:text-zinc-200">{p.name}</div>
+                                <div className="text-xs text-zinc-400 dark:text-zinc-500">
+                                  {p.ticker_gf || 'ticker non mappato'} · {p.currency}
+                                  {p.price_divisor !== 1 && ' · quotato in % del nominale'}
+                                  {p.fx_rate === null && ' · cambio non disponibile'}
+                                  {p.fx_rate !== null && p.fx_rate !== 1 &&
+                                    ` · ${fmt(p.market_value_base!)} al cambio ${p.fx_rate.toFixed(4)}`}
+                                </div>
+                              </td>
+                              <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">{p.quantity}</td>
+                              <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">{fmtIn(p.avg_cost, p.currency)}</td>
+                              <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
+                                {p.price_origin === 'market' && fmtIn(p.last_price!, p.currency)}
+                                {p.price_origin === 'manual' && (
+                                  <span className="text-sky-700 dark:text-sky-400" title={`Prezzo inserito a mano il ${formatDateTime(p.manual_priced_at!)}`}>
+                                    {fmtIn(p.manual_price!, p.currency)}
+                                    <span className="ml-1 text-xs">· manuale</span>
+                                  </span>
+                                )}
+                                {p.price_origin === 'cost' && (
+                                  <span
+                                    className="text-amber-600 dark:text-amber-400"
+                                    title="Nessun prezzo di mercato disponibile: la posizione è valorizzata al costo di carico"
+                                  >
+                                    al costo
+                                  </span>
+                                )}
+                                {p.price_origin !== 'market' && (
+                                  <button
+                                    onClick={() => setPriceModal(p)}
+                                    className="ml-2 text-xs text-emerald-700 dark:text-emerald-400 hover:underline"
+                                  >
+                                    {p.price_origin === 'manual' ? 'aggiorna' : 'inserisci'}
+                                  </button>
+                                )}
+                              </td>
+                              <td className={`px-4 py-2.5 font-medium whitespace-nowrap ${pnlColor(p.pnl_abs)}`}>
+                                {fmtIn(p.pnl_abs, p.currency)} ({p.pnl_pct.toFixed(1)}%)
+                              </td>
+                              <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
+                                {p.weight_pct.toFixed(1)}%
+                              </td>
+                            </tr>
+                          ))}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -426,6 +689,8 @@ export default function InvestimentiPage() {
           </>
         )}
       </div>
+
+      {priceModal && <ManualPriceModal position={priceModal} onClose={() => setPriceModal(null)} />}
     </DashboardLayout>
   )
 }

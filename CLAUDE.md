@@ -95,6 +95,7 @@ Tutte le tabelle usano RLS con policy `user_id = auth.uid()`.
 | `price_snapshots` | asset_id (FK→assets), price, change_pct, currency, source (gsheet/yahoo), fetched_at | Scritto solo dal cron `/api/cron/prices` (service role) |
 | `isin_ticker_lookup` | isin (PK), ticker_gf?, ticker_yahoo?, name?, asset_class? | Tabella globale (non per-utente) di riferimento ISIN→ticker, manutenuta manualmente |
 | `fx_rates` | base, quote (PK composita), rate, source (gsheet/yahoo), fetched_at | Cambi valuta, tabella globale (non per-utente): una riga per coppia aggiornata in place dal cron `/api/cron/prices` (service role), letta da `/api/investments/summary` |
+| `manual_prices` | user_id, asset_id (FK→assets), price, priced_at, note? | Prezzo inserito a mano dalla pagina `/investimenti` per le posizioni senza quotazione automatica (titoli di stato sul MOT). Una riga per (utente, asset), UNIQUE, aggiornata in place |
 | `recurring_expenses` | name, category_id?, subcategory_id?, amount, day_of_month, payment_method?, notes?, start_date, is_active | Modello di spesa ricorrente, UI in `/spese-ricorrenti`; le occorrenze generate sono normali righe in `transactions` con `recurring_expense_id` valorizzato |
 
 ### Funzioni RPC
@@ -111,7 +112,16 @@ Join holdings↔assets↔ultimo price_snapshot (LATERAL) in una sola query; usat
 
 **Valute**: le posizioni in valuta diversa da `settings.currency` vengono convertite prima di entrare nei totali, usando i cambi che il cron prezzi salva in `fx_rates` (stesse due sorgenti dei prezzi: `CURRENCY:USDEUR` sul Sheet ponte, `USDEUR=X` su Yahoo). Ogni `InvestmentPosition` porta i valori nella propria valuta più `fx_rate`/`market_value_base`/`cost_base`/`pnl_abs_base`; totali, pesi e ripartizione per classe sono calcolati sui valori convertiti. Se il cambio di una valuta manca, `fx_rate` è `null`, quelle posizioni restano **fuori** dai totali (peso 0%) e la valuta finisce in `InvestmentSummary.unconverted_currencies`, che la pagina segnala — mai una somma di valute diverse. `base_currency` è la valuta dei totali, `fx_as_of` la data del cambio più vecchio usato. Migrazione DB: `supabase/migrate_investments_fx.sql`.
 
-**Controvalore**: sempre `quantità × prezzo / assets.price_divisor`. Il divisore vale 1 per azioni/ETF e 100 per i titoli quotati in percentuale del nominale (obbligazioni), dove la "quantità" Fineco è il valore nominale. Una posizione senza `price_snapshot` è valorizzata al costo di carico (`priced_at_cost: true`), non a zero. Migrazione DB: `supabase/migrate_investments_bond_quotation.sql`.
+**Sorgenti prezzi**: il Sheet ponte è opzionale (senza `GSHEET_ID` il cron risponde con `sheet_error` e prosegue). Yahoo ha due canali in cascata: `quote` di `yahoo-finance2`, che dipende da un flusso cookie + crumb, e — quando quello non risponde — l'endpoint `chart`, che ne fa a meno (`src/lib/prices/yahooChart.ts`). Entrambi loggano con prefisso `[yahoo]` / `[yahoo:chart]`, successi di chart compresi: è così che si capisce quale canale ha servito un giro del cron.
+
+**Controvalore**: sempre `quantità × prezzo / assets.price_divisor`. Il divisore vale 1 per azioni/ETF e 100 per i titoli quotati in percentuale del nominale (obbligazioni), dove la "quantità" Fineco è il valore nominale. Migrazione DB: `supabase/migrate_investments_bond_quotation.sql`.
+
+**Quale prezzo viene usato** (`InvestmentPosition.price_origin`), in ordine di precedenza:
+1. `market` — ultimo `price_snapshot` scritto dal cron;
+2. `manual` — riga in `manual_prices`, inserita dall'utente per le posizioni senza quotazione automatica;
+3. `cost` — nessuno dei due: la posizione è valorizzata al costo di carico, non a zero (a zero sparirebbe dal totale mostrando una perdita del 100% mai avvenuta).
+
+Lo snapshot di mercato vince sul manuale perché è automatico e fresco: un prezzo scritto a mano mesi fa e dimenticato non deve coprire il dato reale quando questo esiste. Il prezzo manuale va inserito **nella stessa unità del prezzo di mercato**: per i titoli quotati in percentuale del nominale è la percentuale (es. 96,44), non il controvalore — al resto pensa `price_divisor`. Migrazione DB: `supabase/migrate_investments_manual_prices.sql`.
 
 ### Tipi TypeScript
 
@@ -153,7 +163,7 @@ src/
 │   ├── budget/page.tsx             # Tab spese/entrate/risparmi, input inline
 │   ├── fatture/page.tsx            # Lista + calendario + modal nuova fattura
 │   ├── obiettivi/page.tsx          # Grid card + modal creazione + modal progresso
-│   ├── investimenti/page.tsx       # Header card, allocazione, tabella posizioni, import CSV
+│   ├── investimenti/page.tsx       # Header card, allocazione, tabella posizioni a tab (ETF/Azioni/Obbligazioni/Altro), modal prezzo manuale, import CSV
 │   └── settings/page.tsx           # Preferenze + export + danger zone
 ├── components/
 │   ├── DashboardLayout.tsx         # Sidebar (desktop) + header (mobile) + NotificationBell
@@ -183,7 +193,18 @@ src/
     ├── investments/parseFinecoCsv.ts # Parser CSV Fineco: separatore/codifica/riga header auto-rilevati, colonne per significato, dedup ISIN, valuta e fattore di quotazione per posizione
     ├── investments/resolveTicker.ts   # Deriva ticker_gf/ticker_yahoo da Simbolo + Mercato del CSV (solo mercati mappati)
     ├── investments/classifyAsset.ts   # Classe dell'asset dedotta da tipo + nome del CSV quando il lookup non copre l'ISIN
-    └── prices/                     # PriceProvider: googleSheets.ts (Sheet ponte), yahoo.ts (fallback), resolveQuote.ts, fx.ts (cambi valuta)
+    └── prices/                     # PriceProvider: googleSheets.ts (Sheet ponte), yahoo.ts + yahooChart.ts (due canali Yahoo in cascata), resolveQuote.ts, fx.ts (cambi valuta)
+```
+
+### Pagina investimenti: tab per tipo di strumento
+
+La tabella posizioni è divisa in tab come il portafoglio Fineco: **Tutte**, **ETF**, **Azioni**, **Obbligazioni**, **Altro** (`cash` + `other`). Un tab senza posizioni non viene mostrato. Dentro **ETF** le righe restano raggruppate per sotto-classe (azionari / obbligazionari / tematici): il tab unico serve a rispondere a "quanto ho in ETF", il raggruppamento a non confondere un ETF obbligazionario con uno azionario.
+
+Ogni tab mostra i propri totali (controvalore, P&L, peso sul portafoglio) calcolati **sui valori convertiti** in valuta di riferimento, con le posizioni prive di cambio escluse — stessa regola dei totali di portafoglio.
+
+Le posizioni con `price_origin` diverso da `market` espongono un pulsante *inserisci* / *aggiorna* che apre il modal del prezzo manuale (`ManualPriceModal`, componente separato così il form si azzera a ogni apertura). Hook: `useSetManualPrice` / `useDeleteManualPrice` in `useInvestments.ts`, che scrivono via client browser (tabella per-utente protetta da RLS, nessuna API route di mezzo).
+
+```
 ```
 
 ---

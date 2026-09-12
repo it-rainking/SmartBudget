@@ -48,7 +48,12 @@ export async function getChartQuote(ticker: string): Promise<PriceQuote | null> 
       console.warn(`[yahoo:chart] HTTP ${res.status} per ${ticker}`)
       return null
     }
-    return parseChartResponse(await res.json())
+    const quote = parseChartResponse(await res.json())
+    // Anche il successo lascia una traccia: loggando solo i fallimenti,
+    // l'assenza di righe [yahoo:chart] non distingue "chart non e mai servito"
+    // da "chart ha risposto senza problemi", e la diagnosi resta ambigua.
+    if (quote) console.info(`[yahoo:chart] prezzo ottenuto per ${ticker}`)
+    return quote
   } catch (e) {
     console.warn(`[yahoo:chart] richiesta fallita per ${ticker}: ${e instanceof Error ? e.message : String(e)}`)
     return null

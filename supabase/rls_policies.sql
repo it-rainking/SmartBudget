@@ -22,6 +22,7 @@ ALTER TABLE public.holdings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.price_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.isin_ticker_lookup ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fx_rates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.manual_prices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recurring_expenses ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
@@ -352,3 +353,26 @@ CREATE POLICY "Authenticated users can view fx rates"
     ON public.fx_rates FOR SELECT
     TO authenticated
     USING (true);
+
+-- MANUAL PRICES POLICIES (Investimenti)
+-- Qui, a differenza di price_snapshots e fx_rates, l'utente scrive dalla UI:
+-- servono tutte e quattro le policy, tutte vincolate al proprio user_id.
+CREATE POLICY "Users can view own manual prices"
+    ON public.manual_prices FOR SELECT
+    TO authenticated
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own manual prices"
+    ON public.manual_prices FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own manual prices"
+    ON public.manual_prices FOR UPDATE
+    TO authenticated
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own manual prices"
+    ON public.manual_prices FOR DELETE
+    TO authenticated
+    USING (auth.uid() = user_id);

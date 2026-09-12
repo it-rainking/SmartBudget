@@ -207,6 +207,23 @@ Altre regole:
 - Importi sia in formato italiano (`1.234,56`) sia anglosassone (`1,234.56`),
   con o senza simbolo di valuta.
 
+### Titoli senza quotazione automatica (BTP e titoli di stato)
+
+I titoli di stato quotati sul MOT non hanno un ticker utilizzabile su Google
+Finance o Yahoo: restano quindi valorizzati al costo di carico, con P&L a zero.
+
+Per quelle posizioni la pagina `/investimenti` offre un **prezzo manuale**: nel
+tab *Obbligazioni*, il pulsante *inserisci* accanto a "al costo" apre un form
+dove indicare prezzo, data a cui si riferisce e una nota facoltativa. Il valore
+viene usato dal riepilogo finché non esiste una quotazione di mercato per quella
+posizione — se un giorno il ticker viene mappato, il prezzo automatico ha la
+precedenza e quello manuale resta come storia.
+
+Per i titoli quotati in percentuale del nominale va inserita **la percentuale**
+(es. `96,44`), non il controvalore: al resto pensa `price_divisor`.
+
+Migrazione DB: `supabase/migrate_investments_manual_prices.sql`.
+
 ### Se l'import non va a buon fine
 
 L'errore viene mostrato in un riquadro rosso sotto l'area di upload (non solo
