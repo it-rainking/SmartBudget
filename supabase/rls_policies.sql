@@ -21,6 +21,7 @@ ALTER TABLE public.assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.holdings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.price_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.isin_ticker_lookup ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.fx_rates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recurring_expenses ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
@@ -342,5 +343,12 @@ CREATE POLICY "Users can view own price snapshots"
 -- nessuna scrittura client-side (manutenzione manuale via SQL Editor).
 CREATE POLICY "Authenticated users can view isin ticker lookup"
     ON public.isin_ticker_lookup FOR SELECT
+    TO authenticated
+    USING (true);
+
+-- FX RATES POLICIES
+-- Stesso pattern: dato di riferimento in sola lettura, scrive solo il cron.
+CREATE POLICY "Authenticated users can view fx rates"
+    ON public.fx_rates FOR SELECT
     TO authenticated
     USING (true);

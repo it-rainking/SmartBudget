@@ -65,6 +65,14 @@ export interface InvestmentPosition {
   pnl_abs: number
   pnl_pct: number
   weight_pct: number
+  /** Cambio applicato verso la valuta di riferimento; null se non disponibile. */
+  fx_rate: number | null
+  /** Controvalore nella valuta di riferimento; null se il cambio manca. */
+  market_value_base: number | null
+  /** Costo di carico nella valuta di riferimento; null se il cambio manca. */
+  cost_base: number | null
+  /** P&L assoluto nella valuta di riferimento; null se il cambio manca. */
+  pnl_abs_base: number | null
 }
 
 export interface AssetClassBreakdown {
@@ -82,11 +90,17 @@ export interface InvestmentSummary {
   total_pnl_pct: number
   positions_as_of: string | null
   prices_as_of: string | null
-  /**
-   * Valute presenti nel portafoglio. Con più di una i totali sommano importi
-   * non omogenei: l'app non converte, quindi la UI deve dirlo.
-   */
+  /** Valute presenti nel portafoglio. */
   currencies: string[]
+  /** Valuta in cui sono espressi i totali (da settings.currency). */
+  base_currency: string
+  /**
+   * Valute per cui manca il cambio: le relative posizioni restano fuori dai
+   * totali invece di essere sommate a valuta diversa. La UI lo segnala.
+   */
+  unconverted_currencies: string[]
+  /** Quando sono stati aggiornati i cambi usati (il più vecchio della serie). */
+  fx_as_of: string | null
 }
 
 export interface ImportDiff {

@@ -312,6 +312,23 @@ CREATE TABLE public.isin_ticker_lookup (
 );
 
 -- ============================================
+-- 17-bis. FX RATES (Investimenti)
+-- ============================================
+-- Cambi valuta: dato di riferimento condiviso (non per-utente), scritto dal
+-- cron prezzi con la service role key. Una riga per coppia, aggiornata in
+-- place: serve l'ultimo cambio noto, non la serie storica.
+CREATE TABLE public.fx_rates (
+    base TEXT NOT NULL,
+    quote TEXT NOT NULL,
+    -- Quante unità di `quote` per una unità di `base`: con base USD, quote EUR
+    -- e rate 0,92, 100 USD valgono 92 EUR.
+    rate NUMERIC(18,8) NOT NULL CHECK (rate > 0),
+    source TEXT NOT NULL CHECK (source IN ('gsheet', 'yahoo')),
+    fetched_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (base, quote)
+);
+
+-- ============================================
 -- 18. RECURRING EXPENSES (modelli spese ricorrenti)
 -- ============================================
 -- Modello di spesa ricorrente gestito dal pannello /spese-ricorrenti. A ogni

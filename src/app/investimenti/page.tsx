@@ -58,8 +58,13 @@ export default function InvestimentiPage() {
   const [importError, setImportError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
-  const currency = settings?.currency || 'EUR'
+  // Valuta dei totali: la dice il riepilogo (che ha già convertito), con
+  // settings come ripiego finché la risposta non è arrivata.
+  const currency = summary?.base_currency || settings?.currency || 'EUR'
   const fmt = (n: number) => formatCurrency(n, currency)
+  // Gli importi di una singola posizione restano nella valuta in cui sono
+  // quotati: un carico in dollari scritto con il simbolo € sarebbe un errore.
+  const fmtIn = (n: number, cur: string) => formatCurrency(n, cur)
 
   const positions = summary?.positions ?? []
   const sortedPositions = [...positions].sort((a, b) => {
@@ -68,8 +73,10 @@ export default function InvestimentiPage() {
     return b.weight_pct - a.weight_pct
   })
 
+  // Variazione del giorno sui valori già convertiti: le posizioni senza cambio
+  // non entrano nel totale, quindi non devono entrare neanche qui.
   const dailyChangeAbs = positions.reduce(
-    (sum, p) => sum + (p.change_pct !== null ? (p.market_value * p.change_pct) / 100 : 0),
+    (sum, p) => sum + (p.change_pct !== null && p.market_value_base !== null ? (p.market_value_base * p.change_pct) / 100 : 0),
     0
   )
   const dailyChangePct = summary && summary.total_market_value > 0
@@ -166,10 +173,20 @@ export default function InvestimentiPage() {
                     </p>
                   </div>
                 </div>
-                {summary.currencies.length > 1 && (
+                {summary.unconverted_currencies.length > 0 && (
                   <div className="mt-4 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-700 dark:text-amber-400">
-                    Portafoglio in più valute ({summary.currencies.join(', ')}): i totali sommano importi
-                    non convertiti. Valore e P&amp;L complessivi vanno letti con questa avvertenza.
+                    Cambio non disponibile per {summary.unconverted_currencies.join(', ')} →{' '}
+                    {summary.base_currency}: le posizioni in queste valute restano escluse dai totali
+                    (peso 0%) invece di essere sommate a valuta diversa. Verranno incluse al prossimo
+                    aggiornamento prezzi.
+                  </div>
+                )}
+                {summary.unconverted_currencies.length === 0 && summary.currencies.length > 1 && (
+                  <div className="mt-4 px-4 py-3 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg text-sm text-sky-700 dark:text-sky-400">
+                    Portafoglio in più valute ({summary.currencies.join(', ')}): i totali sono convertiti
+                    in {summary.base_currency}
+                    {summary.fx_as_of && ` al cambio del ${formatDateTime(summary.fx_as_of)}`}. Gli importi
+                    delle singole posizioni restano nella valuta di quotazione.
                   </div>
                 )}
                 <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-700">
@@ -270,10 +287,13 @@ export default function InvestimentiPage() {
                             <div className="text-xs text-zinc-400 dark:text-zinc-500">
                               {p.ticker_gf || 'ticker non mappato'} · {p.currency}
                               {p.price_divisor !== 1 && ' · quotato in % del nominale'}
+                              {p.fx_rate === null && ' · cambio non disponibile'}
+                              {p.fx_rate !== null && p.fx_rate !== 1 &&
+                                ` · ${fmt(p.market_value_base!)} al cambio ${p.fx_rate.toFixed(4)}`}
                             </div>
                           </td>
                           <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">{p.quantity}</td>
-                          <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">{fmt(p.avg_cost)}</td>
+                          <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">{fmtIn(p.avg_cost, p.currency)}</td>
                           <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
                             {p.priced_at_cost ? (
                               <span
@@ -283,11 +303,11 @@ export default function InvestimentiPage() {
                                 al costo
                               </span>
                             ) : (
-                              fmt(p.last_price!)
+                              fmtIn(p.last_price!, p.currency)
                             )}
                           </td>
                           <td className={`px-4 py-2.5 font-medium whitespace-nowrap ${pnlColor(p.pnl_abs)}`}>
-                            {fmt(p.pnl_abs)} ({p.pnl_pct.toFixed(1)}%)
+                            {fmtIn(p.pnl_abs, p.currency)} ({p.pnl_pct.toFixed(1)}%)
                           </td>
                           <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
                             {p.weight_pct.toFixed(1)}%
