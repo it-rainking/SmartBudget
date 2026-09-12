@@ -329,6 +329,30 @@ CREATE TABLE public.fx_rates (
 );
 
 -- ============================================
+-- 17-ter. MANUAL PRICES (Investimenti)
+-- ============================================
+-- Prezzo inserito a mano per le posizioni senza quotazione automatica (tipico:
+-- titoli di stato sul MOT, che non hanno un ticker utilizzabile). Una riga per
+-- (utente, asset), aggiornata in place. Il riepilogo la usa come ripiego
+-- quando manca uno snapshot di mercato, prima di ricadere sul costo di carico.
+CREATE TABLE public.manual_prices (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    asset_id UUID REFERENCES public.assets(id) ON DELETE CASCADE NOT NULL,
+    -- Nella stessa unità del prezzo di mercato: per i titoli quotati in
+    -- percentuale del nominale si inserisce la percentuale, non il controvalore.
+    price NUMERIC(18,6) NOT NULL CHECK (price > 0),
+    -- Data a cui il prezzo si riferisce, scelta dall'utente.
+    priced_at DATE DEFAULT CURRENT_DATE NOT NULL,
+    note TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    UNIQUE (user_id, asset_id)
+);
+
+CREATE INDEX idx_manual_prices_user_asset ON public.manual_prices(user_id, asset_id);
+
+-- ============================================
 -- 18. RECURRING EXPENSES (modelli spese ricorrenti)
 -- ============================================
 -- Modello di spesa ricorrente gestito dal pannello /spese-ricorrenti. A ogni

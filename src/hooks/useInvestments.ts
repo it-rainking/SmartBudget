@@ -1,6 +1,7 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
 import type { ImportDiff, InvestmentSummary } from '@/types/investments'
 
 // Le API route possono rispondere con HTML (500 del framework, pagina di
@@ -45,6 +46,54 @@ export function useImportCsv() {
       const body = await readJson(res)
       if (!res.ok) throw new Error(errorMessage(body, `Errore durante l'import (HTTP ${res.status}).`))
       return body as unknown as { diff: ImportDiff; warnings: string[] }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['investments_summary'] }),
+  })
+}
+
+// Prezzo inserito a mano per le posizioni senza quotazione automatica (tipico:
+// titoli di stato sul MOT). Scrive direttamente via client browser come gli
+// altri hook di dominio: la tabella è per-utente e protetta da RLS, non serve
+// passare da una API route.
+export function useSetManualPrice() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: { assetId: string; price: number; pricedAt: string; note?: string | null }) => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Sessione scaduta: rifai il login.')
+
+      const { error } = await supabase.from('manual_prices').upsert(
+        {
+          user_id: user.id,
+          asset_id: input.assetId,
+          price: input.price,
+          priced_at: input.pricedAt,
+          note: input.note ?? null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,asset_id' }
+      )
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['investments_summary'] }),
+  })
+}
+
+export function useDeleteManualPrice() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (assetId: string) => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Sessione scaduta: rifai il login.')
+
+      const { error } = await supabase
+        .from('manual_prices')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('asset_id', assetId)
+      if (error) throw new Error(error.message)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['investments_summary'] }),
   })

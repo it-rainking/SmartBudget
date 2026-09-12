@@ -46,11 +46,17 @@ export async function GET() {
     const avgCost = Number(r.avg_cost)
     const priceDivisor = Number(r.price_divisor) || 1
     const cost = valueOf(avgCost, quantity, priceDivisor)
-    // Senza prezzo di mercato la posizione viene valorizzata al costo: metterla
-    // a zero la farebbe sparire dal totale e mostrerebbe una perdita del 100%
-    // che non è mai avvenuta.
-    const pricedAtCost = r.last_price === null
-    const marketValue = pricedAtCost ? cost : valueOf(r.last_price!, quantity, priceDivisor)
+    // Precedenza: prezzo di mercato, poi quello inserito a mano, infine il
+    // costo di carico. Lo snapshot vince sul manuale perché è automatico e
+    // fresco: un prezzo scritto mesi fa e dimenticato non deve coprire il dato
+    // reale quando questo esiste. Valorizzare al costo, in ultima istanza, evita
+    // di far sparire la posizione dal totale mostrando una perdita del 100% che
+    // non è mai avvenuta.
+    const manualPrice = r.manual_price === null ? null : Number(r.manual_price)
+    const effectivePrice = r.last_price ?? manualPrice
+    const priceOrigin: InvestmentPosition['price_origin'] =
+      r.last_price !== null ? 'market' : manualPrice !== null ? 'manual' : 'cost'
+    const marketValue = effectivePrice === null ? cost : valueOf(effectivePrice, quantity, priceDivisor)
     const pnlAbs = marketValue - cost
     const currency = normalizeCurrency(r.currency)
     // Cambio verso la valuta di riferimento: 1 se la posizione è già in quella
@@ -62,7 +68,9 @@ export async function GET() {
       market_value_base: rate === null ? null : marketValue * rate,
       cost_base: rate === null ? null : cost * rate,
       pnl_abs_base: rate === null ? null : pnlAbs * rate,
-      priced_at_cost: pricedAtCost,
+      price_origin: priceOrigin,
+      manual_price: manualPrice,
+      manual_priced_at: r.manual_priced_at,
       price_divisor: priceDivisor,
       holding_id: r.holding_id,
       asset_id: r.asset_id,
