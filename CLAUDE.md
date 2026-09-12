@@ -111,6 +111,8 @@ Join holdings↔assets↔ultimo price_snapshot (LATERAL) in una sola query; usat
 
 **Valute**: le posizioni in valuta diversa da `settings.currency` vengono convertite prima di entrare nei totali, usando i cambi che il cron prezzi salva in `fx_rates` (stesse due sorgenti dei prezzi: `CURRENCY:USDEUR` sul Sheet ponte, `USDEUR=X` su Yahoo). Ogni `InvestmentPosition` porta i valori nella propria valuta più `fx_rate`/`market_value_base`/`cost_base`/`pnl_abs_base`; totali, pesi e ripartizione per classe sono calcolati sui valori convertiti. Se il cambio di una valuta manca, `fx_rate` è `null`, quelle posizioni restano **fuori** dai totali (peso 0%) e la valuta finisce in `InvestmentSummary.unconverted_currencies`, che la pagina segnala — mai una somma di valute diverse. `base_currency` è la valuta dei totali, `fx_as_of` la data del cambio più vecchio usato. Migrazione DB: `supabase/migrate_investments_fx.sql`.
 
+**Sorgenti prezzi**: il Sheet ponte è opzionale (senza `GSHEET_ID` il cron risponde con `sheet_error` e prosegue). Yahoo ha due canali in cascata: `quote` di `yahoo-finance2`, che dipende da un flusso cookie + crumb, e — quando quello non risponde — l'endpoint `chart`, che ne fa a meno (`src/lib/prices/yahooChart.ts`). Entrambi loggano con prefisso `[yahoo]` / `[yahoo:chart]`, successi di chart compresi: è così che si capisce quale canale ha servito un giro del cron.
+
 **Controvalore**: sempre `quantità × prezzo / assets.price_divisor`. Il divisore vale 1 per azioni/ETF e 100 per i titoli quotati in percentuale del nominale (obbligazioni), dove la "quantità" Fineco è il valore nominale. Una posizione senza `price_snapshot` è valorizzata al costo di carico (`priced_at_cost: true`), non a zero. Migrazione DB: `supabase/migrate_investments_bond_quotation.sql`.
 
 ### Tipi TypeScript
@@ -183,7 +185,7 @@ src/
     ├── investments/parseFinecoCsv.ts # Parser CSV Fineco: separatore/codifica/riga header auto-rilevati, colonne per significato, dedup ISIN, valuta e fattore di quotazione per posizione
     ├── investments/resolveTicker.ts   # Deriva ticker_gf/ticker_yahoo da Simbolo + Mercato del CSV (solo mercati mappati)
     ├── investments/classifyAsset.ts   # Classe dell'asset dedotta da tipo + nome del CSV quando il lookup non copre l'ISIN
-    └── prices/                     # PriceProvider: googleSheets.ts (Sheet ponte), yahoo.ts (fallback), resolveQuote.ts, fx.ts (cambi valuta)
+    └── prices/                     # PriceProvider: googleSheets.ts (Sheet ponte), yahoo.ts + yahooChart.ts (due canali Yahoo in cascata), resolveQuote.ts, fx.ts (cambi valuta)
 ```
 
 ---
