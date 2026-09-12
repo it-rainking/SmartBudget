@@ -4,7 +4,7 @@ import { Fragment, useRef, useState } from 'react'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useToast } from '@/components/Toast'
 import { useSettings } from '@/hooks/useSettings'
-import { useDeleteManualPrice, useImportCsv, useInvestments, useSetManualPrice } from '@/hooks/useInvestments'
+import { useDeleteManualPrice, useImportCsv, useInvestments, useSetManualPrices } from '@/hooks/useInvestments'
 import { formatCurrency } from '@/lib/utils'
 import type { AssetClass, ImportDiff, InvestmentPosition } from '@/types/investments'
 
@@ -43,6 +43,10 @@ const TABS = [
 type TabKey = (typeof TABS)[number]['key']
 
 const POSITIONS_STALE_DAYS = 30
+// Oltre questa soglia un prezzo inserito a mano smette di essere una stima
+// utile: i titoli a cui serve si muovono poco, ma un mese è il massimo entro
+// cui il numero resta rappresentativo.
+const MANUAL_PRICE_STALE_DAYS = 30
 
 type SortKey = 'weight' | 'name' | 'pnl'
 
@@ -62,53 +66,110 @@ function daysSince(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
 }
 
-// Form del prezzo manuale. Componente separato perché il suo stato deve
-// azzerarsi a ogni apertura: montandolo solo quando serve, non c'è da
-// sincronizzare i campi con la posizione selezionata.
-function ManualPriceModal({
-  position,
+// Pannello dei prezzi inseriti a mano. Lo stesso componente serve sia la
+// correzione di una singola riga sia il giro periodico su tutte le posizioni
+// senza quotazione: cambia solo quante righe riceve.
+//
+// Monta solo quando serve, così i campi ripartono puliti a ogni apertura senza
+// doverli sincronizzare con le posizioni selezionate.
+function ManualPricesPanel({
+  positions,
   onClose,
 }: {
-  position: InvestmentPosition
+  positions: InvestmentPosition[]
   onClose: () => void
 }) {
-  const setManualPrice = useSetManualPrice()
+  const setManualPrices = useSetManualPrices()
   const deleteManualPrice = useDeleteManualPrice()
   const { showToast } = useToast()
 
-  const [price, setPrice] = useState(position.manual_price !== null ? String(position.manual_price) : '')
-  const [pricedAt, setPricedAt] = useState(position.manual_priced_at ?? todayIso())
+  const [prices, setPrices] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      positions.map((p) => [p.asset_id, p.manual_price !== null ? String(p.manual_price) : ''])
+    )
+  )
+  const [pricedAt, setPricedAt] = useState(todayIso())
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
-  const isPercentQuoted = position.price_divisor !== 1
-  const parsed = Number(price.replace(',', '.'))
-  const valid = price.trim() !== '' && isFinite(parsed) && parsed > 0
+  const single = positions.length === 1
+
+  // Solo le righe compilate vengono salvate: in un giro su nove titoli è
+  // normale trovarne qualcuno di cui non si è recuperato il prezzo, e quello
+  // deve restare com'era invece di bloccare il salvataggio degli altri.
+  const parsedEntries = positions
+    .map((p) => ({ position: p, raw: (prices[p.asset_id] ?? '').trim() }))
+    .filter((e) => e.raw !== '')
+    .map((e) => ({ ...e, value: Number(e.raw.replace(',', '.')) }))
+
+  const invalid = parsedEntries.filter((e) => !isFinite(e.value) || e.value <= 0)
+  const canSave = parsedEntries.length > 0 && invalid.length === 0
+
+  // Query pronta da incollare in Perplexity (o in qualsiasi altro assistente):
+  // chiede esplicitamente unità, valuta e data, perché un numero nudo non è
+  // verificabile e non si saprebbe in che unità inserirlo.
+  const query = (() => {
+    const percent = positions.filter((p) => p.price_divisor !== 1)
+    const unit = positions.filter((p) => p.price_divisor === 1)
+    const lines: string[] = [
+      'Prezzo di mercato attuale dei seguenti titoli.',
+      'Per ciascuno indica: ISIN, prezzo, valuta e data a cui il prezzo si riferisce.',
+      '',
+    ]
+    if (percent.length > 0) {
+      lines.push('Titoli quotati in percentuale del valore nominale (indica il prezzo per 100 di nominale):')
+      percent.forEach((p) => lines.push(`- ${p.isin} — ${p.name}`))
+      lines.push('')
+    }
+    if (unit.length > 0) {
+      lines.push('Titoli quotati per unità (indica il prezzo unitario):')
+      unit.forEach((p) => lines.push(`- ${p.isin} — ${p.name}`))
+    }
+    return lines.join('\n').trim()
+  })()
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(query)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard negata (contesto non sicuro, permesso rifiutato): il testo
+      // resta selezionabile a mano nel riquadro, quindi non è un vicolo cieco.
+      setError('Copia non riuscita: seleziona il testo e copialo a mano.')
+    }
+  }
 
   async function handleSave() {
-    if (!valid) {
-      setError('Inserisci un prezzo maggiore di zero.')
+    if (!canSave) {
+      setError(invalid.length > 0 ? 'Alcuni prezzi non sono numeri validi.' : 'Inserisci almeno un prezzo.')
       return
     }
     setError(null)
     try {
-      await setManualPrice.mutateAsync({
-        assetId: position.asset_id,
-        price: parsed,
-        pricedAt,
-        note: note.trim() || null,
-      })
-      showToast('Prezzo aggiornato', 'success')
+      await setManualPrices.mutateAsync(
+        parsedEntries.map((e) => ({
+          assetId: e.position.asset_id,
+          price: e.value,
+          pricedAt,
+          note: note.trim() || null,
+        }))
+      )
+      showToast(
+        parsedEntries.length === 1 ? 'Prezzo aggiornato' : `${parsedEntries.length} prezzi aggiornati`,
+        'success'
+      )
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Errore nel salvataggio')
     }
   }
 
-  async function handleDelete() {
+  async function handleDelete(assetId: string) {
     setError(null)
     try {
-      await deleteManualPrice.mutateAsync(position.asset_id)
+      await deleteManualPrice.mutateAsync(assetId)
       showToast('Prezzo manuale rimosso', 'success')
       onClose()
     } catch (err) {
@@ -116,79 +177,111 @@ function ManualPriceModal({
     }
   }
 
-  const busy = setManualPrice.isPending || deleteManualPrice.isPending
+  const busy = setManualPrices.isPending || deleteManualPrice.isPending
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
-      <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-100 dark:border-zinc-700 w-full max-w-md p-6 space-y-4">
-        <div>
-          <h3 className="text-base font-semibold text-zinc-800 dark:text-zinc-200">Prezzo manuale</h3>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{position.name}</p>
-          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">{position.isin}</p>
-        </div>
-
-        <div className="px-3 py-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg text-xs text-sky-700 dark:text-sky-400">
-          {isPercentQuoted
-            ? 'Titolo quotato in percentuale del nominale: inserisci la percentuale (es. 96,44), non il controvalore.'
-            : `Prezzo per unità, in ${position.currency}.`}
-        </div>
-
-        <div className="space-y-3">
-          <label className="block">
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">Prezzo</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder={isPercentQuoted ? '96,44' : '100,00'}
-              autoFocus
-              className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">Data del prezzo</span>
-            <input
-              type="date"
-              value={pricedAt}
-              max={todayIso()}
-              onChange={(e) => setPricedAt(e.target.value)}
-              className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">Nota (facoltativa)</span>
-            <input
-              type="text"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="es. prezzo di chiusura Borsa Italiana"
-              className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
-            />
-          </label>
-        </div>
-
-        {error && (
-          <div className="px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
-            {error}
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/40 p-4 overflow-y-auto" role="dialog" aria-modal="true">
+      <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-100 dark:border-zinc-700 w-full max-w-2xl my-4">
+        <div className="p-6 space-y-4">
+          <div>
+            <h3 className="text-base font-semibold text-zinc-800 dark:text-zinc-200">
+              {single ? 'Prezzo manuale' : 'Aggiorna i prezzi manuali'}
+            </h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+              {single
+                ? positions[0].name
+                : `${positions.length} posizioni senza quotazione automatica`}
+            </p>
           </div>
-        )}
 
-        <div className="flex items-center justify-between gap-2 pt-1">
-          {position.manual_price !== null ? (
-            <button
-              onClick={handleDelete}
-              disabled={busy}
-              className="text-sm text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
-            >
-              Rimuovi
-            </button>
-          ) : (
-            <span />
+          {/* Query da incollare in un assistente: la parte noiosa è scrivere
+              l'elenco degli ISIN, non leggere la risposta. */}
+          <details className="group" open={!single}>
+            <summary className="cursor-pointer text-sm font-medium text-emerald-700 dark:text-emerald-400 select-none">
+              Query pronta da incollare
+            </summary>
+            <div className="mt-2 space-y-2">
+              <pre className="text-xs whitespace-pre-wrap bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700 rounded-lg p-3 text-zinc-700 dark:text-zinc-300 max-h-48 overflow-y-auto">
+                {query}
+              </pre>
+              <button
+                onClick={handleCopy}
+                className="text-xs px-2.5 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+              >
+                {copied ? 'Copiata ✓' : 'Copia'}
+              </button>
+            </div>
+          </details>
+
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+            {positions.map((p) => {
+              const isPercentQuoted = p.price_divisor !== 1
+              return (
+                <div
+                  key={p.asset_id}
+                  className="flex flex-wrap items-center gap-2 py-2 border-b border-zinc-50 dark:border-zinc-700/50 last:border-0"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-zinc-800 dark:text-zinc-200 truncate">{p.name}</div>
+                    <div className="text-xs text-zinc-400 dark:text-zinc-500">
+                      {p.isin}
+                      {isPercentQuoted && ' · % del nominale'}
+                      {p.manual_priced_at && ` · attuale del ${formatDateTime(p.manual_priced_at)}`}
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={prices[p.asset_id] ?? ''}
+                    onChange={(e) => setPrices((prev) => ({ ...prev, [p.asset_id]: e.target.value }))}
+                    placeholder={isPercentQuoted ? '96,44' : '100,00'}
+                    aria-label={`Prezzo per ${p.name}`}
+                    className="w-28 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 text-sm"
+                  />
+                  {p.manual_price !== null && (
+                    <button
+                      onClick={() => handleDelete(p.asset_id)}
+                      disabled={busy}
+                      className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                    >
+                      rimuovi
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">Data dei prezzi</span>
+              <input
+                type="date"
+                value={pricedAt}
+                max={todayIso()}
+                onChange={(e) => setPricedAt(e.target.value)}
+                className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">Fonte (facoltativa)</span>
+              <input
+                type="text"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="es. Borsa Italiana, Perplexity"
+                className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
+              />
+            </label>
+          </div>
+
+          {error && (
+            <div className="px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
+              {error}
+            </div>
           )}
-          <div className="flex gap-2">
+
+          <div className="flex items-center justify-end gap-2 pt-1">
             <button
               onClick={onClose}
               disabled={busy}
@@ -198,10 +291,14 @@ function ManualPriceModal({
             </button>
             <button
               onClick={handleSave}
-              disabled={busy || !valid}
+              disabled={busy || !canSave}
               className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
             >
-              {busy ? 'Salvataggio...' : 'Salva'}
+              {busy
+                ? 'Salvataggio...'
+                : parsedEntries.length > 1
+                  ? `Salva ${parsedEntries.length} prezzi`
+                  : 'Salva'}
             </button>
           </div>
         </div>
@@ -219,7 +316,9 @@ export default function InvestimentiPage() {
 
   const [sortKey, setSortKey] = useState<SortKey>('weight')
   const [activeTab, setActiveTab] = useState<TabKey>('all')
-  const [priceModal, setPriceModal] = useState<InvestmentPosition | null>(null)
+  // Il pannello prezzi riceve sempre una lista: una riga sola quando si corregge
+  // una posizione, tutte quelle scadute quando si fa il giro periodico.
+  const [pricePanel, setPricePanel] = useState<InvestmentPosition[] | null>(null)
   const [lastImportResult, setLastImportResult] = useState<{ diff: ImportDiff; warnings: string[] } | null>(null)
   // L'errore di import resta a video: il toast dura 3 secondi e i messaggi del
   // parser (colonne rilevate, formato del file) servono a capire cosa correggere.
@@ -284,6 +383,19 @@ export default function InvestimentiPage() {
     : 0
 
   const positionsStale = summary?.positions_as_of ? daysSince(summary.positions_as_of) > POSITIONS_STALE_DAYS : false
+
+  // Posizioni che vivono di prezzi manuali: quelle senza quotazione automatica.
+  // Vanno "rinfrescate" se non hanno ancora un prezzo o se quello che hanno è
+  // più vecchio della soglia.
+  const manualCandidates = positions.filter((p) => p.price_origin !== 'market')
+  const manualToRefresh = manualCandidates.filter(
+    (p) => p.manual_priced_at === null || daysSince(p.manual_priced_at) > MANUAL_PRICE_STALE_DAYS
+  )
+  const oldestManualDays = manualCandidates.reduce<number | null>((max, p) => {
+    if (p.manual_priced_at === null) return max
+    const days = daysSince(p.manual_priced_at)
+    return max === null || days > max ? days : max
+  }, null)
 
   async function handleFile(file: File) {
     setImportError(null)
@@ -373,6 +485,43 @@ export default function InvestimentiPage() {
                     </p>
                   </div>
                 </div>
+                {manualToRefresh.length > 0 && (
+                  <div className="mt-4 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-700 dark:text-amber-400 flex flex-wrap items-center justify-between gap-3">
+                    <span>
+                      {manualToRefresh.length === manualCandidates.length
+                        ? `${manualToRefresh.length} posizioni senza quotazione automatica`
+                        : `${manualToRefresh.length} di ${manualCandidates.length} posizioni senza quotazione automatica`}
+                      {manualToRefresh.every((p) => p.manual_priced_at === null)
+                        ? ' non hanno ancora un prezzo: sono valorizzate al costo di carico.'
+                        : oldestManualDays !== null
+                          ? ` hanno un prezzo vecchio di ${oldestManualDays} giorni.`
+                          : ' vanno aggiornate.'}
+                    </span>
+                    <button
+                      onClick={() => setPricePanel(manualToRefresh)}
+                      className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-medium hover:bg-amber-700"
+                    >
+                      Aggiorna prezzi
+                    </button>
+                  </div>
+                )}
+                {manualToRefresh.length === 0 && manualCandidates.length > 0 && (
+                  <div className="mt-4 px-4 py-3 bg-zinc-50 dark:bg-zinc-700/30 border border-zinc-200 dark:border-zinc-600 rounded-lg text-sm text-zinc-600 dark:text-zinc-400 flex flex-wrap items-center justify-between gap-3">
+                    <span>
+                      {manualCandidates.length} posizioni valorizzate con prezzi inseriti a mano
+                      {oldestManualDays !== null &&
+                        (oldestManualDays === 0
+                          ? ', aggiornati oggi.'
+                          : `, il più vecchio di ${oldestManualDays} giorni.`)}
+                    </span>
+                    <button
+                      onClick={() => setPricePanel(manualCandidates)}
+                      className="shrink-0 px-3 py-1.5 rounded-lg bg-zinc-200 dark:bg-zinc-600 text-zinc-700 dark:text-zinc-200 text-xs font-medium hover:bg-zinc-300 dark:hover:bg-zinc-500"
+                    >
+                      Aggiorna prezzi
+                    </button>
+                  </div>
+                )}
                 {summary.unconverted_currencies.length > 0 && (
                   <div className="mt-4 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-700 dark:text-amber-400">
                     Cambio non disponibile per {summary.unconverted_currencies.join(', ')} →{' '}
@@ -560,7 +709,7 @@ export default function InvestimentiPage() {
                                 )}
                                 {p.price_origin !== 'market' && (
                                   <button
-                                    onClick={() => setPriceModal(p)}
+                                    onClick={() => setPricePanel([p])}
                                     className="ml-2 text-xs text-emerald-700 dark:text-emerald-400 hover:underline"
                                   >
                                     {p.price_origin === 'manual' ? 'aggiorna' : 'inserisci'}
@@ -690,7 +839,7 @@ export default function InvestimentiPage() {
         )}
       </div>
 
-      {priceModal && <ManualPriceModal position={priceModal} onClose={() => setPriceModal(null)} />}
+      {pricePanel && <ManualPricesPanel positions={pricePanel} onClose={() => setPricePanel(null)} />}
     </DashboardLayout>
   )
 }
