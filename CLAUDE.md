@@ -351,7 +351,7 @@ Per l'invio asincrono: API route `/api/notifications/send` gestisce email (Resen
 
 ## Spese a rate (PayPal "Paga in 3 rate")
 
-Nel form di nuova transazione (`transazioni/page.tsx`), quando `type = expense` e il metodo di pagamento contiene "paypal" (case-insensitive, vedi `isPaypalMethod()` in `utils.ts`) compare il toggle **"Paga in 3 rate"**.
+Nel form transazioni (`transazioni/page.tsx`), per ogni spesa compare sempre il toggle **"Paga in 3 rate con PayPal"**: attivarlo imposta come metodo di pagamento il primo metodo dell'utente che contiene "paypal" (case-insensitive, vedi `isPaypalMethod()` in `utils.ts`), o `PayPal` se l'elenco non ne ha. Il piano si crea solo se al salvataggio il metodo è ancora PayPal: cambiandolo, il toggle si spegne. Prima era visibile solo dopo aver scelto PayPal e passava inosservato.
 
 - L'importo inserito è il **totale** dell'acquisto. `splitInstallments()` lo divide in `PAYPAL_INSTALLMENT_COUNT` (3) rate arrotondate al centesimo, con l'eventuale resto sulla prima rata.
 - `installmentDates()` calcola le date delle rate successive: stesso giorno del mese, mese per mese (`addMonthsClamped()`), con clamp all'ultimo giorno se il mese di destinazione è più corto.

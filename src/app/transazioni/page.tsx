@@ -98,8 +98,10 @@ export default function TransazioniPage() {
   // PayPal. In modifica di una spesa singola diventa "converti in rate"; su una
   // rata non si propone, perché il piano esiste già.
   const isEditingInstallment = !!editingTransaction?.installment_plan_id
-  const canUseInstallments =
-    formType === 'expense' && isPaypalMethod(formPaymentMethod) && !isEditingInstallment
+  // Il toggle è sempre visibile sulle spese, così lo si trova anche prima di
+  // aver scelto il metodo: attivarlo imposta PayPal come metodo di pagamento.
+  const showInstallmentToggle = formType === 'expense' && !isEditingInstallment
+  const canUseInstallments = showInstallmentToggle && isPaypalMethod(formPaymentMethod)
 
   // Queries
   const { data: transactions, isLoading } = useTransactions({
@@ -156,6 +158,10 @@ export default function TransazioniPage() {
   useEffect(() => {
     if (!canUseInstallments) setFormIsInstallment(false)
   }, [canUseInstallments])
+
+  // Metodo PayPal da usare quando si attiva il toggle da un altro metodo:
+  // quello dell'elenco dell'utente (può averlo rinominato), altrimenti "PayPal"
+  const paypalMethod = paymentMethods.find((m) => isPaypalMethod(m)) ?? 'PayPal'
 
   // Shortcut tastiera: Ctrl+N = nuova transazione (Esc è gestito per-modal da useModalA11y)
   useEffect(() => {
@@ -895,12 +901,12 @@ export default function TransazioniPage() {
               </div>
 
               {/* Paga in 3 rate (solo spese PayPal) */}
-              {canUseInstallments && (
+              {showInstallmentToggle && (
                 <div className="rounded-lg border border-blue-100 dark:border-blue-900/40 bg-blue-50/60 dark:bg-blue-900/10 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                        {editingTransaction ? 'Converti in' : 'Paga in'} {PAYPAL_INSTALLMENT_COUNT} rate
+                        {editingTransaction ? 'Converti in' : 'Paga in'} {PAYPAL_INSTALLMENT_COUNT} rate con PayPal
                       </p>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
                         {editingTransaction
@@ -911,10 +917,11 @@ export default function TransazioniPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        setFormIsInstallment(v => {
-                          if (!v) setFormIsRecurring(false)
-                          return !v
-                        })
+                        if (!formIsInstallment) {
+                          if (!isPaypalMethod(formPaymentMethod)) setFormPaymentMethod(paypalMethod)
+                          setFormIsRecurring(false)
+                        }
+                        setFormIsInstallment(v => !v)
                       }}
                       className={`relative w-11 h-6 rounded-full shrink-0 transition-colors focus:outline-none ${formIsInstallment ? 'bg-blue-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}
                       aria-pressed={formIsInstallment}
