@@ -98,6 +98,7 @@ export function useCreateInstallmentPlan() {
       const { data: user } = await supabase.auth.getUser()
       if (!user.user) throw new Error('Non autenticato')
 
+      assertSplittable(data.amount, count)
       const planId = crypto.randomUUID()
       const amounts = splitInstallments(data.amount, count)
       const dates = installmentDates(data.date, count)
@@ -119,6 +120,64 @@ export function useCreateInstallmentPlan() {
 
       if (error) throw error
       return transactions
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
+    },
+  })
+}
+
+// Ogni rata deve valere almeno un centesimo, altrimenti il piano conterrebbe
+// righe a zero euro.
+function assertSplittable(total: number, count: number) {
+  if (Math.round(total * 100) < count) {
+    throw new Error(`L'importo è troppo basso per ${count} rate`)
+  }
+}
+
+// Converte in piano a rate una spesa già registrata come pagamento unico (es.
+// scelta "Paga in 3 rate" dopo aver inserito l'acquisto). La riga esistente
+// diventa la rata 1 con gli eventuali campi modificati nel form; le altre
+// vengono inserite nei mesi successivi. Prima si inseriscono le nuove rate,
+// poi si aggiorna la riga originale: se l'aggiornamento fallisce le rate
+// appena create vengono rimosse, così non restano piani a metà.
+export function useConvertToInstallmentPlan() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, data, count = PAYPAL_INSTALLMENT_COUNT }: { id: string; data: TransactionFormData; count?: number }) => {
+      const { data: user } = await supabase.auth.getUser()
+      if (!user.user) throw new Error('Non autenticato')
+
+      assertSplittable(data.amount, count)
+      const planId = crypto.randomUUID()
+      const amounts = splitInstallments(data.amount, count)
+      const dates = installmentDates(data.date, count)
+      const planFields = { installment_plan_id: planId, installment_count: count }
+
+      const rows = amounts.slice(1).map((amount, i) => ({
+        ...data,
+        amount,
+        date: dates[i + 1],
+        user_id: user.user!.id,
+        ...planFields,
+        installment_number: i + 2,
+      }))
+
+      const { error: insertError } = await supabase.from('transactions').insert(rows)
+      if (insertError) throw insertError
+
+      const { error: updateError } = await supabase
+        .from('transactions')
+        .update({ ...data, amount: amounts[0], date: dates[0], ...planFields, installment_number: 1 })
+        .eq('id', id)
+
+      if (updateError) {
+        await supabase.from('transactions').delete().eq('installment_plan_id', planId).neq('id', id)
+        throw updateError
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })

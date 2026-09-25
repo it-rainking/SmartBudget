@@ -10,9 +10,12 @@ import {
   useUpdateTransaction,
   useDeleteTransaction,
   useDeleteInstallmentPlan,
+  useConvertToInstallmentPlan,
 } from '@/hooks/useTransactions'
 import { useIncomeCategories, useExpenseCategories, useSavingCategories, useInitializeCategories } from '@/hooks/useCategories'
 import { useRecurringExpenses, useCreateRecurringExpense } from '@/hooks/useRecurringExpenses'
+import { useCancelRemainingInstallments } from '@/hooks/useInstallments'
+import { PAYPAL_INSTALLMENT_MIN, PAYPAL_INSTALLMENT_MAX } from '@/lib/installments'
 import { useToast } from '@/components/Toast'
 import { ImportCSVModal } from '@/components/ImportCSVModal'
 import { useSettings } from '@/hooks/useSettings'
@@ -92,8 +95,11 @@ export default function TransazioniPage() {
   const [saveAsRecurringTemplate, setSaveAsRecurringTemplate] = useState(false)
 
   // Il pagamento a rate è offerto solo dove esiste davvero: spese pagate con
-  // PayPal. In modifica non si propone, perché il piano è già stato creato.
-  const canUseInstallments = formType === 'expense' && isPaypalMethod(formPaymentMethod) && !editingTransaction
+  // PayPal. In modifica di una spesa singola diventa "converti in rate"; su una
+  // rata non si propone, perché il piano esiste già.
+  const isEditingInstallment = !!editingTransaction?.installment_plan_id
+  const canUseInstallments =
+    formType === 'expense' && isPaypalMethod(formPaymentMethod) && !isEditingInstallment
 
   // Queries
   const { data: transactions, isLoading } = useTransactions({
@@ -115,6 +121,8 @@ export default function TransazioniPage() {
   const updateTransaction = useUpdateTransaction()
   const deleteTransaction = useDeleteTransaction()
   const deleteInstallmentPlan = useDeleteInstallmentPlan()
+  const convertToInstallmentPlan = useConvertToInstallmentPlan()
+  const cancelRemainingInstallments = useCancelRemainingInstallments()
   const initializeCategories = useInitializeCategories()
   const createRecurringExpense = useCreateRecurringExpense()
 
@@ -124,6 +132,7 @@ export default function TransazioniPage() {
   const isSaving =
     createTransaction.isPending ||
     createInstallmentPlan.isPending ||
+    convertToInstallmentPlan.isPending ||
     updateTransaction.isPending ||
     createRecurringExpense.isPending
 
@@ -308,12 +317,25 @@ export default function TransazioniPage() {
         recurring_expense_id: linkedRecurringId,
       }
 
-      if (editingTransaction) {
+      if (canUseInstallments && formIsInstallment && Math.round(amount * 100) < PAYPAL_INSTALLMENT_COUNT) {
+        showToast(`L'importo è troppo basso per ${PAYPAL_INSTALLMENT_COUNT} rate`, 'error')
+        return
+      }
+
+      if (editingTransaction && canUseInstallments && formIsInstallment) {
+        await convertToInstallmentPlan.mutateAsync({
+          id: editingTransaction.id,
+          data: { ...payload, is_recurring: false },
+          count: PAYPAL_INSTALLMENT_COUNT,
+        })
+        closeForm()
+        showToast(`Spesa convertita in ${PAYPAL_INSTALLMENT_COUNT} rate mensili`)
+      } else if (editingTransaction) {
         await updateTransaction.mutateAsync({ id: editingTransaction.id, data: payload })
         closeForm()
         showToast('Transazione modificata', 'success')
       } else if (canUseInstallments && formIsInstallment) {
-        await createInstallmentPlan.mutateAsync({ data: payload, count: PAYPAL_INSTALLMENT_COUNT })
+        await createInstallmentPlan.mutateAsync({ data: { ...payload, is_recurring: false }, count: PAYPAL_INSTALLMENT_COUNT })
         closeForm()
         showToast(`Spesa divisa in ${PAYPAL_INSTALLMENT_COUNT} rate mensili`)
       } else {
@@ -396,12 +418,18 @@ export default function TransazioniPage() {
   const deleteModalRef = useModalA11y<HTMLDivElement>(!!confirmDelete, () => setConfirmDelete(null))
 
   // Elimina una transazione (o l'intero piano rate, se richiesto)
-  const handleDelete = async (scope: 'single' | 'plan') => {
+  const handleDelete = async (scope: 'single' | 'plan' | 'remaining') => {
     if (!confirmDelete) return
     try {
       if (scope === 'plan' && confirmDelete.installment_plan_id) {
         await deleteInstallmentPlan.mutateAsync(confirmDelete.installment_plan_id)
         showToast('Piano a rate eliminato', 'info')
+      } else if (scope === 'remaining' && confirmDelete.installment_plan_id) {
+        const removed = await cancelRemainingInstallments.mutateAsync(confirmDelete.installment_plan_id)
+        showToast(
+          removed > 0 ? `${removed} rate non ancora addebitate annullate` : 'Nessuna rata da annullare: sono già tutte addebitate',
+          'info'
+        )
       } else {
         await deleteTransaction.mutateAsync(confirmDelete.id)
         showToast('Transazione eliminata', 'info')
@@ -759,11 +787,13 @@ export default function TransazioniPage() {
                   <button
                     key={type}
                     type="button"
+                    // Una rata resta una spesa: cambiarne il tipo spezzerebbe il piano
+                    disabled={isEditingInstallment && type !== formType}
                     onClick={() => {
                       setFormType(type)
                       setFormCategoryId('')
                     }}
-                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                       formType === type
                         ? type === 'income'
                           ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
@@ -870,10 +900,12 @@ export default function TransazioniPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                        Paga in {PAYPAL_INSTALLMENT_COUNT} rate
+                        {editingTransaction ? 'Converti in' : 'Paga in'} {PAYPAL_INSTALLMENT_COUNT} rate
                       </p>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                        Registra subito anche le rate dei {PAYPAL_INSTALLMENT_COUNT - 1} mesi successivi, nello stesso giorno
+                        {editingTransaction
+                          ? `Questa spesa diventa la rata 1; le altre ${PAYPAL_INSTALLMENT_COUNT - 1} vengono registrate nei mesi successivi`
+                          : `Registra subito anche le rate dei ${PAYPAL_INSTALLMENT_COUNT - 1} mesi successivi, nello stesso giorno`}
                       </p>
                     </div>
                     <button
@@ -904,7 +936,16 @@ export default function TransazioniPage() {
                     }
                     const amounts = splitInstallments(total, PAYPAL_INSTALLMENT_COUNT)
                     const dates = installmentDates(formDate, PAYPAL_INSTALLMENT_COUNT)
+                    // Solo un avviso: le soglie sono condizioni commerciali di
+                    // PayPal, l'utente sa meglio di noi cosa gli è stato offerto
+                    const outOfRange = total < PAYPAL_INSTALLMENT_MIN || total > PAYPAL_INSTALLMENT_MAX
                     return (
+                      <>
+                      {outOfRange && (
+                        <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">
+                          Di solito PayPal offre le 3 rate per acquisti fra {fmt(PAYPAL_INSTALLMENT_MIN)} e {fmt(PAYPAL_INSTALLMENT_MAX)}: verifica l&apos;importo.
+                        </p>
+                      )}
                       <ul className="mt-3 pt-3 border-t border-blue-100 dark:border-blue-900/40 space-y-1">
                         {amounts.map((amount, i) => (
                           <li key={i} className="flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-400">
@@ -913,13 +954,14 @@ export default function TransazioniPage() {
                           </li>
                         ))}
                       </ul>
+                      </>
                     )
                   })()}
                 </div>
               )}
 
-              {/* Ricorrente */}
-              {!formIsInstallment && (
+              {/* Ricorrente: non ha senso su una rata, che ha già le sue date */}
+              {!formIsInstallment && !isEditingInstallment && (
               <div className="flex items-center justify-between py-1">
                 <div>
                   <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Transazione ricorrente</p>
@@ -1023,21 +1065,28 @@ export default function TransazioniPage() {
             <h3 id="delete-tx-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina transazione</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">
               {confirmDelete.installment_plan_id
-                ? `Questa è la rata ${confirmDelete.installment_number} di ${confirmDelete.installment_count} di una spesa a rate. Puoi eliminare solo questa rata oppure l'intero piano. L'azione è irreversibile.`
+                ? `Questa è la rata ${confirmDelete.installment_number} di ${confirmDelete.installment_count} di una spesa a rate. Puoi eliminare solo questa rata, annullare le rate non ancora addebitate (reso o rimborso) oppure eliminare l'intero piano. L'azione è irreversibile.`
                 : 'Questa azione è irreversibile.'}
             </p>
             {confirmDelete.installment_plan_id ? (
               <div className="space-y-2">
                 <button
                   onClick={() => handleDelete('plan')}
-                  disabled={deleteTransaction.isPending || deleteInstallmentPlan.isPending}
+                  disabled={deleteTransaction.isPending || deleteInstallmentPlan.isPending || cancelRemainingInstallments.isPending}
                   className="w-full py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-medium transition-colors"
                 >
                   {deleteInstallmentPlan.isPending ? 'Eliminazione...' : `Elimina tutte le ${confirmDelete.installment_count} rate`}
                 </button>
                 <button
+                  onClick={() => handleDelete('remaining')}
+                  disabled={deleteTransaction.isPending || deleteInstallmentPlan.isPending || cancelRemainingInstallments.isPending}
+                  className="w-full py-2.5 px-4 rounded-lg border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 transition-colors"
+                >
+                  {cancelRemainingInstallments.isPending ? 'Annullamento...' : 'Annulla le rate non ancora addebitate'}
+                </button>
+                <button
                   onClick={() => handleDelete('single')}
-                  disabled={deleteTransaction.isPending || deleteInstallmentPlan.isPending}
+                  disabled={deleteTransaction.isPending || deleteInstallmentPlan.isPending || cancelRemainingInstallments.isPending}
                   className="w-full py-2.5 px-4 rounded-lg border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 transition-colors"
                 >
                   {deleteTransaction.isPending ? 'Eliminazione...' : 'Elimina solo questa rata'}

@@ -175,8 +175,8 @@ src/
 │   ├── useAuth.ts                  # user, loading, signOut, isAuthenticated
 │   ├── useSettings.ts              # useSettings, useUpdateSettings, useCompleteOnboarding
 │   ├── useCategories.ts            # useIncomeCategories, useExpenseCategories, useDeleteCategory, ecc.
-│   ├── useTransactions.ts          # useTransactions, useCreateTransaction, useCreateInstallmentPlan, useUpdateTransaction, useDeleteTransaction, useDeleteInstallmentPlan, useMonthlyKPIs
-│   ├── useInstallments.ts          # useInstallmentPlans — ricostruisce i piani di spese a rate (PayPal) che toccano un mese
+│   ├── useTransactions.ts          # useTransactions, useCreateTransaction, useCreateInstallmentPlan, useConvertToInstallmentPlan, useUpdateTransaction, useDeleteTransaction, useDeleteInstallmentPlan, useMonthlyKPIs
+│   ├── useInstallments.ts          # useInstallmentPlans, useSettleInstallmentPlanEarly, useCancelRemainingInstallments
 │   ├── useRecurringExpenses.ts     # useRecurringExpenses, useCreateRecurringExpense, useUpdateRecurringExpense, useDeleteRecurringExpense, useEnsureCurrentMonthRecurring, useGenerateRecurringBackfill
 │   ├── useBudget.ts                # useMonthlyBudget, useEnsureMonthlyBudget, useUpsertBudgetItem, useActualAmountsByCategory
 │   ├── useInvoices.ts              # useInvoices, useCreateInvoice, useUpdateInvoice, useMarkAsPaid, useDeleteInvoice
@@ -190,6 +190,7 @@ src/
     ├── supabase-server.ts          # createServerClient() — client lato server (cookies)
     ├── queryClient.ts              # QueryClient config (staleTime 5min, retry 1, no refocus)
     ├── utils.ts                    # formatCurrency, formatDate, formatMonth, getMonthDateRange, classNames
+    ├── installments.ts             # buildInstallmentPlans, findImportedInstallmentDuplicates, soglie PayPal (logica pura rate)
     ├── investments/parseFinecoCsv.ts # Parser CSV Fineco: separatore/codifica/riga header auto-rilevati, colonne per significato, dedup ISIN, valuta e fattore di quotazione per posizione
     ├── investments/resolveTicker.ts   # Deriva ticker_gf/ticker_yahoo da Simbolo + Mercato del CSV (solo mercati mappati)
     ├── investments/classifyAsset.ts   # Classe dell'asset dedotta da tipo + nome del CSV quando il lookup non copre l'ISIN
@@ -356,9 +357,13 @@ Nel form di nuova transazione (`transazioni/page.tsx`), quando `type = expense` 
 - `installmentDates()` calcola le date delle rate successive: stesso giorno del mese, mese per mese (`addMonthsClamped()`), con clamp all'ultimo giorno se il mese di destinazione è più corto.
 - `useCreateInstallmentPlan()` (in `useTransactions.ts`) inserisce le N rate come normali righe in `transactions`, tutte con lo stesso `installment_plan_id` (un nuovo UUID) e `installment_number` / `installment_count` valorizzati. Non c'è una tabella separata: ogni rata è una transazione a sé, quindi pesa su KPI/budget del proprio mese fin da subito (anche le rate future, non ancora addebitate).
 - Una rata è considerata **addebitata** quando `date <= oggi`, **programmata** altrimenti — calcolato lato client in `useInstallmentPlans()` (`useInstallments.ts`), non c'è un flag nel DB.
-- `useInstallmentPlans(month, year)` ricostruisce i piani che toccano il mese richiesto (query ±5 mesi per raggruppare tutte le rate di un piano), usata nella sezione "💳 Spese PayPal a rate" della dashboard mensile (`dashboard/mensile/page.tsx`) per mostrare stato (`programmato` / `in_corso` / `completato`), rate addebitate/residue e importo totale.
-- Modifica: editare una rata (`transazioni/page.tsx`) modifica solo quella riga, non l'intero piano.
-- Eliminazione: il modal di conferma elimina offre la scelta fra "solo questa rata" (`useDeleteTransaction`) o "tutte le rate" (`useDeleteInstallmentPlan`, cancella per `installment_plan_id`).
+- `useInstallmentPlans(month, year)` ricostruisce i piani che toccano il mese richiesto in due passi (id dei piani con una rata nel mese → tutte le rate di quei piani, senza finestre di mesi fisse); il calcolo è in `buildInstallmentPlans()` (`src/lib/installments.ts`, testato). Usata nella sezione "💳 Spese PayPal a rate" della dashboard mensile per mostrare stato (`programmato` / `in_corso` / `completato`), rate addebitate/residue, prossima rata e importo totale. Il numero di rate previsto viene da `installment_count`, non dalle righe presenti: una rata eliminata compare come `missingCount` invece di far sembrare il piano chiuso a 2/2.
+- **Azioni sulle rate residue** (dashboard, con conferma a doppio tap, e modal elimina in `/transazioni`): *Salda ora* (`useSettleInstallmentPlanEarly`) sposta a oggi le rate non ancora addebitate, come il pagamento anticipato di PayPal; *Annulla residue* (`useCancelRemainingInstallments`) cancella solo le rate future (reso/rimborso), lasciando nello storico quelle già pagate.
+- **Conversione**: modificando una spesa PayPal singola, il toggle diventa "Converti in 3 rate" (`useConvertToInstallmentPlan`): la riga esistente diventa la rata 1, le altre vengono inserite prima dell'update e rimosse se l'update fallisce (nessun piano a metà).
+- Importo minimo: almeno un centesimo per rata. Fuori da `PAYPAL_INSTALLMENT_MIN`/`MAX` (30–2.000 €, soglie commerciali PayPal da ricontrollare periodicamente) il form mostra solo un avviso, non blocca.
+- Modifica: editare una rata (`transazioni/page.tsx`) modifica solo quella riga, non l'intero piano; tipo (sempre spesa) e toggle "ricorrente" sono bloccati sulle rate.
+- Eliminazione: il modal di conferma elimina offre "solo questa rata" (`useDeleteTransaction`), "annulla le rate non ancora addebitate" o "tutte le rate" (`useDeleteInstallmentPlan`, cancella per `installment_plan_id`).
+- **Import CSV**: una rata già registrata ricompare nell'estratto conto con descrizione diversa e qualche giorno di scarto; `findImportedInstallmentDuplicates()` la salta come duplicata (stesso tipo, stesso importo al centesimo, data entro `INSTALLMENT_IMPORT_TOLERANCE_DAYS` = 3 giorni, una riga importata per rata).
 - Migrazione DB: `supabase/migrate_paypal_installments.sql` aggiunge `installment_plan_id UUID`, `installment_number INTEGER`, `installment_count INTEGER` a `transactions` (anche in `schema.sql` per i nuovi progetti).
 
 ---
@@ -396,7 +401,7 @@ npm test       # vitest run (solo modulo investimenti, vedi sezione Testing)
 
 ### Testing
 
-**Vitest** (introdotto per il modulo investimenti, `npm test`): copre solo `src/lib/investments/parseFinecoCsv.ts` e `src/lib/prices/*` (`tests/investments/*.test.ts`), niente altro nel repo ha test — verificare il resto delle feature manualmente. Niente jest/playwright.
+**Vitest** (`npm test`): copre `src/lib/investments/parseFinecoCsv.ts`, `src/lib/prices/*` (`tests/investments/*.test.ts`) e la logica delle spese a rate (`src/lib/installments.ts` + helper in `utils.ts`, `tests/installments/*.test.ts`); niente altro nel repo ha test — verificare il resto delle feature manualmente. Niente jest/playwright.
 
 ---
 

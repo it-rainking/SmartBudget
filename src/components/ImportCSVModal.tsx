@@ -418,7 +418,7 @@ export function ImportCSVModal({ onClose }: Props) {
                 <div className="text-sm text-zinc-500 dark:text-zinc-400 space-y-1 mt-2">
                   <p>{importResult.inserted} transazioni importate</p>
                   {importResult.skipped > 0 && (
-                    <p className="text-amber-600 dark:text-amber-400">{importResult.skipped} duplicate saltate (stesso giorno, importo e descrizione)</p>
+                    <p className="text-amber-600 dark:text-amber-400">{importResult.skipped} duplicate saltate (stesso giorno, importo e descrizione, o rate PayPal già registrate)</p>
                   )}
                 </div>
               )}
