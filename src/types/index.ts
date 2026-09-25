@@ -200,9 +200,15 @@ export interface InstallmentPlan {
   paymentMethod: string | null
   totalAmount: number
   installments: InstallmentEntry[]
+  // Rate previste dal piano (installment_count) e quante mancano perché
+  // eliminate singolarmente
+  installmentCount: number
+  missingCount: number
   chargedCount: number
   chargedAmount: number
   remainingAmount: number
+  // Prossima rata ancora da addebitare, null se il piano è chiuso
+  nextInstallment: InstallmentEntry | null
   status: InstallmentPlanStatus
   // Quota del piano che cade nel mese analizzato
   amountInMonth: number

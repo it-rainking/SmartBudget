@@ -2,6 +2,8 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { addDays } from '@/lib/utils'
+import { findImportedInstallmentDuplicates, INSTALLMENT_IMPORT_TOLERANCE_DAYS } from '@/lib/installments'
 
 export interface ParsedTransaction {
   date: string
@@ -407,10 +409,26 @@ export function useImportTransactions() {
         )
       )
 
-      const unique = rows.filter(r => {
+      // Le rate PayPal registrate dal form ricompaiono nell'estratto conto con
+      // un'altra descrizione e qualche giorno di scarto: vanno riconosciute a
+      // parte, altrimenti la stessa rata verrebbe contata due volte.
+      const { data: existingInstallments } = await supabase
+        .from('transactions')
+        .select('id, date, amount, type')
+        .eq('user_id', auth.user.id)
+        .not('installment_plan_id', 'is', null)
+        .gte('date', addDays(minDate, -INSTALLMENT_IMPORT_TOLERANCE_DAYS))
+        .lte('date', addDays(maxDate, INSTALLMENT_IMPORT_TOLERANCE_DAYS))
+
+      const exactUnique = rows.filter(r => {
         const key = `${r.date}|${r.amount}|${r.description.toLowerCase().trim()}`
         return !existingKeys.has(key)
       })
+      const installmentDuplicates = findImportedInstallmentDuplicates(
+        exactUnique,
+        (existingInstallments ?? []).map(t => ({ ...t, amount: Number(t.amount) }))
+      )
+      const unique = exactUnique.filter((_, i) => !installmentDuplicates.has(i))
 
       if (unique.length === 0) return { inserted: 0, skipped: rows.length }
 

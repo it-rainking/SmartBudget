@@ -18,7 +18,7 @@ import {
 import { Doughnut, Bar, Line } from 'react-chartjs-2'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useMonthlyKPIs, useTransactions } from '@/hooks/useTransactions'
-import { useInstallmentPlans } from '@/hooks/useInstallments'
+import { useInstallmentPlans, useSettleInstallmentPlanEarly, useCancelRemainingInstallments } from '@/hooks/useInstallments'
 import { useExpenseCategories } from '@/hooks/useCategories'
 import { useSettings } from '@/hooks/useSettings'
 import { useModalA11y } from '@/hooks/useModalA11y'
@@ -740,17 +740,47 @@ const INSTALLMENT_STATUS_CLASS: Record<InstallmentPlan['status'], string> = {
 
 // Sommario delle spese PayPal a rate che toccano il mese selezionato, con lo
 // stato di avanzamento di ciascun piano (quante rate sono già state
-// addebitate e quante restano).
+// addebitate e quante restano) e le azioni sulle rate residue.
 function InstallmentPlansSummary({ plans, currency }: { plans: InstallmentPlan[]; currency: string }) {
   const fmt = (n: number) => formatCurrency(n, currency)
   const totalInMonth = plans.reduce((sum, p) => sum + p.amountInMonth, 0)
+  const openResidual = plans.reduce((sum, p) => sum + p.remainingAmount, 0)
+  const { showToast } = useToast()
+  const settleEarly = useSettleInstallmentPlanEarly()
+  const cancelRemaining = useCancelRemainingInstallments()
+  // Azione in attesa di conferma: un secondo tap la esegue
+  const [pending, setPending] = useState<{ planId: string; action: 'settle' | 'cancel' } | null>(null)
+  const busy = settleEarly.isPending || cancelRemaining.isPending
+
+  const run = async (planId: string, action: 'settle' | 'cancel') => {
+    if (pending?.planId !== planId || pending.action !== action) {
+      setPending({ planId, action })
+      return
+    }
+    try {
+      if (action === 'settle') {
+        const n = await settleEarly.mutateAsync(planId)
+        showToast(`${n} rate saldate oggi in anticipo`)
+      } else {
+        const n = await cancelRemaining.mutateAsync(planId)
+        showToast(`${n} rate non ancora addebitate annullate`, 'info')
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Operazione non riuscita', 'error')
+    } finally {
+      setPending(null)
+    }
+  }
 
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-100 dark:border-zinc-700 overflow-hidden">
       <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-700 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">💳 Spese PayPal a rate</h3>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Rate di questo mese: {fmt(totalInMonth)}</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+            Rate di questo mese: {fmt(totalInMonth)}
+            {openResidual > 0 && <> · Ancora da addebitare: {fmt(openResidual)}</>}
+          </p>
         </div>
       </div>
       <div className="divide-y divide-zinc-50 dark:divide-zinc-700/50">
@@ -765,13 +795,13 @@ function InstallmentPlansSummary({ plans, currency }: { plans: InstallmentPlan[]
               </span>
             </div>
             <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1.5">
-              <span>{plan.chargedCount}/{plan.installments.length} rate addebitate · Totale {fmt(plan.totalAmount)}</span>
+              <span>{plan.chargedCount}/{plan.installmentCount} rate addebitate · Totale {fmt(plan.totalAmount)}</span>
               <span>Residuo {fmt(plan.remainingAmount)}</span>
             </div>
             <div className="h-1.5 bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden mb-2">
               <div
                 className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                style={{ width: `${(plan.chargedCount / plan.installments.length) * 100}%` }}
+                style={{ width: `${(plan.chargedCount / plan.installmentCount) * 100}%` }}
               />
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -785,10 +815,38 @@ function InstallmentPlansSummary({ plans, currency }: { plans: InstallmentPlan[]
                       : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400'
                   }`}
                 >
-                  {inst.number}/{plan.installments.length} · {formatDate(inst.date)}
+                  {inst.number}/{plan.installmentCount} · {formatDate(inst.date)}
                 </span>
               ))}
             </div>
+            {plan.missingCount > 0 && (
+              <p className="mt-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+                {plan.missingCount === 1 ? '1 rata eliminata o annullata' : `${plan.missingCount} rate eliminate o annullate`}: il totale è quello delle rate rimaste.
+              </p>
+            )}
+            {plan.nextInstallment && (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+                <span>Prossima rata {formatDate(plan.nextInstallment.date)} · {fmt(plan.nextInstallment.amount)}</span>
+                <span className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => run(plan.planId, 'settle')}
+                    className="px-2 py-1 rounded border border-blue-200 dark:border-blue-900/50 text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50"
+                  >
+                    {pending?.planId === plan.planId && pending.action === 'settle' ? 'Conferma saldo' : 'Salda ora'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => run(plan.planId, 'cancel')}
+                    className="px-2 py-1 rounded border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                  >
+                    {pending?.planId === plan.planId && pending.action === 'cancel' ? 'Conferma annullo' : 'Annulla residue'}
+                  </button>
+                </span>
+              </div>
+            )}
           </div>
         ))}
       </div>

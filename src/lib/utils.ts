@@ -68,6 +68,13 @@ export function daysBetween(aStr: string, bStr: string): number {
   return Math.round((parseLocalDate(bStr).getTime() - parseLocalDate(aStr).getTime()) / 86400000)
 }
 
+// Somma (o sottrae) giorni a una data 'YYYY-MM-DD' in ora locale.
+export function addDays(dateStr: string, days: number): string {
+  const d = parseLocalDate(dateStr)
+  d.setDate(d.getDate() + days)
+  return getLocalDateString(d)
+}
+
 // ── Spese a rate (PayPal "Paga in 3 rate") ──────────────────────────────────
 
 // Numero di rate del piano PayPal: prima rata all'acquisto + 2 mensili.
