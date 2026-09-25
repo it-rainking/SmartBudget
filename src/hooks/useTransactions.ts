@@ -99,7 +99,7 @@ export function useCreateInstallmentPlan() {
       if (!user.user) throw new Error('Non autenticato')
 
       assertSplittable(data.amount, count)
-      const planId = crypto.randomUUID()
+      const planId = newPlanId()
       const amounts = splitInstallments(data.amount, count)
       const dates = installmentDates(data.date, count)
 
@@ -129,6 +129,18 @@ export function useCreateInstallmentPlan() {
   })
 }
 
+// UUID del piano. crypto.randomUUID esiste solo in contesto sicuro (HTTPS o
+// localhost) e sui browser recenti: altrove il salvataggio falliva con un
+// TypeError, quindi si ripiega su getRandomValues, disponibile ovunque.
+function newPlanId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const b = crypto.getRandomValues(new Uint8Array(16))
+  b[6] = (b[6] & 0x0f) | 0x40
+  b[8] = (b[8] & 0x3f) | 0x80
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
+
 // Ogni rata deve valere almeno un centesimo, altrimenti il piano conterrebbe
 // righe a zero euro.
 function assertSplittable(total: number, count: number) {
@@ -152,7 +164,7 @@ export function useConvertToInstallmentPlan() {
       if (!user.user) throw new Error('Non autenticato')
 
       assertSplittable(data.amount, count)
-      const planId = crypto.randomUUID()
+      const planId = newPlanId()
       const amounts = splitInstallments(data.amount, count)
       const dates = installmentDates(data.date, count)
       const planFields = { installment_plan_id: planId, installment_count: count }
@@ -171,7 +183,16 @@ export function useConvertToInstallmentPlan() {
 
       const { error: updateError } = await supabase
         .from('transactions')
-        .update({ ...data, amount: amounts[0], date: dates[0], ...planFields, installment_number: 1 })
+        .update({
+          ...data,
+          amount: amounts[0],
+          date: dates[0],
+          ...planFields,
+          installment_number: 1,
+          // Una rata non è un'occorrenza di spesa ricorrente: si scollega
+          // dall'eventuale modello, che altrimenti la conterebbe come sua
+          recurring_expense_id: null,
+        })
         .eq('id', id)
 
       if (updateError) {

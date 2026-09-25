@@ -44,6 +44,18 @@ const UNCATEGORIZED = '__uncategorized__'
 // Estrae il messaggio reale da un errore Supabase/JS: senza, ogni problema
 // diventa un generico "errore" impossibile da diagnosticare.
 function errorMessage(err: unknown): string {
+  // Colonne delle rate assenti: il DB non ha ancora la migrazione delle spese
+  // a rate. Senza questa traduzione l'utente vedrebbe solo un errore tecnico.
+  if (err && typeof err === 'object') {
+    const { code, message } = err as { code?: unknown; message?: unknown }
+    if (
+      (code === '42703' || code === 'PGRST204') &&
+      typeof message === 'string' &&
+      message.includes('installment')
+    ) {
+      return 'il database non ha ancora i campi delle rate: esegui supabase/migrate_paypal_installments.sql nel SQL Editor di Supabase'
+    }
+  }
   if (err && typeof err === 'object' && 'message' in err) {
     const message = (err as { message?: unknown }).message
     if (typeof message === 'string' && message.trim()) return message
@@ -290,9 +302,21 @@ export default function TransazioniPage() {
     let addRecurringTemplate: (() => Promise<void>) | null = null
 
     try {
-      const amount = parseFloat(formAmount)
+      const amount = Math.round(parseFloat(formAmount) * 100) / 100
       if (isNaN(amount) || amount <= 0) {
         showToast('Inserisci un importo valido maggiore di zero', 'error')
+        return
+      }
+      // Validazione esplicita al posto di quella nativa del browser (form
+      // noValidate): il fumetto nativo compare sul campo, che in un modal
+      // scrollato su mobile resta fuori schermo, e il salvataggio sembrava
+      // semplicemente non partire.
+      if (!formCategoryId) {
+        showToast('Seleziona una categoria', 'error')
+        return
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(formDate)) {
+        showToast('Inserisci una data valida', 'error')
         return
       }
 
@@ -778,7 +802,7 @@ export default function TransazioniPage() {
               <button type="button" onClick={closeForm} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+            <form onSubmit={handleSubmit} noValidate className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
               {/* Le modifiche a una rata valgono solo per quella rata */}
               {editingTransaction?.installment_plan_id && (
                 <p className="text-xs rounded-lg px-3 py-2 bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900/40">
@@ -831,6 +855,12 @@ export default function TransazioniPage() {
                       {cat.icon} {cat.name}
                     </option>
                   ))}
+                  {/* Una spesa già registrata può avere una categoria poi
+                      disattivata: senza questa opzione la select appariva
+                      vuota e la modifica non si salvava */}
+                  {formCategoryId && !getCategories().some((cat) => cat.id === formCategoryId) && (
+                    <option value={formCategoryId}>Categoria non più attiva</option>
+                  )}
                 </select>
               </div>
 
