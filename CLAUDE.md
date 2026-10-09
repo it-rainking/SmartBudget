@@ -190,6 +190,7 @@ src/
     ├── supabase-server.ts          # createServerClient() — client lato server (cookies)
     ├── queryClient.ts              # QueryClient config (staleTime 5min, retry 1, no refocus)
     ├── utils.ts                    # formatCurrency, formatDate, formatMonth, getMonthDateRange, classNames
+    ├── duplicates.ts               # findPossibleDuplicates (doppioni per importo/descrizione), dayBandIndexes (colori alternati per giorno)
     ├── installments.ts             # buildInstallmentPlans, findImportedInstallmentDuplicates, soglie PayPal (logica pura rate)
     ├── investments/parseFinecoCsv.ts # Parser CSV Fineco: separatore/codifica/riga header auto-rilevati, colonne per significato, dedup ISIN, valuta e fattore di quotazione per posizione
     ├── investments/resolveTicker.ts   # Deriva ticker_gf/ticker_yahoo da Simbolo + Mercato del CSV (solo mercati mappati)
@@ -349,6 +350,11 @@ Per l'invio asincrono: API route `/api/notifications/send` gestisce email (Resen
 
 ---
 
+## Lista transazioni: colori per giorno e possibili doppioni
+
+- Le righe alternano due sfondi a ogni **cambio di data** tra righe consecutive (`dayBandIndexes()` in `src/lib/duplicates.ts`), non a ogni giorno di calendario: due giorni con movimenti separati da un giorno vuoto hanno colori diversi. L'indice è calcolato sull'elenco filtrato intero, così la sequenza continua tra una pagina e l'altra.
+- Sopra la lista compare un banner ambra con i **possibili doppioni** del mese caricato (`findPossibleDuplicates()`, prima dei filtri client-side). Criteri, stesso tipo di transazione: stesso importo (scarto ≤1%) a ≤1 giorno di distanza; oppure descrizione simile (Jaccard ≥0,6 sulle parole significative, esclusi numeri e parole da estratto conto come "pagamento", "pos") con importo entro il 10% e ≤3 giorni. Le rate dello stesso piano PayPal sono escluse. "Non è un doppione" salva la coppia in `localStorage` (preferenza del solo browser corrente). Limite: il controllo lavora sul mese selezionato, una coppia a cavallo di due mesi (31 → 1) non viene vista.
+
 ## Spese a rate (PayPal "Paga in 3 rate")
 
 Nel form transazioni (`transazioni/page.tsx`), per ogni spesa compare sempre il toggle **"Paga in 3 rate con PayPal"**: attivarlo imposta come metodo di pagamento il primo metodo dell'utente che contiene "paypal" (case-insensitive, vedi `isPaypalMethod()` in `utils.ts`), o `PayPal` se l'elenco non ne ha. Il piano si crea solo se al salvataggio il metodo è ancora PayPal: cambiandolo, il toggle si spegne. Prima era visibile solo dopo aver scelto PayPal e passava inosservato.
@@ -401,7 +407,7 @@ npm test       # vitest run (solo modulo investimenti, vedi sezione Testing)
 
 ### Testing
 
-**Vitest** (`npm test`): copre `src/lib/investments/parseFinecoCsv.ts`, `src/lib/prices/*` (`tests/investments/*.test.ts`) e la logica delle spese a rate (`src/lib/installments.ts` + helper in `utils.ts`, `tests/installments/*.test.ts`); niente altro nel repo ha test — verificare il resto delle feature manualmente. Niente jest/playwright.
+**Vitest** (`npm test`): copre `src/lib/investments/parseFinecoCsv.ts`, `src/lib/prices/*` (`tests/investments/*.test.ts`) la logica delle spese a rate (`src/lib/installments.ts` + helper in `utils.ts`, `tests/installments/*.test.ts`) e il rilevamento doppioni (`src/lib/duplicates.ts`, `tests/duplicates/*.test.ts`); niente altro nel repo ha test — verificare il resto delle feature manualmente. Niente jest/playwright.
 
 ---
 
