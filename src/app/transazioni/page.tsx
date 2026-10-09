@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { Upload, Pencil, Trash2, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { Upload, Pencil, Trash2, ChevronLeft, ChevronRight, Plus, Copy, X } from 'lucide-react'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import {
   useTransactions,
@@ -16,6 +16,7 @@ import { useIncomeCategories, useExpenseCategories, useSavingCategories, useInit
 import { useRecurringExpenses, useCreateRecurringExpense } from '@/hooks/useRecurringExpenses'
 import { useCancelRemainingInstallments } from '@/hooks/useInstallments'
 import { PAYPAL_INSTALLMENT_MIN, PAYPAL_INSTALLMENT_MAX } from '@/lib/installments'
+import { findPossibleDuplicates, dayBandIndexes, type DuplicateReason } from '@/lib/duplicates'
 import { useToast } from '@/components/Toast'
 import { ImportCSVModal } from '@/components/ImportCSVModal'
 import { useSettings } from '@/hooks/useSettings'
@@ -40,6 +41,23 @@ const MONTHS = [
 
 const PAGE_SIZE = 20
 const UNCATEGORIZED = '__uncategorized__'
+// Coppie segnalate come "non è un doppione": preferenza locale del browser
+const DISMISSED_DUPLICATES_KEY = 'smartbudget:dismissed-duplicates'
+
+const DUPLICATE_REASON_LABEL: Record<DuplicateReason, string> = {
+  both: 'Stesso importo e descrizione simile',
+  amount: 'Stesso importo in giorni consecutivi',
+  description: 'Descrizione simile, importo vicino',
+}
+
+function loadDismissedDuplicates(): Set<string> {
+  try {
+    const raw = window.localStorage.getItem(DISMISSED_DUPLICATES_KEY)
+    return new Set(raw ? (JSON.parse(raw) as string[]) : [])
+  } catch {
+    return new Set()
+  }
+}
 
 // Estrae il messaggio reale da un errore Supabase/JS: senza, ogni problema
 // diventa un generico "errore" impossibile da diagnosticare.
@@ -209,6 +227,27 @@ export default function TransazioniPage() {
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE
   )
+  // Colore alternato per giorno, calcolato sull'intero elenco filtrato così
+  // il primo giorno di una pagina continua la sequenza della precedente
+  const dayBands = dayBandIndexes(filteredTransactions?.map(t => t.date) ?? [])
+  const pageOffset = (currentPage - 1) * PAGE_SIZE
+
+  // Possibili doppioni sulle transazioni del mese caricate (prima dei filtri
+  // client-side: una ricerca testuale non deve nascondere un doppione)
+  const [dismissedDuplicates, setDismissedDuplicates] = useState<Set<string>>(new Set())
+  const [showDuplicates, setShowDuplicates] = useState(false)
+  useEffect(() => { setDismissedDuplicates(loadDismissedDuplicates()) }, [])
+  const duplicatePairs = useMemo(
+    () => findPossibleDuplicates(transactions ?? [], dismissedDuplicates),
+    [transactions, dismissedDuplicates]
+  )
+  const dismissDuplicate = (key: string) => {
+    setDismissedDuplicates(prev => {
+      const next = new Set(prev).add(key)
+      try { window.localStorage.setItem(DISMISSED_DUPLICATES_KEY, JSON.stringify([...next])) } catch {}
+      return next
+    })
+  }
 
   const getCategories = () => {
     switch (formType) {
@@ -655,6 +694,67 @@ export default function TransazioniPage() {
           )}
         </div>
 
+        {/* Possibili doppioni */}
+        {!isLoading && duplicatePairs.length > 0 && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+            <button
+              onClick={() => setShowDuplicates(v => !v)}
+              aria-expanded={showDuplicates}
+              className="w-full p-4 flex items-center justify-between gap-2 text-left"
+            >
+              <span className="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-200">
+                <Copy size={15} />
+                {duplicatePairs.length === 1 ? '1 possibile doppione' : `${duplicatePairs.length} possibili doppioni`} questo mese
+              </span>
+              <span className="text-xs text-amber-700 dark:text-amber-300">{showDuplicates ? 'Nascondi' : 'Controlla'}</span>
+            </button>
+            {showDuplicates && (
+              <div className="px-4 pb-4 space-y-3">
+                {duplicatePairs.map(pair => (
+                  <div key={pair.key} className="bg-white dark:bg-zinc-800 rounded-lg border border-amber-100 dark:border-amber-900/40">
+                    <div className="px-3 py-2 flex items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-700">
+                      <span className="text-xs font-medium text-amber-700 dark:text-amber-300">{DUPLICATE_REASON_LABEL[pair.reason]}</span>
+                      <button
+                        onClick={() => dismissDuplicate(pair.key)}
+                        className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                      >
+                        <X size={12} /> Non è un doppione
+                      </button>
+                    </div>
+                    {[pair.a, pair.b].map(t => (
+                      <div key={t.id} className="px-3 py-2 flex items-center justify-between gap-2 text-sm">
+                        <div className="min-w-0">
+                          <p className="text-zinc-900 dark:text-white truncate">{t.description || (t.category_id ? getCategoryName(t.category_id, t.type) : 'Senza descrizione')}</p>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400">{formatDate(t.date)}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`font-semibold ${t.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {t.type === 'income' ? '+' : '-'}{fmt(t.amount)}
+                          </span>
+                          <button
+                            onClick={() => openEditForm(t)}
+                            aria-label="Modifica transazione"
+                            className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(t)}
+                            aria-label="Elimina transazione"
+                            className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Transactions List */}
         <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm overflow-hidden">
           {isLoading ? (
@@ -669,8 +769,11 @@ export default function TransazioniPage() {
             </div>
           ) : (
             <div className="divide-y divide-zinc-100 dark:divide-zinc-700">
-              {paginatedTransactions?.map((transaction) => (
-                <div key={transaction.id} className="p-4 flex items-center justify-between gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
+              {paginatedTransactions?.map((transaction, i) => (
+                <div
+                  key={transaction.id}
+                  className={`p-4 flex items-center justify-between gap-2 hover:bg-zinc-200/50 dark:hover:bg-zinc-700/60 ${dayBands[pageOffset + i] ? 'bg-zinc-100/70 dark:bg-zinc-900/40' : ''}`}
+                >
                   <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                     <div className={`px-2 py-1 rounded text-xs font-medium shrink-0 ${getTypeColor(transaction.type)}`}>
                       {getTypeLabel(transaction.type)}
