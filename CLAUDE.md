@@ -96,6 +96,7 @@ Tutte le tabelle usano RLS con policy `user_id = auth.uid()`.
 | `isin_ticker_lookup` | isin (PK), ticker_gf?, ticker_yahoo?, name?, asset_class? | Tabella globale (non per-utente) di riferimento ISIN→ticker, manutenuta manualmente |
 | `fx_rates` | base, quote (PK composita), rate, source (gsheet/yahoo), fetched_at | Cambi valuta, tabella globale (non per-utente): una riga per coppia aggiornata in place dal cron `/api/cron/prices` (service role), letta da `/api/investments/summary` |
 | `manual_prices` | user_id, asset_id (FK→assets), price, priced_at, note? | Prezzo inserito a mano dalla pagina `/investimenti` per le posizioni senza quotazione automatica (titoli di stato sul MOT). Una riga per (utente, asset), UNIQUE, aggiornata in place |
+| `dismissed_duplicates` | transaction_a, transaction_b (FK→transactions, ON DELETE CASCADE, `a < b`) | Coppie confermate come "non doppioni" dal controllo doppioni di `/transazioni`; UNIQUE (user_id, a, b) |
 | `recurring_expenses` | name, category_id?, subcategory_id?, amount, day_of_month, payment_method?, notes?, start_date, is_active | Modello di spesa ricorrente, UI in `/spese-ricorrenti`; le occorrenze generate sono normali righe in `transactions` con `recurring_expense_id` valorizzato |
 
 ### Funzioni RPC
@@ -178,6 +179,7 @@ src/
 │   ├── useTransactions.ts          # useTransactions, useCreateTransaction, useCreateInstallmentPlan, useConvertToInstallmentPlan, useUpdateTransaction, useDeleteTransaction, useDeleteInstallmentPlan, useMonthlyKPIs
 │   ├── useInstallments.ts          # useInstallmentPlans, useSettleInstallmentPlanEarly, useCancelRemainingInstallments
 │   ├── useRecurringExpenses.ts     # useRecurringExpenses, useCreateRecurringExpense, useUpdateRecurringExpense, useDeleteRecurringExpense, useEnsureCurrentMonthRecurring, useGenerateRecurringBackfill
+│   ├── useDismissedDuplicates.ts   # useDismissedDuplicates, useDismissDuplicates, useRestoreDuplicates (coppie "non doppioni", fallback localStorage)
 │   ├── useBudget.ts                # useMonthlyBudget, useEnsureMonthlyBudget, useUpsertBudgetItem, useActualAmountsByCategory
 │   ├── useInvoices.ts              # useInvoices, useCreateInvoice, useUpdateInvoice, useMarkAsPaid, useDeleteInvoice
 │   ├── useGoals.ts                 # useGoals, useCreateGoal, useUpdateGoal, useAddGoalProgress, useCompleteGoal, useDeleteGoal
@@ -239,6 +241,7 @@ Tutti gli hook usano React Query. Chiavi query:
 ['notifications']
 ['installment_plans', { month, year }]
 ['recurring_expenses']
+['dismissed_duplicates']
 ['investments_summary']
 ```
 
@@ -353,7 +356,7 @@ Per l'invio asincrono: API route `/api/notifications/send` gestisce email (Resen
 ## Lista transazioni: colori per giorno e possibili doppioni
 
 - Le righe alternano due sfondi a ogni **cambio di data** tra righe consecutive (`dayBandIndexes()` in `src/lib/duplicates.ts`), non a ogni giorno di calendario: due giorni con movimenti separati da un giorno vuoto hanno colori diversi. L'indice è calcolato sull'elenco filtrato intero, così la sequenza continua tra una pagina e l'altra.
-- Sopra la lista compare un banner ambra con i **possibili doppioni** del mese caricato (`findPossibleDuplicates()`, prima dei filtri client-side). Criteri, stesso tipo di transazione: stesso importo (scarto ≤1%) a ≤1 giorno di distanza; oppure descrizione simile (Jaccard ≥0,6 sulle parole significative, esclusi numeri e parole da estratto conto come "pagamento", "pos") con importo entro il 10% e ≤3 giorni. Le rate dello stesso piano PayPal sono escluse. "Non è un doppione" salva la coppia in `localStorage` (preferenza del solo browser corrente). Limite: il controllo lavora sul mese selezionato, una coppia a cavallo di due mesi (31 → 1) non viene vista.
+- Sopra la lista compare un banner ambra con i **possibili doppioni** del mese caricato (`findPossibleDuplicates()`, prima dei filtri client-side). Criteri, stesso tipo di transazione: stesso importo (scarto ≤1%) a ≤1 giorno di distanza; oppure descrizione simile (Jaccard ≥0,6 sulle parole significative, esclusi numeri e parole da estratto conto come "pagamento", "pos") con importo entro il 10% e ≤3 giorni. Le rate dello stesso piano PayPal sono escluse. Ogni coppia ha una spunta "Non è un doppione"; il tasto **Conferma** salva le coppie spuntate in `dismissed_duplicates` e da quel momento non compaiono più. Sotto il banner, "Ripristina" riporta in elenco le coppie del mese già confermate. Hook in `src/hooks/useDismissedDuplicates.ts`: se la tabella non esiste ancora (migrazione non eseguita) ripiegano su `localStorage` e il banner lo segnala; dopo la migrazione le conferme locali vengono copiate nel DB al primo caricamento. Migrazione DB: `supabase/migrate_dismissed_duplicates.sql`. Limite: il controllo lavora sul mese selezionato, una coppia a cavallo di due mesi (31 → 1) non viene vista.
 
 ## Spese a rate (PayPal "Paga in 3 rate")
 
