@@ -19,7 +19,6 @@ import { useCancelRemainingInstallments } from '@/hooks/useInstallments'
 import { PAYPAL_INSTALLMENT_MIN, PAYPAL_INSTALLMENT_MAX } from '@/lib/installments'
 import { findPossibleDuplicates, type DuplicateReason } from '@/lib/duplicates'
 import { useToast } from '@/components/Toast'
-import { ImportCSVModal } from '@/components/ImportCSVModal'
 import { useSettings } from '@/hooks/useSettings'
 import { useSelectedMonth } from '@/hooks/useSelectedMonth'
 import { MonthSwitcher } from '@/components/MonthSwitcher'
@@ -38,6 +37,10 @@ import {
 import type { TransactionType, Transaction } from '@/types'
 import { Button, Card, EmptyState, Modal, Skeleton } from '@/components/ui'
 import { SwipeRow } from '@/components/ui/SwipeRow'
+import dynamic from 'next/dynamic'
+
+// Parser CSV/OFX e anteprima servono solo quando si apre l'import
+const ImportCSVModal = dynamic(() => import('@/components/ImportCSVModal').then((m) => m.ImportCSVModal), { ssr: false })
 
 const PAGE_SIZE = 20
 const UNCATEGORIZED = '__uncategorized__'

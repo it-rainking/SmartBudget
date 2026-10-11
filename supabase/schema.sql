@@ -568,6 +568,27 @@ BEGIN
 END;
 $$ language 'plpgsql' SECURITY DEFINER;
 
+-- Saldo di apertura della dashboard mensile (vedi migrate_performance.sql)
+-- La dashboard mensile scaricava tutte le transazioni precedenti al mese per
+-- sommarle nel browser: payload che cresce con lo storico e, oltre le 1000
+-- righe (limite di default delle API Supabase), una somma troncata in
+-- silenzio. Qui la somma torna come un solo numero.
+-- SECURITY INVOKER: valgono le policy RLS dell'utente che chiama.
+CREATE OR REPLACE FUNCTION public.get_balance_flow_before(p_date DATE)
+RETURNS NUMERIC
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = public
+AS $$
+    SELECT COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE -amount END), 0)
+    FROM public.transactions
+    WHERE user_id = (SELECT auth.uid())
+      AND date < p_date;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_balance_flow_before(DATE) TO authenticated;
+
 -- Righe di esempio per isin_ticker_lookup (pattern da estendere con i propri ISIN).
 INSERT INTO public.isin_ticker_lookup (isin, ticker_gf, ticker_yahoo, name, asset_class) VALUES
     ('IE00BK5BQT80', 'BIT:VWCE', 'VWCE.MI', 'Vanguard FTSE All-World UCITS ETF', 'etf_equity'),

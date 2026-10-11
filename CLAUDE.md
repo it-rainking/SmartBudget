@@ -67,7 +67,8 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 Gestisce redirect auth su ogni request:
 - **Route protette** (`/dashboard`, `/budget`, `/transazioni`, `/spese-ricorrenti`, `/fatture`, `/obiettivi`, `/debiti`, `/investimenti`, `/settings`, `/istruzioni`, `/onboarding`, `/aggiorna-password`): redirect a `/login` se non autenticato
 - **Route auth** (`/login`, `/signup`): redirect a `/dashboard/mensile` se già autenticato
-- Rinnova la sessione Supabase SSR ad ogni request
+- Rinnova la sessione Supabase SSR ad ogni request con `getClaims()` (verifica locale del JWT, nessuna chiamata al server Auth se il progetto usa chiavi asimmetriche)
+- Non gira su `/api/*` (ogni route verifica l'utente da sé) né su file statici
 
 ---
 
@@ -100,6 +101,11 @@ Tutte le tabelle usano RLS con policy `user_id = auth.uid()`.
 | `recurring_expenses` | name, category_id?, subcategory_id?, amount, day_of_month, payment_method?, notes?, start_date, is_active | Modello di spesa ricorrente, UI in `/spese-ricorrenti`; le occorrenze generate sono normali righe in `transactions` con `recurring_expense_id` valorizzato |
 
 ### Funzioni RPC
+
+```sql
+get_balance_flow_before(p_date date)
+```
+Flusso netto (entrate +, il resto −) di tutte le transazioni prima di `p_date`, base del saldo disponibile in `useMonthlyKPIs`. `SECURITY INVOKER`, quindi sotto RLS. Senza migrazione (`supabase/migrate_performance.sql`) il client ripiega sulla somma delle righe, limitata a 1000 dall'API. La stessa migrazione riscrive le policy RLS con `(SELECT auth.uid())`, valutato una volta per query invece che per riga.
 
 ```sql
 create_default_categories(p_user_id uuid)
@@ -174,6 +180,7 @@ src/
 │   ├── MonthSwitcher.tsx           # "‹ Ottobre 2026 ›" + selettore a griglia, legge/scrive ?m= via useSelectedMonth
 │   ├── QuickAddSheet.tsx           # Inserimento rapido dal "+" (importo, categorie più usate, data, metodo)
 │   ├── ImportCSVModal.tsx          # Drag-drop CSV, preview, bulk insert
+│   ├── charts/                     # LazyCharts (Line/Bar/Doughnut caricati in un chunk separato, ssr:false) + chartSetup (registrazione Chart.js)
 │   ├── ui/                         # Componenti base: Modal, Section, Card, Button, KpiTile, Skeleton, EmptyState, SwipeRow
 │   ├── SpendingGroupsPanel.tsx     # Impostazioni: gruppo Kakebo di ogni categoria di spesa
 │   └── dashboard/                  # Blocchi della dashboard mensile: BalanceHero, SpendingPlanSection, CategoryBreakdownSection, IncomeSplitSection, AiInsightsSection, InstallmentPlansSummary, RecurringExpensesBox, CategoryExpensesModal
@@ -285,6 +292,7 @@ showToast('Messaggio', 'success' | 'error' | 'info')
 - **Mese selezionato**: dashboard mensile e transazioni lo leggono da `useSelectedMonth()`, salvato nell'URL come `?m=YYYY-MM` (assente = mese corrente). I link di navigazione verso queste due pagine se lo portano dietro. Su mobile la dashboard cambia mese anche con lo swipe orizzontale (`data-no-swipe` esclude un elemento, es. i grafici).
 - **Modali**: usare sempre `Modal` da `@/components/ui` (bottom sheet su mobile, finestra centrata da `sm`). `dismissOnBackdrop={false}` nei form, per non perdere quanto scritto con un tocco fuori. Un campo con `data-autofocus` riceve il focus all'apertura.
 - **Inserimento rapido** (`QuickAddSheet`): importo per primo (`inputMode="decimal"`, accetta `1.234,56`), categorie ordinate per uso nel mese, data di oggi, ultimo metodo di pagamento (in `localStorage`). Rate, ricorrenze ed eccezionali restano nel form completo: "Più opzioni" apre `/transazioni?nuova=1&...` precompilato (o manda un evento se la pagina è già aperta).
+- **Grafici e modali pesanti**: importare `Line`/`Bar`/`Doughnut` da `@/components/charts/LazyCharts`, mai da `react-chartjs-2`, così Chart.js resta fuori dal bundle iniziale. I modali aperti su richiesta (`ImportCSVModal`, `CategoryExpensesModal`) sono caricati con `next/dynamic`.
 - **Importi**: tutti i campi numerici hanno `inputMode` (`decimal` o `numeric`). Il `body` usa cifre tabulari e il font di sistema (stack `font-sans` di Tailwind).
 - **Dashboard mensile**, dall'alto: `BalanceHero` (saldo disponibile + curva del mese), entrate/spese/risparmi, griglia degli indicatori secondari, poi `Section` richiudibili (stato aperto/chiuso in `localStorage` per browser), la prima è il portamonete del mese.
 

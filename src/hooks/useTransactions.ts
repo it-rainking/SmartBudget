@@ -299,6 +299,28 @@ function trimmedAverage(values: number[]): number {
 }
 
 // Monthly KPIs
+/**
+ * Somma con segno (entrate +, il resto −) di tutte le transazioni con data
+ * precedente a `date`. Usa la funzione SQL `get_balance_flow_before`; se la
+ * migrazione non è ancora stata eseguita ripiega sulla lettura delle righe,
+ * sommate qui (più lenta e limitata alle prime 1000 righe dall'API).
+ */
+async function fetchBalanceFlowBefore(date: string): Promise<{ flow: number; error: Error | null }> {
+  const rpc = await supabase.rpc('get_balance_flow_before', { p_date: date })
+  if (!rpc.error) return { flow: Number(rpc.data ?? 0), error: null }
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('type, amount')
+    .lt('date', date)
+  if (error) return { flow: 0, error }
+  const flow = (data ?? []).reduce(
+    (sum, t) => sum + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)),
+    0,
+  )
+  return { flow, error: null }
+}
+
 export function useMonthlyKPIs(month?: number, year?: number) {
   const currentDate = new Date()
   const m = month ?? currentDate.getMonth() + 1
@@ -344,14 +366,9 @@ export function useMonthlyKPIs(month?: number, year?: number) {
           .eq('is_exceptional', false)
           .gte('date', histStart)
           .lte('date', prevEnd),
-        // Tutto lo storico precedente al mese: serve solo alla somma cumulata
-        // del saldo disponibile, quindi si leggono due sole colonne.
-        // Aggregazione client-side coerente con useAnnualData; spostarla lato
-        // SQL è già nel backlog di CLAUDE.md.
-        supabase
-          .from('transactions')
-          .select('type, amount')
-          .lt('date', startDate),
+        // Flusso netto di tutto lo storico precedente al mese, base del
+        // saldo disponibile: sommato nel DB (migrate_performance.sql).
+        fetchBalanceFlowBefore(startDate),
         supabase
           .from('settings')
           .select('initial_balance')
@@ -501,10 +518,7 @@ export function useMonthlyKPIs(month?: number, year?: number) {
       // mostrerebbe denaro non ancora incassato.
       const signedFlow = (type: string, amount: number) => (type === 'income' ? amount : -amount)
 
-      let openingBalance = Number(settingsRes.data?.initial_balance ?? 0)
-      prior.data?.forEach((t) => {
-        openingBalance += signedFlow(t.type, Number(t.amount))
-      })
+      const openingBalance = Number(settingsRes.data?.initial_balance ?? 0) + prior.flow
 
       // Il giorno si estrae dalla stringa 'YYYY-MM-DD': new Date() sposterebbe
       // la data di un giorno nei fusi a offset positivo.
