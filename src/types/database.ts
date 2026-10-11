@@ -786,6 +786,52 @@ export type Database = {
           },
         ]
       }
+      dismissed_duplicates: {
+        Row: {
+          id: string
+          user_id: string
+          transaction_a: string
+          transaction_b: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          transaction_a: string
+          transaction_b: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          transaction_a?: string
+          transaction_b?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'dismissed_duplicates_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'dismissed_duplicates_transaction_a_fkey'
+            columns: ['transaction_a']
+            isOneToOne: false
+            referencedRelation: 'transactions'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'dismissed_duplicates_transaction_b_fkey'
+            columns: ['transaction_b']
+            isOneToOne: false
+            referencedRelation: 'transactions'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       recurring_expenses: {
         Row: {
           id: string

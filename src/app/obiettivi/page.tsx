@@ -6,9 +6,9 @@ import { DashboardLayout } from '@/components/DashboardLayout'
 import { useGoals, useCreateGoal, useUpdateGoal, useAddGoalProgress, useCompleteGoal, useDeleteGoal } from '@/hooks/useGoals'
 import { useSettings } from '@/hooks/useSettings'
 import { useToast } from '@/components/Toast'
-import { useModalA11y } from '@/hooks/useModalA11y'
 import { formatCurrency } from '@/lib/utils'
 import type { GoalType, Goal } from '@/types'
+import { Modal } from '@/components/ui/Modal'
 
 const TYPE_LABELS: Record<GoalType, string> = {
   saving: 'Risparmio',
@@ -190,9 +190,6 @@ export default function ObiettiviPage() {
     return Math.ceil((deadlineDate.getTime() - today.getTime()) / 86400000)
   }
 
-  const formModalRef = useModalA11y<HTMLDivElement>(showModal, closeModal)
-  const progressModalRef = useModalA11y<HTMLDivElement>(!!progressModal, () => setProgressModal(null))
-  const deleteModalRef = useModalA11y<HTMLDivElement>(!!confirmDeleteGoalId, () => setConfirmDeleteGoalId(null))
 
   return (
     <DashboardLayout>
@@ -446,176 +443,173 @@ export default function ObiettiviPage() {
 
       {/* New Goal Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="goal-modal-title">
-          <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-700 shrink-0">
-              <h2 id="goal-modal-title" className="text-lg font-semibold text-zinc-900 dark:text-white">{editingGoal ? 'Modifica Obiettivo' : 'Nuovo Obiettivo'}</h2>
-              <button onClick={closeModal} aria-label="Chiudi" className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
-            </div>
-            <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
-              <div>
-                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Nome obiettivo *</label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="Es. Fondo vacanze, Macchina nuova..."
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Target ({currency}) *</label>
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={form.target_amount}
-                    onChange={e => setForm(f => ({ ...f, target_amount: e.target.value }))}
-                    placeholder="0.00"
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Già risparmiato</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.current_amount}
-                    onChange={e => setForm(f => ({ ...f, current_amount: e.target.value }))}
-                    placeholder="0.00"
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Tipo</label>
-                  <select
-                    value={form.type}
-                    onChange={e => setForm(f => ({ ...f, type: e.target.value as GoalType }))}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  >
-                    <option value="saving">{TYPE_ICONS.saving} Risparmio</option>
-                    <option value="debt">{TYPE_ICONS.debt} Debito</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Scadenza (opz.)</label>
-                  <input
-                    type="date"
-                    value={form.deadline}
-                    onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Note (opzionale)</label>
-                <textarea
-                  value={form.description}
-                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  rows={2}
-                  placeholder="Descrizione o motivazione..."
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="flex-1 py-2 px-4 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-                >
-                  Annulla
-                </button>
-                <button
-                  type="submit"
-                  disabled={createGoal.isPending || updateGoal.isPending}
-                  className="flex-1 py-2 px-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  {(createGoal.isPending || updateGoal.isPending) ? 'Salvataggio...' : editingGoal ? 'Aggiorna obiettivo' : 'Crea obiettivo'}
-                </button>
-              </div>
-            </form>
+        <Modal open onClose={closeModal} labelledBy="goal-modal-title" dismissOnBackdrop={false} className="flex flex-col">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-700 shrink-0">
+            <h2 id="goal-modal-title" className="text-lg font-semibold text-zinc-900 dark:text-white">{editingGoal ? 'Modifica Obiettivo' : 'Nuovo Obiettivo'}</h2>
+            <button onClick={closeModal} aria-label="Chiudi" className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
           </div>
-        </div>
-      )}
-
-      {/* Add Progress Modal */}
-      {progressModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="progress-modal-title">
-          <div ref={progressModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-700">
-              <h2 id="progress-modal-title" className="text-lg font-semibold text-zinc-900 dark:text-white">Aggiungi Progresso</h2>
-              <button onClick={() => setProgressModal(null)} aria-label="Chiudi" className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
+          <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+            <div>
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Nome obiettivo *</label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Es. Fondo vacanze, Macchina nuova..."
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                required
+              />
             </div>
-            <form onSubmit={handleAddProgress} className="p-6 space-y-4">
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Importo da aggiungere ({currency})</label>
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Target ({currency}) *</label>
                 <input
                   type="number"
+                  inputMode="decimal"
                   min="0.01"
                   step="0.01"
-                  value={progressModal.amount}
-                  onChange={e => setProgressModal(p => p ? { ...p, amount: e.target.value } : null)}
+                  value={form.target_amount}
+                  onChange={e => setForm(f => ({ ...f, target_amount: e.target.value }))}
                   placeholder="0.00"
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  autoFocus
                   required
                 />
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Attuale: {fmt(progressModal.currentAmount)}</p>
               </div>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setProgressModal(null)}
-                  className="flex-1 py-2 px-4 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-                >
-                  Annulla
-                </button>
-                <button
-                  type="submit"
-                  disabled={addProgress.isPending}
-                  className="flex-1 py-2 px-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  {addProgress.isPending ? 'Salvataggio...' : 'Aggiungi'}
-                </button>
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Già risparmiato</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={form.current_amount}
+                  onChange={e => setForm(f => ({ ...f, current_amount: e.target.value }))}
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>
 
-      {/* Confirm delete obiettivo */}
-      {confirmDeleteGoalId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="delete-goal-title">
-          <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
-            <h3 id="delete-goal-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina obiettivo</h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Questa azione è irreversibile.</p>
-            <div className="flex gap-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Tipo</label>
+                <select
+                  value={form.type}
+                  onChange={e => setForm(f => ({ ...f, type: e.target.value as GoalType }))}
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="saving">{TYPE_ICONS.saving} Risparmio</option>
+                  <option value="debt">{TYPE_ICONS.debt} Debito</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Scadenza (opz.)</label>
+                <input
+                  type="date"
+                  value={form.deadline}
+                  onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))}
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Note (opzionale)</label>
+              <textarea
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                rows={2}
+                placeholder="Descrizione o motivazione..."
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
               <button
-                onClick={() => setConfirmDeleteGoalId(null)}
-                className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+                type="button"
+                onClick={closeModal}
+                className="flex-1 py-2 px-4 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
               >
                 Annulla
               </button>
               <button
-                onClick={() => handleDelete(confirmDeleteGoalId)}
-                disabled={deleteGoal.isPending}
-                className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm font-medium transition-colors"
+                type="submit"
+                disabled={createGoal.isPending || updateGoal.isPending}
+                className="flex-1 py-2 px-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
               >
-                {deleteGoal.isPending ? 'Eliminazione...' : 'Elimina'}
+                {(createGoal.isPending || updateGoal.isPending) ? 'Salvataggio...' : editingGoal ? 'Aggiorna obiettivo' : 'Crea obiettivo'}
               </button>
             </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Add Progress Modal */}
+      {progressModal && (
+        <Modal open onClose={() => setProgressModal(null)} labelledBy="progress-modal-title" size="sm">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-700">
+            <h2 id="progress-modal-title" className="text-lg font-semibold text-zinc-900 dark:text-white">Aggiungi Progresso</h2>
+            <button onClick={() => setProgressModal(null)} aria-label="Chiudi" className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
           </div>
-        </div>
+          <form onSubmit={handleAddProgress} className="p-6 space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Importo da aggiungere ({currency})</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0.01"
+                step="0.01"
+                value={progressModal.amount}
+                onChange={e => setProgressModal(p => p ? { ...p, amount: e.target.value } : null)}
+                placeholder="0.00"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                autoFocus
+                required
+              />
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Attuale: {fmt(progressModal.currentAmount)}</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setProgressModal(null)}
+                className="flex-1 py-2 px-4 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                type="submit"
+                disabled={addProgress.isPending}
+                className="flex-1 py-2 px-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                {addProgress.isPending ? 'Salvataggio...' : 'Aggiungi'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Confirm delete obiettivo */}
+      {confirmDeleteGoalId && (
+        <Modal open onClose={() => setConfirmDeleteGoalId(null)} labelledBy="delete-goal-title" size="sm" className="p-6">
+          <h3 id="delete-goal-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina obiettivo</h3>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Questa azione è irreversibile.</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setConfirmDeleteGoalId(null)}
+              className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+            >
+              Annulla
+            </button>
+            <button
+              onClick={() => handleDelete(confirmDeleteGoalId)}
+              disabled={deleteGoal.isPending}
+              className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm font-medium transition-colors"
+            >
+              {deleteGoal.isPending ? 'Eliminazione...' : 'Elimina'}
+            </button>
+          </div>
+        </Modal>
       )}
     </DashboardLayout>
   )

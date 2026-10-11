@@ -12,9 +12,9 @@ import {
   useDeleteInvoice,
 } from '@/hooks/useInvoices'
 import { useSettings } from '@/hooks/useSettings'
-import { useModalA11y } from '@/hooks/useModalA11y'
 import { formatCurrency, getLocalDateString } from '@/lib/utils'
 import type { Invoice, InvoiceStatus, InvoiceRecurrence } from '@/types'
+import { Modal } from '@/components/ui/Modal'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -217,8 +217,6 @@ export default function FatturePage() {
     return { startOffset, daysInMonth }
   }, [calMonth, calYear])
 
-  const deleteModalRef = useModalA11y<HTMLDivElement>(!!confirmDeleteId, () => setConfirmDeleteId(null))
-  const formModalRef = useModalA11y<HTMLDivElement>(showForm, closeForm)
 
   // ─── JSX ──────────────────────────────────────────────────────────────────
 
@@ -556,135 +554,132 @@ export default function FatturePage() {
 
       {/* ─── MODAL: CONFERMA ELIMINAZIONE ─── */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="delete-invoice-title">
-          <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
-            <h3 id="delete-invoice-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina fattura</h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Questa azione è irreversibile.</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-              >
-                Annulla
-              </button>
-              <button
-                onClick={() => handleDelete(confirmDeleteId)}
-                disabled={deleteInvoice.isPending}
-                className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm font-medium transition-colors"
-              >
-                {deleteInvoice.isPending ? 'Eliminazione...' : 'Elimina'}
-              </button>
-            </div>
+        <Modal open onClose={() => setConfirmDeleteId(null)} labelledBy="delete-invoice-title" size="sm" className="p-6">
+          <h3 id="delete-invoice-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina fattura</h3>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Questa azione è irreversibile.</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setConfirmDeleteId(null)}
+              className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+            >
+              Annulla
+            </button>
+            <button
+              onClick={() => handleDelete(confirmDeleteId)}
+              disabled={deleteInvoice.isPending}
+              className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm font-medium transition-colors"
+            >
+              {deleteInvoice.isPending ? 'Eliminazione...' : 'Elimina'}
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* ─── MODAL: NUOVA FATTURA ─── */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="invoice-modal-title">
-          <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-700 shrink-0">
-              <h2 id="invoice-modal-title" className="text-lg font-bold text-zinc-900 dark:text-white">{editingInvoice ? 'Modifica fattura' : 'Nuova fattura'}</h2>
-              <button onClick={closeForm} aria-label="Chiudi" className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
+        <Modal open onClose={closeForm} labelledBy="invoice-modal-title" dismissOnBackdrop={false} className="flex flex-col">
+          <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-700 shrink-0">
+            <h2 id="invoice-modal-title" className="text-lg font-bold text-zinc-900 dark:text-white">{editingInvoice ? 'Modifica fattura' : 'Nuova fattura'}</h2>
+            <button onClick={closeForm} aria-label="Chiudi" className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={18} /></button>
+          </div>
+
+          <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-1.5">Nome *</label>
+              <input
+                type="text"
+                value={fName}
+                onChange={e => setFName(e.target.value)}
+                required
+                placeholder="es. Netflix, Affitto, Mutuo..."
+                className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
+              />
             </div>
 
-            <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-1.5">Nome *</label>
+                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-1.5">Importo (€) *</label>
                 <input
-                  type="text"
-                  value={fName}
-                  onChange={e => setFName(e.target.value)}
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={fAmount}
+                  onChange={e => setFAmount(e.target.value)}
                   required
-                  placeholder="es. Netflix, Affitto, Mutuo..."
+                  placeholder="0.00"
                   className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
                 />
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-1.5">Importo (€) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={fAmount}
-                    onChange={e => setFAmount(e.target.value)}
-                    required
-                    placeholder="0.00"
-                    className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-1.5">Scadenza *</label>
-                  <input
-                    type="date"
-                    value={fDueDate}
-                    onChange={e => setFDueDate(e.target.value)}
-                    required
-                    className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
-                  />
-                </div>
-              </div>
-
               <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-1.5">Ricorrenza</label>
-                <select
-                  value={fRecurrence}
-                  onChange={e => setFRecurrence(e.target.value as InvoiceRecurrence)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
-                >
-                  {Object.entries(RECURRENCE_LABELS).map(([k, v]) => (
-                    <option key={k} value={k}>{v}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-1.5">Note (opzionale)</label>
+                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-1.5">Scadenza *</label>
                 <input
-                  type="text"
-                  value={fDescription}
-                  onChange={e => setFDescription(e.target.value)}
-                  placeholder="Descrizione o note aggiuntive"
+                  type="date"
+                  value={fDueDate}
+                  onChange={e => setFDueDate(e.target.value)}
+                  required
                   className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
                 />
               </div>
+            </div>
 
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-1.5">Ricorrenza</label>
+              <select
+                value={fRecurrence}
+                onChange={e => setFRecurrence(e.target.value as InvoiceRecurrence)}
+                className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
+              >
+                {Object.entries(RECURRENCE_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-1.5">Note (opzionale)</label>
+              <input
+                type="text"
+                value={fDescription}
+                onChange={e => setFDescription(e.target.value)}
+                placeholder="Descrizione o note aggiuntive"
+                className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setFAutoRenew(v => !v)}
+              className="flex items-center gap-3 cursor-pointer"
+              aria-pressed={fAutoRenew}
+              aria-label="Rinnovo automatico"
+            >
+              <div className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${fAutoRenew ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}>
+                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${fAutoRenew ? 'left-5' : 'left-0.5'}`} />
+              </div>
+              <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                Rinnovo automatico
+              </span>
+            </button>
+
+            <div className="flex gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setFAutoRenew(v => !v)}
-                className="flex items-center gap-3 cursor-pointer"
-                aria-pressed={fAutoRenew}
-                aria-label="Rinnovo automatico"
+                onClick={closeForm}
+                className="flex-1 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
               >
-                <div className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${fAutoRenew ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}>
-                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${fAutoRenew ? 'left-5' : 'left-0.5'}`} />
-                </div>
-                <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                  Rinnovo automatico
-                </span>
+                Annulla
               </button>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={closeForm}
-                  className="flex-1 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-                >
-                  Annulla
-                </button>
-                <button
-                  type="submit"
-                  disabled={createInvoice.isPending || updateInvoice.isPending}
-                  className="flex-1 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white text-sm font-medium transition-colors"
-                >
-                  {(createInvoice.isPending || updateInvoice.isPending) ? 'Salvataggio...' : editingInvoice ? 'Aggiorna' : 'Salva'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+              <button
+                type="submit"
+                disabled={createInvoice.isPending || updateInvoice.isPending}
+                className="flex-1 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white text-sm font-medium transition-colors"
+              >
+                {(createInvoice.isPending || updateInvoice.isPending) ? 'Salvataggio...' : editingInvoice ? 'Aggiorna' : 'Salva'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
     </DashboardLayout>
   )

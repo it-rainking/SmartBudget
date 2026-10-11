@@ -5,9 +5,9 @@ import { DashboardLayout } from '@/components/DashboardLayout'
 import { useDebtItems, useCreateDebtItem, useUpdateDebtItem, useDeleteDebtItem, monthsToPayoff, totalInterest, type DebtItemFormData } from '@/hooks/useDebtItems'
 import { useSettings } from '@/hooks/useSettings'
 import { useToast } from '@/components/Toast'
-import { useModalA11y } from '@/hooks/useModalA11y'
 import { formatCurrency } from '@/lib/utils'
 import type { DebtItem } from '@/types'
+import { Modal } from '@/components/ui/Modal'
 
 type Strategy = 'none' | 'snowball' | 'avalanche'
 
@@ -120,8 +120,6 @@ export default function DebitiPage() {
     return isFinite(i) ? fmt(i) : 'N/D'
   }
 
-  const formModalRef = useModalA11y<HTMLDivElement>(showForm, closeForm)
-  const deleteModalRef = useModalA11y<HTMLDivElement>(!!confirmDeleteId, () => setConfirmDeleteId(null))
 
   return (
     <DashboardLayout>
@@ -318,143 +316,143 @@ export default function DebitiPage() {
 
       {/* Add/Edit modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="debt-modal-title">
-          <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-700">
-              <h2 id="debt-modal-title" className="text-lg font-bold text-zinc-900 dark:text-white">
-                {editingDebt ? 'Modifica debito' : 'Aggiungi debito'}
-              </h2>
-              <button onClick={closeForm} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Nome *</label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  required
-                  placeholder="es. Mutuo casa, Prestito auto..."
-                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Descrizione</label>
-                <input
-                  type="text"
-                  value={form.description ?? ''}
-                  onChange={e => setForm(f => ({ ...f, description: e.target.value || null }))}
-                  placeholder="Opzionale"
-                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Importo originale *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.total_amount || ''}
-                    onChange={e => setForm(f => ({ ...f, total_amount: parseFloat(e.target.value) || 0 }))}
-                    required
-                    className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Residuo attuale *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.remaining_amount || ''}
-                    onChange={e => setForm(f => ({ ...f, remaining_amount: parseFloat(e.target.value) || 0 }))}
-                    required
-                    className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Tasso interesse (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.interest_rate ?? ''}
-                    onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value ? parseFloat(e.target.value) : null }))}
-                    placeholder="es. 3.5"
-                    className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Rata mensile</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.monthly_payment ?? ''}
-                    onChange={e => setForm(f => ({ ...f, monthly_payment: e.target.value ? parseFloat(e.target.value) : null }))}
-                    placeholder="es. 500"
-                    className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Data inizio</label>
-                  <input
-                    type="date"
-                    value={form.start_date ?? ''}
-                    onChange={e => setForm(f => ({ ...f, start_date: e.target.value || null }))}
-                    className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Data scadenza</label>
-                  <input
-                    type="date"
-                    value={form.due_date ?? ''}
-                    onChange={e => setForm(f => ({ ...f, due_date: e.target.value || null }))}
-                    className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={closeForm}
-                  className="flex-1 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors">
-                  Annulla
-                </button>
-                <button type="submit"
-                  disabled={createDebt.isPending || updateDebt.isPending}
-                  className="flex-1 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-medium transition-colors">
-                  {createDebt.isPending || updateDebt.isPending ? 'Salvataggio...' : editingDebt ? 'Aggiorna' : 'Aggiungi'}
-                </button>
-              </div>
-            </form>
+        <Modal open onClose={closeForm} labelledBy="debt-modal-title" dismissOnBackdrop={false} className="overflow-y-auto">
+          <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-700">
+            <h2 id="debt-modal-title" className="text-lg font-bold text-zinc-900 dark:text-white">
+              {editingDebt ? 'Modifica debito' : 'Aggiungi debito'}
+            </h2>
+            <button onClick={closeForm} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
           </div>
-        </div>
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Nome *</label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                required
+                placeholder="es. Mutuo casa, Prestito auto..."
+                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Descrizione</label>
+              <input
+                type="text"
+                value={form.description ?? ''}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value || null }))}
+                placeholder="Opzionale"
+                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Importo originale *</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={form.total_amount || ''}
+                  onChange={e => setForm(f => ({ ...f, total_amount: parseFloat(e.target.value) || 0 }))}
+                  required
+                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Residuo attuale *</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={form.remaining_amount || ''}
+                  onChange={e => setForm(f => ({ ...f, remaining_amount: parseFloat(e.target.value) || 0 }))}
+                  required
+                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Tasso interesse (%)</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={form.interest_rate ?? ''}
+                  onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value ? parseFloat(e.target.value) : null }))}
+                  placeholder="es. 3.5"
+                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Rata mensile</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={form.monthly_payment ?? ''}
+                  onChange={e => setForm(f => ({ ...f, monthly_payment: e.target.value ? parseFloat(e.target.value) : null }))}
+                  placeholder="es. 500"
+                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Data inizio</label>
+                <input
+                  type="date"
+                  value={form.start_date ?? ''}
+                  onChange={e => setForm(f => ({ ...f, start_date: e.target.value || null }))}
+                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Data scadenza</label>
+                <input
+                  type="date"
+                  value={form.due_date ?? ''}
+                  onChange={e => setForm(f => ({ ...f, due_date: e.target.value || null }))}
+                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={closeForm}
+                className="flex-1 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors">
+                Annulla
+              </button>
+              <button type="submit"
+                disabled={createDebt.isPending || updateDebt.isPending}
+                className="flex-1 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-medium transition-colors">
+                {createDebt.isPending || updateDebt.isPending ? 'Salvataggio...' : editingDebt ? 'Aggiorna' : 'Aggiungi'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {/* Confirm delete */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="delete-debt-title">
-          <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
-            <h3 id="delete-debt-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Rimuovi debito</h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Il debito verrà archiviato e non sarà più visibile.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setConfirmDeleteId(null)}
-                className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors">
-                Annulla
-              </button>
-              <button onClick={() => handleDelete(confirmDeleteId)}
-                disabled={deleteDebt.isPending}
-                className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm font-medium transition-colors">
-                {deleteDebt.isPending ? 'Rimozione...' : 'Rimuovi'}
-              </button>
-            </div>
+        <Modal open onClose={() => setConfirmDeleteId(null)} labelledBy="delete-debt-title" size="sm" className="p-6">
+          <h3 id="delete-debt-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Rimuovi debito</h3>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">Il debito verrà archiviato e non sarà più visibile.</p>
+          <div className="flex gap-3">
+            <button onClick={() => setConfirmDeleteId(null)}
+              className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors">
+              Annulla
+            </button>
+            <button onClick={() => handleDelete(confirmDeleteId)}
+              disabled={deleteDebt.isPending}
+              className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm font-medium transition-colors">
+              {deleteDebt.isPending ? 'Rimozione...' : 'Rimuovi'}
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
     </DashboardLayout>
   )
