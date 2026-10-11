@@ -2,24 +2,11 @@
 
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, PiggyBank, Wallet, Trophy, AlertTriangle, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Tooltip,
-  Legend,
-  Filler,
-} from 'chart.js'
-import { Line, Bar } from 'react-chartjs-2'
+import { Line, Bar } from '@/components/charts/LazyCharts'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useAnnualData, type MonthlyAnnualData } from '@/hooks/useAnnualData'
 import { useSettings } from '@/hooks/useSettings'
 import { formatCurrency } from '@/lib/utils'
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler)
 
 // Campi numerici di un mese usati dalle card "mesi notevoli"
 type NumericMonthField =

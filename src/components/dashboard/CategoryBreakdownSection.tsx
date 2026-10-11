@@ -1,7 +1,6 @@
 'use client'
 
-import './chartSetup'
-import { Doughnut } from 'react-chartjs-2'
+import { Doughnut } from '@/components/charts/LazyCharts'
 import { PieChart, Tag, Zap } from 'lucide-react'
 import { Section } from '@/components/ui'
 import { formatCurrency } from '@/lib/utils'

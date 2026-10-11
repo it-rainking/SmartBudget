@@ -11,7 +11,6 @@ import { IncomeSplitSection } from '@/components/dashboard/IncomeSplitSection'
 import { AiInsightsSection } from '@/components/dashboard/AiInsightsSection'
 import { InstallmentPlansSummary } from '@/components/dashboard/InstallmentPlansSummary'
 import { RecurringExpensesBox } from '@/components/dashboard/RecurringExpensesBox'
-import { CategoryExpensesModal } from '@/components/dashboard/CategoryExpensesModal'
 import { SpendingPlanSection } from '@/components/dashboard/SpendingPlanSection'
 import { useMonthlyKPIs } from '@/hooks/useTransactions'
 import { useInstallmentPlans } from '@/hooks/useInstallments'
@@ -23,6 +22,10 @@ import { useHorizontalSwipe } from '@/hooks/useHorizontalSwipe'
 import { formatCurrency, formatMonth, getLocalDateString, getMonthDateRange } from '@/lib/utils'
 import { computeSpendingPlan, type SpendingGroup } from '@/lib/kakebo'
 import type { ExpenseCategory } from '@/types'
+import dynamic from 'next/dynamic'
+
+// Aperto solo al tocco su una categoria
+const CategoryExpensesModal = dynamic(() => import('@/components/dashboard/CategoryExpensesModal').then((m) => m.CategoryExpensesModal), { ssr: false })
 
 // Gerarchia della pagina, dal più consultato al meno:
 // 1. saldo disponibile con l'andamento del mese (BalanceHero)

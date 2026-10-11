@@ -907,6 +907,10 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: undefined
       }
+      get_balance_flow_before: {
+        Args: { p_date: string }
+        Returns: number
+      }
       get_investment_summary: {
         Args: { p_user_id: string }
         Returns: {

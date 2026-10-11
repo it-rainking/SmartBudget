@@ -31,6 +31,7 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   // yahoo-finance2 ships un dynamic import verso i propri file di test (usati
   // solo per il suo dev harness Deno) che il bundler prova a risolvere in
   // build anche se non viene mai eseguito: escluso dal bundling, resta un
