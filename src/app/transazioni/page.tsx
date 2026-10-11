@@ -65,6 +65,18 @@ function formatDayHeading(date: string): string {
 // Estrae il messaggio reale da un errore Supabase/JS: senza, ogni problema
 // diventa un generico "errore" impossibile da diagnosticare.
 function errorMessage(err: unknown): string {
+  // Colonne delle rate assenti: il DB non ha ancora la migrazione delle spese
+  // a rate. Senza questa traduzione l'utente vedrebbe solo un errore tecnico.
+  if (err && typeof err === 'object') {
+    const { code, message } = err as { code?: unknown; message?: unknown }
+    if (
+      (code === '42703' || code === 'PGRST204') &&
+      typeof message === 'string' &&
+      message.includes('installment')
+    ) {
+      return 'il database non ha ancora i campi delle rate: esegui supabase/migrate_paypal_installments.sql nel SQL Editor di Supabase'
+    }
+  }
   if (err && typeof err === 'object' && 'message' in err) {
     const message = (err as { message?: unknown }).message
     if (typeof message === 'string' && message.trim()) return message
@@ -441,9 +453,21 @@ export default function TransazioniPage() {
     let addRecurringTemplate: (() => Promise<void>) | null = null
 
     try {
-      const amount = parseFloat(formAmount)
+      const amount = Math.round(parseFloat(formAmount) * 100) / 100
       if (isNaN(amount) || amount <= 0) {
         showToast('Inserisci un importo valido maggiore di zero', 'error')
+        return
+      }
+      // Validazione esplicita al posto di quella nativa del browser (form
+      // noValidate): il fumetto nativo compare sul campo, che in un modal
+      // scrollato su mobile resta fuori schermo, e il salvataggio sembrava
+      // semplicemente non partire.
+      if (!formCategoryId) {
+        showToast('Seleziona una categoria', 'error')
+        return
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(formDate)) {
+        showToast('Inserisci una data valida', 'error')
         return
       }
 
