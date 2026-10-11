@@ -47,15 +47,6 @@ const DUPLICATE_REASON_LABEL: Record<DuplicateReason, string> = {
   description: 'Descrizione simile, importo vicino',
 }
 
-function loadDismissedDuplicates(): Set<string> {
-  try {
-    const raw = window.localStorage.getItem(DISMISSED_DUPLICATES_KEY)
-    return new Set(raw ? (JSON.parse(raw) as string[]) : [])
-  } catch {
-    return new Set()
-  }
-}
-
 // "Sab 10 ottobre" per le intestazioni dei giorni nella lista
 function formatDayHeading(date: string): string {
   const [y, m, d] = date.split('-').map(Number)
