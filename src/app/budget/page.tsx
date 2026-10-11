@@ -270,6 +270,7 @@ export default function BudgetPage() {
                       <div className="flex items-center gap-1">
                         <input
                           type="number"
+                          inputMode="decimal"
                           step="0.01"
                           min="0"
                           value={editingValues[cat.id] || ''}
