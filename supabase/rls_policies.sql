@@ -24,6 +24,7 @@ ALTER TABLE public.isin_ticker_lookup ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fx_rates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.manual_prices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recurring_expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.dismissed_duplicates ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
 -- PROFILES POLICIES
@@ -375,4 +376,20 @@ CREATE POLICY "Users can update own manual prices"
 CREATE POLICY "Users can delete own manual prices"
     ON public.manual_prices FOR DELETE
     TO authenticated
+    USING (auth.uid() = user_id);
+
+-- ============================================
+-- DISMISSED DUPLICATES POLICIES
+-- ============================================
+
+CREATE POLICY "Users can view own dismissed duplicates"
+    ON public.dismissed_duplicates FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own dismissed duplicates"
+    ON public.dismissed_duplicates FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own dismissed duplicates"
+    ON public.dismissed_duplicates FOR DELETE
     USING (auth.uid() = user_id);

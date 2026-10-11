@@ -394,6 +394,19 @@ CREATE INDEX idx_transactions_installment_plan ON public.transactions(installmen
 CREATE INDEX idx_transactions_user_exceptional ON public.transactions(user_id, is_exceptional);
 CREATE INDEX idx_transactions_recurring_expense ON public.transactions(recurring_expense_id) WHERE recurring_expense_id IS NOT NULL;
 
+-- Coppie di transazioni confermate come "non doppioni" (controllo doppioni in /transazioni)
+CREATE TABLE public.dismissed_duplicates (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    transaction_a UUID REFERENCES public.transactions(id) ON DELETE CASCADE NOT NULL,
+    transaction_b UUID REFERENCES public.transactions(id) ON DELETE CASCADE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    CHECK (transaction_a < transaction_b),
+    UNIQUE (user_id, transaction_a, transaction_b)
+);
+
+CREATE INDEX idx_dismissed_duplicates_user ON public.dismissed_duplicates(user_id);
+
 -- Recurring expenses indexes
 CREATE INDEX idx_recurring_expenses_user_id ON public.recurring_expenses(user_id);
 CREATE INDEX idx_recurring_expenses_user_active ON public.recurring_expenses(user_id, is_active);

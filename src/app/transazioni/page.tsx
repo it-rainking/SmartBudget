@@ -14,6 +14,7 @@ import {
 } from '@/hooks/useTransactions'
 import { useIncomeCategories, useExpenseCategories, useSavingCategories, useInitializeCategories } from '@/hooks/useCategories'
 import { useRecurringExpenses, useCreateRecurringExpense } from '@/hooks/useRecurringExpenses'
+import { useDismissedDuplicates, useDismissDuplicates, useRestoreDuplicates } from '@/hooks/useDismissedDuplicates'
 import { useCancelRemainingInstallments } from '@/hooks/useInstallments'
 import { PAYPAL_INSTALLMENT_MIN, PAYPAL_INSTALLMENT_MAX } from '@/lib/installments'
 import { findPossibleDuplicates, type DuplicateReason } from '@/lib/duplicates'
@@ -40,9 +41,6 @@ import { SwipeRow } from '@/components/ui/SwipeRow'
 
 const PAGE_SIZE = 20
 const UNCATEGORIZED = '__uncategorized__'
-// Coppie segnalate come "non è un doppione": preferenza locale del browser
-const DISMISSED_DUPLICATES_KEY = 'smartbudget:dismissed-duplicates'
-
 const DUPLICATE_REASON_LABEL: Record<DuplicateReason, string> = {
   both: 'Stesso importo e descrizione simile',
   amount: 'Stesso importo in giorni consecutivi',
@@ -323,19 +321,44 @@ export default function TransazioniPage() {
 
   // Possibili doppioni sulle transazioni del mese caricate (prima dei filtri
   // client-side: una ricerca testuale non deve nascondere un doppione)
-  const [dismissedDuplicates, setDismissedDuplicates] = useState<Set<string>>(new Set())
+  const { data: dismissed } = useDismissedDuplicates()
+  const dismissDuplicates = useDismissDuplicates()
+  const restoreDuplicates = useRestoreDuplicates()
   const [showDuplicates, setShowDuplicates] = useState(false)
-  useEffect(() => { setDismissedDuplicates(loadDismissedDuplicates()) }, [])
-  const duplicatePairs = useMemo(
-    () => findPossibleDuplicates(transactions ?? [], dismissedDuplicates),
-    [transactions, dismissedDuplicates]
-  )
-  const dismissDuplicate = (key: string) => {
-    setDismissedDuplicates(prev => {
-      const next = new Set(prev).add(key)
-      try { window.localStorage.setItem(DISMISSED_DUPLICATES_KEY, JSON.stringify([...next])) } catch {}
+  // Coppie spuntate come "non doppioni", in attesa del tasto Conferma
+  const [checkedDuplicates, setCheckedDuplicates] = useState<Set<string>>(new Set())
+  const allDuplicatePairs = useMemo(() => findPossibleDuplicates(transactions ?? []), [transactions])
+  const duplicatePairs = allDuplicatePairs.filter(p => !dismissed?.keys.has(p.key))
+  // Coppie del mese già confermate: ripristinabili in caso di errore
+  const dismissedInMonth = allDuplicatePairs.filter(p => dismissed?.keys.has(p.key)).map(p => p.key)
+  const checkedVisible = duplicatePairs.filter(p => checkedDuplicates.has(p.key)).map(p => p.key)
+
+  const toggleDuplicateCheck = (key: string) => {
+    setCheckedDuplicates(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
+  }
+
+  const handleConfirmNotDuplicates = async () => {
+    try {
+      await dismissDuplicates.mutateAsync({ keys: checkedVisible, synced: dismissed?.synced ?? false })
+      setCheckedDuplicates(new Set())
+      showToast(checkedVisible.length === 1 ? 'Coppia segnata come non doppione' : `${checkedVisible.length} coppie segnate come non doppioni`, 'success')
+    } catch (err) {
+      showToast(`Conferma non salvata: ${errorMessage(err)}`, 'error')
+    }
+  }
+
+  const handleRestoreDuplicates = async () => {
+    try {
+      await restoreDuplicates.mutateAsync({ keys: dismissedInMonth, synced: dismissed?.synced ?? false })
+      setShowDuplicates(true)
+    } catch (err) {
+      showToast(`Ripristino non riuscito: ${errorMessage(err)}`, 'error')
+    }
   }
 
   const getCategories = () => {
@@ -807,12 +830,15 @@ export default function TransazioniPage() {
                   <div key={pair.key} className="bg-white dark:bg-zinc-800 rounded-lg border border-amber-100 dark:border-amber-900/40">
                     <div className="px-3 py-2 flex items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-700">
                       <span className="text-xs font-medium text-amber-700 dark:text-amber-300">{DUPLICATE_REASON_LABEL[pair.reason]}</span>
-                      <button
-                        onClick={() => dismissDuplicate(pair.key)}
-                        className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-                      >
-                        <X size={12} /> Non è un doppione
-                      </button>
+                      <label className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={checkedDuplicates.has(pair.key)}
+                          onChange={() => toggleDuplicateCheck(pair.key)}
+                          className="w-4 h-4 rounded accent-emerald-600"
+                        />
+                        Non è un doppione
+                      </label>
                     </div>
                     {[pair.a, pair.b].map(t => (
                       <div key={t.id} className="px-3 py-2 flex items-center justify-between gap-2 text-sm">
@@ -843,9 +869,35 @@ export default function TransazioniPage() {
                     ))}
                   </div>
                 ))}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    {dismissed && !dismissed.synced
+                      ? 'Conferme salvate solo in questo browser: esegui supabase/migrate_dismissed_duplicates.sql per sincronizzarle.'
+                      : 'Spunta le coppie che non sono doppioni e conferma: non compariranno più.'}
+                  </p>
+                  <button
+                    onClick={handleConfirmNotDuplicates}
+                    disabled={!dismissed || checkedVisible.length === 0 || dismissDuplicates.isPending}
+                    className="px-3 py-1.5 text-sm font-medium rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white transition-colors"
+                  >
+                    {dismissDuplicates.isPending ? 'Salvataggio...' : `Conferma${checkedVisible.length ? ` (${checkedVisible.length})` : ''}`}
+                  </button>
+                </div>
               </div>
             )}
           </div>
+        )}
+        {!isLoading && dismissedInMonth.length > 0 && (
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            {dismissedInMonth.length === 1 ? '1 coppia confermata' : `${dismissedInMonth.length} coppie confermate`} come non doppioni questo mese ·{' '}
+            <button
+              onClick={handleRestoreDuplicates}
+              disabled={restoreDuplicates.isPending}
+              className="underline hover:text-zinc-800 dark:hover:text-zinc-200 disabled:opacity-40"
+            >
+              Ripristina
+            </button>
+          </p>
         )}
 
         {/* Lista raggruppata per giorno */}
