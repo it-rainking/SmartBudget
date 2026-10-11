@@ -80,7 +80,7 @@ Tutte le tabelle usano RLS con policy `user_id = auth.uid()`.
 | `profiles` | full_name, avatar_url | Metadati utente |
 | `settings` | currency, locale, initial_balance, onboarding_completed, notify_email, notify_telegram, notification_email, telegram_chat_id | 1 riga per utente |
 | `income_categories` | name, icon, color, sort_order, is_active | |
-| `expense_categories` | name, icon, color, sort_order, is_active | |
+| `expense_categories` | name, icon, color, sort_order, is_active, spending_group? | `spending_group` = gruppo Kakebo (`fixed`/`essential`/`optional`/`leisure`/`extra`, NULL = da classificare), vedi sezione "Portamonete del mese" |
 | `expense_subcategories` | category_id (FK→expense_categories), name, icon | |
 | `saving_categories` | name, icon, color, sort_order, is_active | |
 | `debt_items` | total_amount, remaining_amount, interest_rate, monthly_payment, ... | UI in `/debiti` (strategie snowball/avalanche) |
@@ -174,7 +174,8 @@ src/
 │   ├── QuickAddSheet.tsx           # Inserimento rapido dal "+" (importo, categorie più usate, data, metodo)
 │   ├── ImportCSVModal.tsx          # Drag-drop CSV, preview, bulk insert
 │   ├── ui/                         # Componenti base: Modal, Section, Card, Button, KpiTile, Skeleton, EmptyState, SwipeRow
-│   └── dashboard/                  # Blocchi della dashboard mensile: BalanceHero, CategoryBreakdownSection, IncomeSplitSection, AiInsightsSection, InstallmentPlansSummary, RecurringExpensesBox, CategoryExpensesModal
+│   ├── SpendingGroupsPanel.tsx     # Impostazioni: gruppo Kakebo di ogni categoria di spesa
+│   └── dashboard/                  # Blocchi della dashboard mensile: BalanceHero, SpendingPlanSection, CategoryBreakdownSection, IncomeSplitSection, AiInsightsSection, InstallmentPlansSummary, RecurringExpensesBox, CategoryExpensesModal
 ├── hooks/
 │   ├── useAuth.ts                  # user, loading, signOut, isAuthenticated
 │   ├── useSettings.ts              # useSettings, useUpdateSettings, useCompleteOnboarding
@@ -197,6 +198,7 @@ src/
     ├── supabase-server.ts          # createServerClient() — client lato server (cookies)
     ├── queryClient.ts              # QueryClient config (staleTime 5min, retry 1, no refocus)
     ├── utils.ts                    # formatCurrency, formatDate, formatMonth, getMonthDateRange, classNames
+    ├── kakebo.ts                   # computeSpendingPlan (portamonete del mese), expenseGroup, monthWeeks, isCashMethod (logica pura)
     ├── duplicates.ts               # findPossibleDuplicates (doppioni per importo/descrizione), dayBandIndexes (colori alternati per giorno)
     ├── installments.ts             # buildInstallmentPlans, findImportedInstallmentDuplicates, soglie PayPal (logica pura rate)
     ├── investments/parseFinecoCsv.ts # Parser CSV Fineco: separatore/codifica/riga header auto-rilevati, colonne per significato, dedup ISIN, valuta e fattore di quotazione per posizione
@@ -281,7 +283,7 @@ showToast('Messaggio', 'success' | 'error' | 'info')
 - **Modali**: usare sempre `Modal` da `@/components/ui` (bottom sheet su mobile, finestra centrata da `sm`). `dismissOnBackdrop={false}` nei form, per non perdere quanto scritto con un tocco fuori. Un campo con `data-autofocus` riceve il focus all'apertura.
 - **Inserimento rapido** (`QuickAddSheet`): importo per primo (`inputMode="decimal"`, accetta `1.234,56`), categorie ordinate per uso nel mese, data di oggi, ultimo metodo di pagamento (in `localStorage`). Rate, ricorrenze ed eccezionali restano nel form completo: "Più opzioni" apre `/transazioni?nuova=1&...` precompilato (o manda un evento se la pagina è già aperta).
 - **Importi**: tutti i campi numerici hanno `inputMode` (`decimal` o `numeric`). Il `body` usa cifre tabulari e il font di sistema (stack `font-sans` di Tailwind).
-- **Dashboard mensile**, dall'alto: `BalanceHero` (saldo disponibile + curva del mese), entrate/spese/risparmi, griglia degli indicatori secondari, poi `Section` richiudibili (stato aperto/chiuso in `localStorage` per browser).
+- **Dashboard mensile**, dall'alto: `BalanceHero` (saldo disponibile + curva del mese), entrate/spese/risparmi, griglia degli indicatori secondari, poi `Section` richiudibili (stato aperto/chiuso in `localStorage` per browser), la prima è il portamonete del mese.
 
 ### Valuta
 
@@ -317,6 +319,18 @@ Due concetti distinti in `useMonthlyKPIs`, da non confondere:
 - **`openingBalance` / `closingBalance` / `dailyBalances`** (card "Saldo disponibile" + grafico "Andamento del saldo") — *stock*: `settings.initial_balance` + somma cumulata di tutti i movimenti realmente registrati. **Mai** basato su stime: mostrerebbe denaro non ancora incassato. I risparmi sono sottratti (escono dal conto corrente).
 
 `dailyBalances` è la curva giorno per giorno del mese selezionato; nel mese corrente la pagina la tronca a oggi per non far sembrare una previsione la linea piatta fino a fine mese.
+
+### Portamonete del mese (metodo Kakebo)
+
+Sezione `SpendingPlanSection` della dashboard mensile, calcolo in `computeSpendingPlan()` (`src/lib/kakebo.ts`, testato in `tests/kakebo/`). Idea presa dal Kakebo: a inizio mese entrate − uscite fisse = denaro per le spese variabili.
+
+- **Gruppi**: ogni categoria di spesa ha `spending_group`. `expenseGroup()` decide il gruppo di una spesa: ricorrenze (`recurring_expense_id`/`is_recurring`) e rate (`installment_plan_id`) sono sempre `fixed`; altrimenti vale il gruppo della categoria; senza gruppo, un eccezionale va in `extra` e un ordinario resta "da classificare" (conta come variabile, fuori dalla ripartizione). Il gruppo si sceglie in Impostazioni (`SpendingGroupsPanel`, ancora `#gruppi-spesa`). Granularità a livello di categoria, non di sottocategoria.
+- **Budget variabile** = entrate − uscite fisse − risparmi − debiti. Entrate = le stesse del saldo netto (stima storica + eccezionali finché lo stipendio non è registrato). Uscite fisse = fisse registrate nel mese (anche con data futura, es. rate) + modelli ricorrenti attivi senza occorrenza nel mese (`plannedFixed`, ignorati nei mesi passati).
+- **Residuo e ritmo**: `remaining` = budget − spese variabili; nel mese corrente `perDayLeft` = residuo / giorni rimasti, oggi incluso.
+- **Settimane**: da lunedì a domenica, tagliate ai confini del mese (`monthWeeks()`); la quota di ogni settimana è il budget in proporzione ai giorni. Il Kakebo assegna le settimane a cavallo a un solo mese: scartato per restare allineati all'estratto conto.
+- **Contanti/carte**: `isCashMethod()` riconosce i contanti dal nome del metodo (`contant`/`cash`), tutto il resto è "carte e altri metodi".
+- Dati: `useMonthlyKPIs` espone `expenseRows` (spese del mese con i campi necessari); nessuna query in più oltre a `useRecurringExpenses`.
+- Migrazione DB: `supabase/migrate_spending_groups.sql` (colonna + valori iniziali per le categorie di default); `seed_categories.sql` crea le categorie nuove con il gruppo già valorizzato.
 
 ### Invoice status dinamico
 
@@ -426,7 +440,7 @@ npm test       # vitest run (solo modulo investimenti, vedi sezione Testing)
 
 ### Testing
 
-**Vitest** (`npm test`): copre `src/lib/investments/parseFinecoCsv.ts`, `src/lib/prices/*` (`tests/investments/*.test.ts`) la logica delle spese a rate (`src/lib/installments.ts` + helper in `utils.ts`, `tests/installments/*.test.ts`) e il rilevamento doppioni (`src/lib/duplicates.ts`, `tests/duplicates/*.test.ts`); niente altro nel repo ha test — verificare il resto delle feature manualmente. Niente jest/playwright.
+**Vitest** (`npm test`): copre `src/lib/investments/parseFinecoCsv.ts`, `src/lib/prices/*` (`tests/investments/*.test.ts`) la logica delle spese a rate (`src/lib/installments.ts` + helper in `utils.ts`, `tests/installments/*.test.ts`) il rilevamento doppioni (`src/lib/duplicates.ts`, `tests/duplicates/*.test.ts`) e il portamonete Kakebo (`src/lib/kakebo.ts`, `tests/kakebo/*.test.ts`); niente altro nel repo ha test — verificare il resto delle feature manualmente. Niente jest/playwright.
 
 ---
 

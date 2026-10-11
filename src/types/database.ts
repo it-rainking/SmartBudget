@@ -121,6 +121,7 @@ export type Database = {
           color: string
           sort_order: number
           is_active: boolean
+          spending_group: 'fixed' | 'essential' | 'optional' | 'leisure' | 'extra' | null
           created_at: string
           updated_at: string
         }
@@ -132,6 +133,7 @@ export type Database = {
           color?: string
           sort_order?: number
           is_active?: boolean
+          spending_group?: 'fixed' | 'essential' | 'optional' | 'leisure' | 'extra' | null
           created_at?: string
           updated_at?: string
         }
@@ -143,6 +145,7 @@ export type Database = {
           color?: string
           sort_order?: number
           is_active?: boolean
+          spending_group?: 'fixed' | 'essential' | 'optional' | 'leisure' | 'extra' | null
           created_at?: string
           updated_at?: string
         }

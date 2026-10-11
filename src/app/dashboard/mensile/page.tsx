@@ -12,20 +12,23 @@ import { AiInsightsSection } from '@/components/dashboard/AiInsightsSection'
 import { InstallmentPlansSummary } from '@/components/dashboard/InstallmentPlansSummary'
 import { RecurringExpensesBox } from '@/components/dashboard/RecurringExpensesBox'
 import { CategoryExpensesModal } from '@/components/dashboard/CategoryExpensesModal'
+import { SpendingPlanSection } from '@/components/dashboard/SpendingPlanSection'
 import { useMonthlyKPIs } from '@/hooks/useTransactions'
 import { useInstallmentPlans } from '@/hooks/useInstallments'
+import { useRecurringExpenses } from '@/hooks/useRecurringExpenses'
 import { useExpenseCategories } from '@/hooks/useCategories'
 import { useSettings } from '@/hooks/useSettings'
 import { useSelectedMonth } from '@/hooks/useSelectedMonth'
 import { useHorizontalSwipe } from '@/hooks/useHorizontalSwipe'
-import { formatCurrency, formatMonth } from '@/lib/utils'
+import { formatCurrency, formatMonth, getLocalDateString, getMonthDateRange } from '@/lib/utils'
+import { computeSpendingPlan, type SpendingGroup } from '@/lib/kakebo'
 import type { ExpenseCategory } from '@/types'
 
 // Gerarchia della pagina, dal più consultato al meno:
 // 1. saldo disponibile con l'andamento del mese (BalanceHero)
 // 2. entrate / spese / risparmi
 // 3. indicatori secondari in una griglia compatta
-// 4. sezioni richiudibili (categorie, confronto, rate, ricorrenti, AI)
+// 4. sezioni richiudibili (portamonete, categorie, confronto, rate, ricorrenti, AI)
 export default function DashboardMensilePage() {
   // Mese condiviso con /transazioni tramite l'URL (?m=YYYY-MM)
   const { month: selectedMonth, year: selectedYear, isCurrentMonth, goToPrevMonth, goToNextMonth } = useSelectedMonth()
@@ -35,6 +38,7 @@ export default function DashboardMensilePage() {
   const { data: expenseCategories } = useExpenseCategories()
   const { data: settings } = useSettings()
   const { data: installmentPlans } = useInstallmentPlans(selectedMonth, selectedYear)
+  const { data: recurringModels } = useRecurringExpenses()
 
   const currency = settings?.currency || 'EUR'
   const fmt = (n: number) => formatCurrency(n, currency)
@@ -66,6 +70,35 @@ export default function DashboardMensilePage() {
   // subentra il valore reale (in verde).
   const isIncomeEstimated = !!kpis?.isIncomeEstimated
   const displayIncome = isIncomeEstimated ? (kpis?.projectedIncome ?? 0) : (kpis?.totalIncome ?? 0)
+
+  // Portamonete Kakebo. Entrate: le stesse del saldo netto (stima storica
+  // finché lo stipendio non è registrato, eccezionali inclusi).
+  const planIncome = isIncomeEstimated
+    ? (kpis?.projectedIncome ?? 0) + (kpis?.exceptionalIncome ?? 0)
+    : (kpis?.totalIncome ?? 0)
+  const spendingPlan = useMemo(() => {
+    if (!kpis) return null
+    const groupByCategory: Record<string, SpendingGroup | null> = {}
+    expenseCategories?.forEach((c) => { groupByCategory[c.id] = c.spending_group ?? null })
+    // Modelli ricorrenti attivi già iniziati che nel mese non hanno ancora
+    // un'occorrenza: uscite fisse attese, non ancora registrate
+    const { endDate } = getMonthDateRange(selectedMonth, selectedYear)
+    const generated = new Set(kpis.expenseRows.map((t) => t.recurring_expense_id).filter(Boolean))
+    const plannedFixed = (recurringModels ?? [])
+      .filter((r) => r.is_active && r.start_date <= endDate && !generated.has(r.id))
+      .map((r) => ({ amount: Number(r.amount) }))
+    return computeSpendingPlan({
+      month: selectedMonth,
+      year: selectedYear,
+      income: planIncome,
+      savings: kpis.totalSavings,
+      debts: kpis.totalDebts,
+      expenses: kpis.expenseRows,
+      groupByCategory,
+      plannedFixed,
+      today: getLocalDateString(),
+    })
+  }, [kpis, expenseCategories, recurringModels, selectedMonth, selectedYear, planIncome])
 
   const hasData = displayIncome > 0 || (kpis?.totalExpenses ?? 0) > 0 || (kpis?.totalSavings ?? 0) > 0
 
@@ -178,6 +211,19 @@ export default function DashboardMensilePage() {
         {/* 4. Sezioni richiudibili */}
         {!isLoading && hasData && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6 items-start">
+            {spendingPlan && (
+              <SpendingPlanSection
+                className="lg:col-span-2"
+                plan={spendingPlan}
+                month={selectedMonth}
+                income={planIncome}
+                isIncomeEstimated={isIncomeEstimated}
+                savings={kpis?.totalSavings ?? 0}
+                debts={kpis?.totalDebts ?? 0}
+                isCurrentMonth={isCurrentMonth}
+                currency={currency}
+              />
+            )}
             <CategoryBreakdownSection
               className="lg:col-span-2"
               categories={categoryBreakdown}

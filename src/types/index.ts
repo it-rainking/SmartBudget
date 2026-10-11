@@ -1,5 +1,8 @@
 // Core types for SmartBudget
 
+import type { SpendingGroup } from '@/lib/kakebo'
+export type { SpendingGroup }
+
 export interface Profile {
   id: string
   email: string
@@ -45,6 +48,8 @@ export interface ExpenseCategory {
   color: string
   sort_order: number
   is_active: boolean
+  // Gruppo Kakebo (grado di necessità), null = da classificare
+  spending_group: SpendingGroup | null
   created_at: string
   updated_at: string
   subcategories?: ExpenseSubcategory[]

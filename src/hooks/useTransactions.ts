@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { getMonthDateRange, installmentDates, splitInstallments, PAYPAL_INSTALLMENT_COUNT } from '@/lib/utils'
 import type { Transaction, TransactionFormData } from '@/types'
+import type { PlanExpense } from '@/lib/kakebo'
 
 interface TransactionFilters {
   month?: number
@@ -304,7 +305,7 @@ export function useMonthlyKPIs(month?: number, year?: number) {
       const [curr, prev, hist, prior, settingsRes] = await Promise.all([
         supabase
           .from('transactions')
-          .select('type, category_id, amount, date, is_exceptional')
+          .select('type, category_id, amount, date, is_exceptional, payment_method, is_recurring, recurring_expense_id, installment_plan_id')
           .gte('date', startDate)
           .lte('date', endDate),
         supabase
@@ -376,6 +377,9 @@ export function useMonthlyKPIs(month?: number, year?: number) {
         openingBalance: 0,
         closingBalance: 0,
         dailyBalances: [] as number[],
+        // Spese del mese con i campi che servono al portamonete Kakebo
+        // (computeSpendingPlan in src/lib/kakebo.ts)
+        expenseRows: [] as PlanExpense[],
       }
 
       curr.data?.forEach((t) => {
@@ -389,6 +393,16 @@ export function useMonthlyKPIs(month?: number, year?: number) {
             break
           case 'expense':
             kpis.totalExpenses += amt
+            kpis.expenseRows.push({
+              amount: amt,
+              date: t.date,
+              category_id: t.category_id,
+              payment_method: t.payment_method,
+              is_exceptional: exceptional,
+              is_recurring: !!t.is_recurring,
+              recurring_expense_id: t.recurring_expense_id,
+              installment_plan_id: t.installment_plan_id,
+            })
             if (exceptional) kpis.exceptionalExpenses += amt
             else kpis.ordinaryExpenses += amt
             if (t.category_id) {
