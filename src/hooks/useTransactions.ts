@@ -326,7 +326,10 @@ export function useMonthlyKPIs(month?: number, year?: number) {
       const [curr, prev, hist, prior, settingsRes] = await Promise.all([
         supabase
           .from('transactions')
-          .select('type, category_id, amount, date, is_exceptional, payment_method, is_recurring, recurring_expense_id, installment_plan_id')
+          // '*' e non un elenco di colonne: se il DB non ha ancora una migrazione
+          // (es. recurring_expense_id), un nome esplicito farebbe fallire
+          // l'intera query e la dashboard mostrerebbe tutto a zero.
+          .select('*')
           .gte('date', startDate)
           .lte('date', endDate),
         supabase
@@ -421,8 +424,8 @@ export function useMonthlyKPIs(month?: number, year?: number) {
               payment_method: t.payment_method,
               is_exceptional: exceptional,
               is_recurring: !!t.is_recurring,
-              recurring_expense_id: t.recurring_expense_id,
-              installment_plan_id: t.installment_plan_id,
+              recurring_expense_id: t.recurring_expense_id ?? null,
+              installment_plan_id: t.installment_plan_id ?? null,
             })
             if (exceptional) kpis.exceptionalExpenses += amt
             else kpis.ordinaryExpenses += amt
