@@ -33,6 +33,7 @@ import {
   PAYPAL_INSTALLMENT_COUNT,
 } from '@/lib/utils'
 import type { TransactionType, Transaction } from '@/types'
+import { Modal } from '@/components/ui/Modal'
 
 const MONTHS = [
   'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
@@ -459,8 +460,6 @@ export default function TransazioniPage() {
     }
   }
 
-  const formModalRef = useModalA11y<HTMLDivElement>(showForm, closeForm)
-  const deleteModalRef = useModalA11y<HTMLDivElement>(!!confirmDelete, () => setConfirmDelete(null))
 
   // Elimina una transazione (o l'intero piano rate, se richiesto)
   const handleDelete = async (scope: 'single' | 'plan' | 'remaining') => {
@@ -627,6 +626,7 @@ export default function TransazioniPage() {
                 <label className="text-xs text-zinc-500 dark:text-zinc-400">Importo min (€)</label>
                 <input
                   type="number"
+                  inputMode="decimal"
                   min="0"
                   step="0.01"
                   value={filterMinAmount}
@@ -639,6 +639,7 @@ export default function TransazioniPage() {
                 <label className="text-xs text-zinc-500 dark:text-zinc-400">Importo max (€)</label>
                 <input
                   type="number"
+                  inputMode="decimal"
                   min="0"
                   step="0.01"
                   value={filterMaxAmount}
@@ -651,6 +652,7 @@ export default function TransazioniPage() {
                 <label className="text-xs text-zinc-500 dark:text-zinc-400">Giorno da</label>
                 <input
                   type="number"
+                  inputMode="numeric"
                   min="1"
                   max="31"
                   step="1"
@@ -664,6 +666,7 @@ export default function TransazioniPage() {
                 <label className="text-xs text-zinc-500 dark:text-zinc-400">Giorno a</label>
                 <input
                   type="number"
+                  inputMode="numeric"
                   min="1"
                   max="31"
                   step="1"
@@ -803,7 +806,7 @@ export default function TransazioniPage() {
                         {transaction.installment_plan_id && (
                           <span
                             title={`Rata ${transaction.installment_number} di ${transaction.installment_count}`}
-                            className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                            className="shrink-0 px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
                           >
                             Rata {transaction.installment_number}/{transaction.installment_count}
                           </span>
@@ -811,7 +814,7 @@ export default function TransazioniPage() {
                         {transaction.is_exceptional && (
                           <span
                             title="Movimento eccezionale — escluso da medie, confronti e trend"
-                            className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                            className="shrink-0 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                           >
                             ⚡ Eccezionale
                           </span>
@@ -874,359 +877,356 @@ export default function TransazioniPage() {
 
       {/* Add Transaction Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="transaction-modal-title">
-          <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between shrink-0">
-              <h2 id="transaction-modal-title" className="text-xl font-bold text-zinc-900 dark:text-white">{editingTransaction ? 'Modifica Transazione' : 'Nuova Transazione'}</h2>
-              <button type="button" onClick={closeForm} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
+        <Modal open onClose={closeForm} labelledBy="transaction-modal-title" dismissOnBackdrop={false} className="flex flex-col">
+          <div className="p-6 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between shrink-0">
+            <h2 id="transaction-modal-title" className="text-xl font-bold text-zinc-900 dark:text-white">{editingTransaction ? 'Modifica Transazione' : 'Nuova Transazione'}</h2>
+            <button type="button" onClick={closeForm} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+            {/* Le modifiche a una rata valgono solo per quella rata */}
+            {editingTransaction?.installment_plan_id && (
+              <p className="text-xs rounded-lg px-3 py-2 bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900/40">
+                Rata {editingTransaction.installment_number} di {editingTransaction.installment_count} di una spesa a rate:
+                le modifiche riguardano solo questa rata.
+              </p>
+            )}
+
+            {/* Type Selection */}
+            <div className="flex gap-2">
+              {(['income', 'expense', 'saving'] as TransactionType[]).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  // Una rata resta una spesa: cambiarne il tipo spezzerebbe il piano
+                  disabled={isEditingInstallment && type !== formType}
+                  onClick={() => {
+                    setFormType(type)
+                    setFormCategoryId('')
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                    formType === type
+                      ? type === 'income'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                        : type === 'expense'
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                      : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400'
+                  }`}
+                >
+                  {getTypeLabel(type)}
+                </button>
+              ))}
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
-              {/* Le modifiche a una rata valgono solo per quella rata */}
-              {editingTransaction?.installment_plan_id && (
-                <p className="text-xs rounded-lg px-3 py-2 bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900/40">
-                  Rata {editingTransaction.installment_number} di {editingTransaction.installment_count} di una spesa a rate:
-                  le modifiche riguardano solo questa rata.
-                </p>
-              )}
-
-              {/* Type Selection */}
-              <div className="flex gap-2">
-                {(['income', 'expense', 'saving'] as TransactionType[]).map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    // Una rata resta una spesa: cambiarne il tipo spezzerebbe il piano
-                    disabled={isEditingInstallment && type !== formType}
-                    onClick={() => {
-                      setFormType(type)
-                      setFormCategoryId('')
-                    }}
-                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                      formType === type
-                        ? type === 'income'
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                          : type === 'expense'
-                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                        : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400'
-                    }`}
-                  >
-                    {getTypeLabel(type)}
-                  </button>
+            {/* Category */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                Categoria
+              </label>
+              <select
+                value={formCategoryId}
+                onChange={(e) => setFormCategoryId(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+              >
+                <option value="">Seleziona categoria</option>
+                {getCategories().map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.icon} {cat.name}
+                  </option>
                 ))}
-              </div>
+              </select>
+            </div>
 
-              {/* Category */}
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                  Categoria
-                </label>
-                <select
-                  value={formCategoryId}
-                  onChange={(e) => setFormCategoryId(e.target.value)}
-                  required
-                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                >
-                  <option value="">Seleziona categoria</option>
-                  {getCategories().map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.icon} {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Amount */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                {formIsInstallment ? 'Importo totale (€)' : 'Importo (€)'}
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                value={formAmount}
+                onChange={(e) => setFormAmount(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+                placeholder="0.00"
+              />
+            </div>
 
-              {/* Amount */}
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                  {formIsInstallment ? 'Importo totale (€)' : 'Importo (€)'}
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formAmount}
-                  onChange={(e) => setFormAmount(e.target.value)}
-                  required
-                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                  placeholder="0.00"
-                />
-              </div>
+            {/* Date */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                Data
+              </label>
+              <input
+                type="date"
+                value={formDate}
+                onChange={(e) => setFormDate(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+              />
+            </div>
 
-              {/* Date */}
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                  Data
-                </label>
-                <input
-                  type="date"
-                  value={formDate}
-                  onChange={(e) => setFormDate(e.target.value)}
-                  required
-                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                />
-              </div>
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                Descrizione (opzionale)
+              </label>
+              <input
+                type="text"
+                value={formDescription}
+                onChange={(e) => setFormDescription(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+                placeholder="es. Spesa al supermercato"
+              />
+            </div>
 
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                  Descrizione (opzionale)
-                </label>
-                <input
-                  type="text"
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                  placeholder="es. Spesa al supermercato"
-                />
-              </div>
+            {/* Payment Method */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                Metodo di pagamento
+              </label>
+              <select
+                value={formPaymentMethod}
+                onChange={(e) => setFormPaymentMethod(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+              >
+                <option value="">Seleziona metodo</option>
+                {paymentMethods.map((method) => (
+                  <option key={method} value={method}>{method}</option>
+                ))}
+                {/* Preserva un metodo salvato in precedenza ma non più nell'elenco */}
+                {formPaymentMethod && !paymentMethods.includes(formPaymentMethod) && (
+                  <option value={formPaymentMethod}>{formPaymentMethod}</option>
+                )}
+              </select>
+            </div>
 
-              {/* Payment Method */}
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                  Metodo di pagamento
-                </label>
-                <select
-                  value={formPaymentMethod}
-                  onChange={(e) => setFormPaymentMethod(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                >
-                  <option value="">Seleziona metodo</option>
-                  {paymentMethods.map((method) => (
-                    <option key={method} value={method}>{method}</option>
-                  ))}
-                  {/* Preserva un metodo salvato in precedenza ma non più nell'elenco */}
-                  {formPaymentMethod && !paymentMethods.includes(formPaymentMethod) && (
-                    <option value={formPaymentMethod}>{formPaymentMethod}</option>
-                  )}
-                </select>
-              </div>
-
-              {/* Paga in 3 rate (solo spese PayPal) */}
-              {showInstallmentToggle && (
-                <div className="rounded-lg border border-blue-100 dark:border-blue-900/40 bg-blue-50/60 dark:bg-blue-900/10 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                        {editingTransaction ? 'Converti in' : 'Paga in'} {PAYPAL_INSTALLMENT_COUNT} rate con PayPal
-                      </p>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {editingTransaction
-                          ? `Questa spesa diventa la rata 1; le altre ${PAYPAL_INSTALLMENT_COUNT - 1} vengono registrate nei mesi successivi`
-                          : `Registra subito anche le rate dei ${PAYPAL_INSTALLMENT_COUNT - 1} mesi successivi, nello stesso giorno`}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!formIsInstallment) {
-                          if (!isPaypalMethod(formPaymentMethod)) setFormPaymentMethod(paypalMethod)
-                          setFormIsRecurring(false)
-                        }
-                        setFormIsInstallment(v => !v)
-                      }}
-                      className={`relative w-11 h-6 rounded-full shrink-0 transition-colors focus:outline-none ${formIsInstallment ? 'bg-blue-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}
-                      aria-pressed={formIsInstallment}
-                      aria-label={`Paga in ${PAYPAL_INSTALLMENT_COUNT} rate`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formIsInstallment ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </button>
+            {/* Paga in 3 rate (solo spese PayPal) */}
+            {showInstallmentToggle && (
+              <div className="rounded-lg border border-blue-100 dark:border-blue-900/40 bg-blue-50/60 dark:bg-blue-900/10 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      {editingTransaction ? 'Converti in' : 'Paga in'} {PAYPAL_INSTALLMENT_COUNT} rate con PayPal
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {editingTransaction
+                        ? `Questa spesa diventa la rata 1; le altre ${PAYPAL_INSTALLMENT_COUNT - 1} vengono registrate nei mesi successivi`
+                        : `Registra subito anche le rate dei ${PAYPAL_INSTALLMENT_COUNT - 1} mesi successivi, nello stesso giorno`}
+                    </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!formIsInstallment) {
+                        if (!isPaypalMethod(formPaymentMethod)) setFormPaymentMethod(paypalMethod)
+                        setFormIsRecurring(false)
+                      }
+                      setFormIsInstallment(v => !v)
+                    }}
+                    className={`relative w-11 h-6 rounded-full shrink-0 transition-colors focus:outline-none ${formIsInstallment ? 'bg-blue-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}
+                    aria-pressed={formIsInstallment}
+                    aria-label={`Paga in ${PAYPAL_INSTALLMENT_COUNT} rate`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formIsInstallment ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </button>
+                </div>
 
-                  {/* Anteprima del piano: date e importo di ciascuna rata */}
-                  {formIsInstallment && (() => {
-                    const total = parseFloat(formAmount)
-                    if (isNaN(total) || total <= 0) {
-                      return (
-                        <p className="mt-3 pt-3 border-t border-blue-100 dark:border-blue-900/40 text-xs text-zinc-500 dark:text-zinc-400">
-                          Inserisci l&apos;importo totale per vedere le rate.
-                        </p>
-                      )
-                    }
-                    const amounts = splitInstallments(total, PAYPAL_INSTALLMENT_COUNT)
-                    const dates = installmentDates(formDate, PAYPAL_INSTALLMENT_COUNT)
-                    // Solo un avviso: le soglie sono condizioni commerciali di
-                    // PayPal, l'utente sa meglio di noi cosa gli è stato offerto
-                    const outOfRange = total < PAYPAL_INSTALLMENT_MIN || total > PAYPAL_INSTALLMENT_MAX
+                {/* Anteprima del piano: date e importo di ciascuna rata */}
+                {formIsInstallment && (() => {
+                  const total = parseFloat(formAmount)
+                  if (isNaN(total) || total <= 0) {
                     return (
-                      <>
-                      {outOfRange && (
-                        <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">
-                          Di solito PayPal offre le 3 rate per acquisti fra {fmt(PAYPAL_INSTALLMENT_MIN)} e {fmt(PAYPAL_INSTALLMENT_MAX)}: verifica l&apos;importo.
-                        </p>
-                      )}
-                      <ul className="mt-3 pt-3 border-t border-blue-100 dark:border-blue-900/40 space-y-1">
-                        {amounts.map((amount, i) => (
-                          <li key={i} className="flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-400">
-                            <span>Rata {i + 1} · {formatDate(dates[i])}</span>
-                            <span className="font-semibold text-zinc-700 dark:text-zinc-300">{fmt(amount)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      </>
+                      <p className="mt-3 pt-3 border-t border-blue-100 dark:border-blue-900/40 text-xs text-zinc-500 dark:text-zinc-400">
+                        Inserisci l&apos;importo totale per vedere le rate.
+                      </p>
                     )
-                  })()}
-                </div>
-              )}
-
-              {/* Ricorrente: non ha senso su una rata, che ha già le sue date */}
-              {!formIsInstallment && !isEditingInstallment && (
-              <div className="flex items-center justify-between py-1">
-                <div>
-                  <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Transazione ricorrente</p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Es. affitto, abbonamento mensile</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFormIsRecurring(v => !v)}
-                  className={`relative w-11 h-6 rounded-full transition-colors focus:outline-none ${formIsRecurring ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}
-                  aria-pressed={formIsRecurring}
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formIsRecurring ? 'translate-x-5' : 'translate-x-0'}`} />
-                </button>
+                  }
+                  const amounts = splitInstallments(total, PAYPAL_INSTALLMENT_COUNT)
+                  const dates = installmentDates(formDate, PAYPAL_INSTALLMENT_COUNT)
+                  // Solo un avviso: le soglie sono condizioni commerciali di
+                  // PayPal, l'utente sa meglio di noi cosa gli è stato offerto
+                  const outOfRange = total < PAYPAL_INSTALLMENT_MIN || total > PAYPAL_INSTALLMENT_MAX
+                  return (
+                    <>
+                    {outOfRange && (
+                      <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">
+                        Di solito PayPal offre le 3 rate per acquisti fra {fmt(PAYPAL_INSTALLMENT_MIN)} e {fmt(PAYPAL_INSTALLMENT_MAX)}: verifica l&apos;importo.
+                      </p>
+                    )}
+                    <ul className="mt-3 pt-3 border-t border-blue-100 dark:border-blue-900/40 space-y-1">
+                      {amounts.map((amount, i) => (
+                        <li key={i} className="flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-400">
+                          <span>Rata {i + 1} · {formatDate(dates[i])}</span>
+                          <span className="font-semibold text-zinc-700 dark:text-zinc-300">{fmt(amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    </>
+                  )
+                })()}
               </div>
-              )}
+            )}
 
-              {/* Spesa ricorrente simile già nel pannello: chiede cosa fare */}
-              {!editingTransaction && formIsRecurring && similarRecurringExpense && (
-                <div className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50/70 dark:bg-amber-900/10 p-3">
-                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-                    Trovata una spesa ricorrente simile nel pannello
-                  </p>
-                  <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
-                    &ldquo;{similarRecurringExpense.name}&rdquo; · {fmt(similarRecurringExpense.amount)} il giorno {similarRecurringExpense.day_of_month}
-                  </p>
-                  <div className="mt-2 space-y-1.5">
-                    <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
-                      <input type="radio" name="recurring-choice" checked={recurringChoice === 'link'} onChange={() => setRecurringChoice('link')} />
-                      Collega questa transazione al modello esistente
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
-                      <input type="radio" name="recurring-choice" checked={recurringChoice === 'new'} onChange={() => setRecurringChoice('new')} />
-                      Crea comunque un nuovo modello separato
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
-                      <input type="radio" name="recurring-choice" checked={recurringChoice === 'skip'} onChange={() => setRecurringChoice('skip')} />
-                      Registra solo questa transazione, senza collegarla
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              {/* Nessun modello simile: propone di salvarla nel pannello */}
-              {!editingTransaction && formIsRecurring && !similarRecurringExpense && formType === 'expense' && !formIsInstallment && (
-                <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 -mt-2">
-                  <input
-                    type="checkbox"
-                    checked={saveAsRecurringTemplate}
-                    onChange={(e) => setSaveAsRecurringTemplate(e.target.checked)}
-                  />
-                  Aggiungi anche al pannello Spese ricorrenti (verrà generata automaticamente ogni mese)
-                </label>
-              )}
-
-              {/* Eccezionale — escluso dai trend */}
-              <div className="flex items-center justify-between py-1">
-                <div className="pr-3">
-                  <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Movimento eccezionale</p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Una tantum fuori dall&apos;ordinario (es. acquisto auto, rimborso, bonus).
-                    Resta nei totali reali ma viene escluso da medie, confronti mensili e trend.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFormIsExceptional(v => !v)}
-                  className={`relative w-11 h-6 shrink-0 rounded-full transition-colors focus:outline-none ${formIsExceptional ? 'bg-amber-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}
-                  aria-pressed={formIsExceptional}
-                  aria-label="Movimento eccezionale, escluso dai trend"
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formIsExceptional ? 'translate-x-5' : 'translate-x-0'}`} />
-                </button>
+            {/* Ricorrente: non ha senso su una rata, che ha già le sue date */}
+            {!formIsInstallment && !isEditingInstallment && (
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Transazione ricorrente</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Es. affitto, abbonamento mensile</p>
               </div>
+              <button
+                type="button"
+                onClick={() => setFormIsRecurring(v => !v)}
+                className={`relative w-11 h-6 rounded-full transition-colors focus:outline-none ${formIsRecurring ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}
+                aria-pressed={formIsRecurring}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formIsRecurring ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
+            )}
 
-              {/* Actions */}
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={closeForm}
-                  className="flex-1 py-3 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-                >
-                  Annulla
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="flex-1 py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-medium transition-colors"
-                >
-                  {isSaving ? 'Salvataggio...' : editingTransaction ? 'Aggiorna' : 'Salva'}
-                </button>
+            {/* Spesa ricorrente simile già nel pannello: chiede cosa fare */}
+            {!editingTransaction && formIsRecurring && similarRecurringExpense && (
+              <div className="rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50/70 dark:bg-amber-900/10 p-3">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                  Trovata una spesa ricorrente simile nel pannello
+                </p>
+                <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
+                  &ldquo;{similarRecurringExpense.name}&rdquo; · {fmt(similarRecurringExpense.amount)} il giorno {similarRecurringExpense.day_of_month}
+                </p>
+                <div className="mt-2 space-y-1.5">
+                  <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
+                    <input type="radio" name="recurring-choice" checked={recurringChoice === 'link'} onChange={() => setRecurringChoice('link')} />
+                    Collega questa transazione al modello esistente
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
+                    <input type="radio" name="recurring-choice" checked={recurringChoice === 'new'} onChange={() => setRecurringChoice('new')} />
+                    Crea comunque un nuovo modello separato
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
+                    <input type="radio" name="recurring-choice" checked={recurringChoice === 'skip'} onChange={() => setRecurringChoice('skip')} />
+                    Registra solo questa transazione, senza collegarla
+                  </label>
+                </div>
               </div>
-            </form>
-          </div>
-        </div>
+            )}
+
+            {/* Nessun modello simile: propone di salvarla nel pannello */}
+            {!editingTransaction && formIsRecurring && !similarRecurringExpense && formType === 'expense' && !formIsInstallment && (
+              <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 -mt-2">
+                <input
+                  type="checkbox"
+                  checked={saveAsRecurringTemplate}
+                  onChange={(e) => setSaveAsRecurringTemplate(e.target.checked)}
+                />
+                Aggiungi anche al pannello Spese ricorrenti (verrà generata automaticamente ogni mese)
+              </label>
+            )}
+
+            {/* Eccezionale — escluso dai trend */}
+            <div className="flex items-center justify-between py-1">
+              <div className="pr-3">
+                <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Movimento eccezionale</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Una tantum fuori dall&apos;ordinario (es. acquisto auto, rimborso, bonus).
+                  Resta nei totali reali ma viene escluso da medie, confronti mensili e trend.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormIsExceptional(v => !v)}
+                className={`relative w-11 h-6 shrink-0 rounded-full transition-colors focus:outline-none ${formIsExceptional ? 'bg-amber-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}
+                aria-pressed={formIsExceptional}
+                aria-label="Movimento eccezionale, escluso dai trend"
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formIsExceptional ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-4">
+              <button
+                type="button"
+                onClick={closeForm}
+                className="flex-1 py-3 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="flex-1 py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-medium transition-colors"
+              >
+                {isSaving ? 'Salvataggio...' : editingTransaction ? 'Aggiorna' : 'Salva'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {/* Confirm delete modal */}
       {confirmDelete && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="delete-tx-title">
-          <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
-            <h3 id="delete-tx-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina transazione</h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">
-              {confirmDelete.installment_plan_id
-                ? `Questa è la rata ${confirmDelete.installment_number} di ${confirmDelete.installment_count} di una spesa a rate. Puoi eliminare solo questa rata, annullare le rate non ancora addebitate (reso o rimborso) oppure eliminare l'intero piano. L'azione è irreversibile.`
-                : 'Questa azione è irreversibile.'}
-            </p>
-            {confirmDelete.installment_plan_id ? (
-              <div className="space-y-2">
-                <button
-                  onClick={() => handleDelete('plan')}
-                  disabled={deleteTransaction.isPending || deleteInstallmentPlan.isPending || cancelRemainingInstallments.isPending}
-                  className="w-full py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-medium transition-colors"
-                >
-                  {deleteInstallmentPlan.isPending ? 'Eliminazione...' : `Elimina tutte le ${confirmDelete.installment_count} rate`}
-                </button>
-                <button
-                  onClick={() => handleDelete('remaining')}
-                  disabled={deleteTransaction.isPending || deleteInstallmentPlan.isPending || cancelRemainingInstallments.isPending}
-                  className="w-full py-2.5 px-4 rounded-lg border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 transition-colors"
-                >
-                  {cancelRemainingInstallments.isPending ? 'Annullamento...' : 'Annulla le rate non ancora addebitate'}
-                </button>
-                <button
-                  onClick={() => handleDelete('single')}
-                  disabled={deleteTransaction.isPending || deleteInstallmentPlan.isPending || cancelRemainingInstallments.isPending}
-                  className="w-full py-2.5 px-4 rounded-lg border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 transition-colors"
-                >
-                  {deleteTransaction.isPending ? 'Eliminazione...' : 'Elimina solo questa rata'}
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(null)}
-                  className="w-full py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-                >
-                  Annulla
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setConfirmDelete(null)}
-                  className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-                >
-                  Annulla
-                </button>
-                <button
-                  onClick={() => handleDelete('single')}
-                  disabled={deleteTransaction.isPending}
-                  className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-medium transition-colors"
-                >
-                  {deleteTransaction.isPending ? 'Eliminazione...' : 'Elimina'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        <Modal open onClose={() => setConfirmDelete(null)} labelledBy="delete-tx-title" size="sm" className="p-6">
+          <h3 id="delete-tx-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina transazione</h3>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">
+            {confirmDelete.installment_plan_id
+              ? `Questa è la rata ${confirmDelete.installment_number} di ${confirmDelete.installment_count} di una spesa a rate. Puoi eliminare solo questa rata, annullare le rate non ancora addebitate (reso o rimborso) oppure eliminare l'intero piano. L'azione è irreversibile.`
+              : 'Questa azione è irreversibile.'}
+          </p>
+          {confirmDelete.installment_plan_id ? (
+            <div className="space-y-2">
+              <button
+                onClick={() => handleDelete('plan')}
+                disabled={deleteTransaction.isPending || deleteInstallmentPlan.isPending || cancelRemainingInstallments.isPending}
+                className="w-full py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-medium transition-colors"
+              >
+                {deleteInstallmentPlan.isPending ? 'Eliminazione...' : `Elimina tutte le ${confirmDelete.installment_count} rate`}
+              </button>
+              <button
+                onClick={() => handleDelete('remaining')}
+                disabled={deleteTransaction.isPending || deleteInstallmentPlan.isPending || cancelRemainingInstallments.isPending}
+                className="w-full py-2.5 px-4 rounded-lg border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 transition-colors"
+              >
+                {cancelRemainingInstallments.isPending ? 'Annullamento...' : 'Annulla le rate non ancora addebitate'}
+              </button>
+              <button
+                onClick={() => handleDelete('single')}
+                disabled={deleteTransaction.isPending || deleteInstallmentPlan.isPending || cancelRemainingInstallments.isPending}
+                className="w-full py-2.5 px-4 rounded-lg border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 transition-colors"
+              >
+                {deleteTransaction.isPending ? 'Eliminazione...' : 'Elimina solo questa rata'}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="w-full py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              >
+                Annulla
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => handleDelete('single')}
+                disabled={deleteTransaction.isPending}
+                className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-medium transition-colors"
+              >
+                {deleteTransaction.isPending ? 'Eliminazione...' : 'Elimina'}
+              </button>
+            </div>
+          )}
+        </Modal>
       )}
 
       {showImport && <ImportCSVModal onClose={() => setShowImport(false)} />}

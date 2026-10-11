@@ -98,7 +98,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <p className="text-xs font-semibold text-zinc-900 dark:text-white truncate">
                 {user?.user_metadata?.full_name || 'Utente'}
               </p>
-              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
                 {user?.email}
               </p>
             </div>

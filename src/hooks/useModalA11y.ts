@@ -7,7 +7,8 @@ const FOCUSABLE_SELECTOR =
 
 // Shared modal/dialog accessibility behavior: traps Tab focus inside the
 // dialog, closes on Escape, focuses the first focusable element on open,
-// and restores focus to the trigger element on close.
+// blocks the page scroll behind the dialog and restores focus to the
+// trigger element on close.
 export function useModalA11y<T extends HTMLElement = HTMLDivElement>(isOpen: boolean, onClose: () => void) {
   const containerRef = useRef<T>(null)
 
@@ -17,6 +18,12 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>(isOpen: boo
     const container = containerRef.current
     const focusable = container?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
     focusable?.[0]?.focus()
+
+    // Blocca lo scroll della pagina sotto la modale. Si salva il valore
+    // precedente: con due modali aperte una sopra l'altra, la chiusura della
+    // seconda non deve sbloccare la pagina mentre la prima è ancora aperta.
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -42,6 +49,7 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>(isOpen: boo
     document.addEventListener('keydown', handleKeyDown, true)
     return () => {
       document.removeEventListener('keydown', handleKeyDown, true)
+      document.body.style.overflow = previousOverflow
       previouslyFocused?.focus?.()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

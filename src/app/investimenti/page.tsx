@@ -7,6 +7,7 @@ import { useSettings } from '@/hooks/useSettings'
 import { useDeleteManualPrice, useImportCsv, useInvestments, useSetManualPrices } from '@/hooks/useInvestments'
 import { formatCurrency } from '@/lib/utils'
 import type { AssetClass, ImportDiff, InvestmentPosition } from '@/types/investments'
+import { Modal } from '@/components/ui/Modal'
 
 const ASSET_CLASS_LABELS: Record<AssetClass, string> = {
   etf_equity: 'ETF Azionari',
@@ -180,130 +181,128 @@ function ManualPricesPanel({
   const busy = setManualPrices.isPending || deleteManualPrice.isPending
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/40 p-4 overflow-y-auto" role="dialog" aria-modal="true">
-      <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-100 dark:border-zinc-700 w-full max-w-2xl my-4">
-        <div className="p-6 space-y-4">
-          <div>
-            <h3 className="text-base font-semibold text-zinc-800 dark:text-zinc-200">
-              {single ? 'Prezzo manuale' : 'Aggiorna i prezzi manuali'}
-            </h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-              {single
-                ? positions[0].name
-                : `${positions.length} posizioni senza quotazione automatica`}
-            </p>
-          </div>
+    <Modal open onClose={onClose} labelledBy="manual-prices-title" size="2xl" dismissOnBackdrop={false}>
+      <div className="p-6 space-y-4">
+        <div>
+          <h3 id="manual-prices-title" className="text-base font-semibold text-zinc-800 dark:text-zinc-200">
+            {single ? 'Prezzo manuale' : 'Aggiorna i prezzi manuali'}
+          </h3>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+            {single
+              ? positions[0].name
+              : `${positions.length} posizioni senza quotazione automatica`}
+          </p>
+        </div>
 
-          {/* Query da incollare in un assistente: la parte noiosa è scrivere
-              l'elenco degli ISIN, non leggere la risposta. */}
-          <details className="group" open={!single}>
-            <summary className="cursor-pointer text-sm font-medium text-emerald-700 dark:text-emerald-400 select-none">
-              Query pronta da incollare
-            </summary>
-            <div className="mt-2 space-y-2">
-              <pre className="text-xs whitespace-pre-wrap bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700 rounded-lg p-3 text-zinc-700 dark:text-zinc-300 max-h-48 overflow-y-auto">
-                {query}
-              </pre>
-              <button
-                onClick={handleCopy}
-                className="text-xs px-2.5 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+        {/* Query da incollare in un assistente: la parte noiosa è scrivere
+            l'elenco degli ISIN, non leggere la risposta. */}
+        <details className="group" open={!single}>
+          <summary className="cursor-pointer text-sm font-medium text-emerald-700 dark:text-emerald-400 select-none">
+            Query pronta da incollare
+          </summary>
+          <div className="mt-2 space-y-2">
+            <pre className="text-xs whitespace-pre-wrap bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700 rounded-lg p-3 text-zinc-700 dark:text-zinc-300 max-h-48 overflow-y-auto">
+              {query}
+            </pre>
+            <button
+              onClick={handleCopy}
+              className="text-xs px-2.5 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+            >
+              {copied ? 'Copiata ✓' : 'Copia'}
+            </button>
+          </div>
+        </details>
+
+        <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+          {positions.map((p) => {
+            const isPercentQuoted = p.price_divisor !== 1
+            return (
+              <div
+                key={p.asset_id}
+                className="flex flex-wrap items-center gap-2 py-2 border-b border-zinc-50 dark:border-zinc-700/50 last:border-0"
               >
-                {copied ? 'Copiata ✓' : 'Copia'}
-              </button>
-            </div>
-          </details>
-
-          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-            {positions.map((p) => {
-              const isPercentQuoted = p.price_divisor !== 1
-              return (
-                <div
-                  key={p.asset_id}
-                  className="flex flex-wrap items-center gap-2 py-2 border-b border-zinc-50 dark:border-zinc-700/50 last:border-0"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm text-zinc-800 dark:text-zinc-200 truncate">{p.name}</div>
-                    <div className="text-xs text-zinc-400 dark:text-zinc-500">
-                      {p.isin}
-                      {isPercentQuoted && ' · % del nominale'}
-                      {p.manual_priced_at && ` · attuale del ${formatDateTime(p.manual_priced_at)}`}
-                    </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm text-zinc-800 dark:text-zinc-200 truncate">{p.name}</div>
+                  <div className="text-xs text-zinc-400 dark:text-zinc-500">
+                    {p.isin}
+                    {isPercentQuoted && ' · % del nominale'}
+                    {p.manual_priced_at && ` · attuale del ${formatDateTime(p.manual_priced_at)}`}
                   </div>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={prices[p.asset_id] ?? ''}
-                    onChange={(e) => setPrices((prev) => ({ ...prev, [p.asset_id]: e.target.value }))}
-                    placeholder={isPercentQuoted ? '96,44' : '100,00'}
-                    aria-label={`Prezzo per ${p.name}`}
-                    className="w-28 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 text-sm"
-                  />
-                  {p.manual_price !== null && (
-                    <button
-                      onClick={() => handleDelete(p.asset_id)}
-                      disabled={busy}
-                      className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
-                    >
-                      rimuovi
-                    </button>
-                  )}
                 </div>
-              )
-            })}
-          </div>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={prices[p.asset_id] ?? ''}
+                  onChange={(e) => setPrices((prev) => ({ ...prev, [p.asset_id]: e.target.value }))}
+                  placeholder={isPercentQuoted ? '96,44' : '100,00'}
+                  aria-label={`Prezzo per ${p.name}`}
+                  className="w-28 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 text-sm"
+                />
+                {p.manual_price !== null && (
+                  <button
+                    onClick={() => handleDelete(p.asset_id)}
+                    disabled={busy}
+                    className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                  >
+                    rimuovi
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="block">
-              <span className="text-sm text-zinc-600 dark:text-zinc-400">Data dei prezzi</span>
-              <input
-                type="date"
-                value={pricedAt}
-                max={todayIso()}
-                onChange={(e) => setPricedAt(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm text-zinc-600 dark:text-zinc-400">Fonte (facoltativa)</span>
-              <input
-                type="text"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="es. Borsa Italiana, Perplexity"
-                className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
-              />
-            </label>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="block">
+            <span className="text-sm text-zinc-600 dark:text-zinc-400">Data dei prezzi</span>
+            <input
+              type="date"
+              value={pricedAt}
+              max={todayIso()}
+              onChange={(e) => setPricedAt(e.target.value)}
+              className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
+            />
+          </label>
+          <label className="block">
+            <span className="text-sm text-zinc-600 dark:text-zinc-400">Fonte (facoltativa)</span>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="es. Borsa Italiana, Perplexity"
+              className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
+            />
+          </label>
+        </div>
 
-          {error && (
-            <div className="px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
-              {error}
-            </div>
-          )}
-
-          <div className="flex items-center justify-end gap-2 pt-1">
-            <button
-              onClick={onClose}
-              disabled={busy}
-              className="px-4 py-2 text-sm rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50"
-            >
-              Annulla
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={busy || !canSave}
-              className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
-            >
-              {busy
-                ? 'Salvataggio...'
-                : parsedEntries.length > 1
-                  ? `Salva ${parsedEntries.length} prezzi`
-                  : 'Salva'}
-            </button>
+        {error && (
+          <div className="px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
+            {error}
           </div>
+        )}
+
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="px-4 py-2 text-sm rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50"
+          >
+            Annulla
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={busy || !canSave}
+            className="px-4 py-2 text-sm rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {busy
+              ? 'Salvataggio...'
+              : parsedEntries.length > 1
+                ? `Salva ${parsedEntries.length} prezzi`
+                : 'Salva'}
+          </button>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
