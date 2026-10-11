@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/Toast'
 import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/components/ThemeProvider'
-import { useModalA11y } from '@/hooks/useModalA11y'
+import { Modal } from '@/components/ui/Modal'
 
 const CURRENCIES = [
   { code: 'EUR', label: 'Euro (€)' },
@@ -286,7 +286,6 @@ export default function SettingsPage() {
     }
   }
 
-  const deleteModalRef = useModalA11y<HTMLDivElement>(showDeleteConfirm, () => { setShowDeleteConfirm(false); setDeleteInput('') })
 
   return (
     <DashboardLayout>
@@ -353,6 +352,7 @@ export default function SettingsPage() {
                 <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">Saldo iniziale ({currency})</label>
                 <input
                   type="number"
+                  inputMode="decimal"
                   step="0.01"
                   value={initialBalance}
                   onChange={e => { setInitialBalance(e.target.value); markDirty() }}
@@ -579,44 +579,42 @@ export default function SettingsPage() {
 
       {/* Delete confirm modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="delete-account-title">
-          <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl p-6">
-            <div className="text-center mb-4">
-              <AlertTriangle size={44} className="text-amber-500 mx-auto mb-2" />
-              <h2 id="delete-account-title" className="text-lg font-bold text-zinc-900 dark:text-white">Eliminare tutti i dati?</h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                Questa azione eliminerà permanentemente tutte le tue transazioni, fatture, obiettivi e budget.
-              </p>
-            </div>
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                Scrivi <strong>ELIMINA</strong> per confermare
-              </label>
-              <input
-                type="text"
-                value={deleteInput}
-                onChange={e => setDeleteInput(e.target.value)}
-                className="w-full px-3 py-2 border border-red-300 dark:border-red-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
-                placeholder="ELIMINA"
-              />
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => { setShowDeleteConfirm(false); setDeleteInput('') }}
-                className="flex-1 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-              >
-                Annulla
-              </button>
-              <button
-                onClick={handleDeleteAccount}
-                disabled={deleteInput !== 'ELIMINA'}
-                className="flex-1 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
-              >
-                Elimina
-              </button>
-            </div>
+        <Modal open onClose={() => { setShowDeleteConfirm(false); setDeleteInput('') }} labelledBy="delete-account-title" size="sm" className="p-6">
+          <div className="text-center mb-4">
+            <AlertTriangle size={44} className="text-amber-500 mx-auto mb-2" />
+            <h2 id="delete-account-title" className="text-lg font-bold text-zinc-900 dark:text-white">Eliminare tutti i dati?</h2>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+              Questa azione eliminerà permanentemente tutte le tue transazioni, fatture, obiettivi e budget.
+            </p>
           </div>
-        </div>
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+              Scrivi <strong>ELIMINA</strong> per confermare
+            </label>
+            <input
+              type="text"
+              value={deleteInput}
+              onChange={e => setDeleteInput(e.target.value)}
+              className="w-full px-3 py-2 border border-red-300 dark:border-red-600 rounded-lg text-sm bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+              placeholder="ELIMINA"
+            />
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => { setShowDeleteConfirm(false); setDeleteInput('') }}
+              className="flex-1 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+            >
+              Annulla
+            </button>
+            <button
+              onClick={handleDeleteAccount}
+              disabled={deleteInput !== 'ELIMINA'}
+              className="flex-1 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              Elimina
+            </button>
+          </div>
+        </Modal>
       )}
     </DashboardLayout>
   )

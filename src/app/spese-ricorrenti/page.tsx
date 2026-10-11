@@ -17,9 +17,9 @@ import {
 import { useExpenseCategories } from '@/hooks/useCategories'
 import { useToast } from '@/components/Toast'
 import { useSettings } from '@/hooks/useSettings'
-import { useModalA11y } from '@/hooks/useModalA11y'
 import { formatCurrency, getLocalDateString, getPaymentMethods } from '@/lib/utils'
 import type { RecurringExpense } from '@/types'
+import { Modal } from '@/components/ui/Modal'
 
 const BACKFILL_MAX_MONTHS = 24
 
@@ -99,8 +99,6 @@ export default function SpeseRicorrentiPage() {
     setEditing(null)
   }
 
-  const formModalRef = useModalA11y<HTMLDivElement>(showForm, closeForm)
-  const deleteModalRef = useModalA11y<HTMLDivElement>(!!confirmDelete, () => setConfirmDelete(null))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -254,6 +252,7 @@ export default function SpeseRicorrentiPage() {
           <div className="flex items-center gap-2 shrink-0">
             <input
               type="number"
+              inputMode="numeric"
               min={1}
               max={BACKFILL_MAX_MONTHS}
               value={backfillMonths}
@@ -384,155 +383,153 @@ export default function SpeseRicorrentiPage() {
 
       {/* Form modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="recurring-modal-title">
-          <div ref={formModalRef} className="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between shrink-0">
-              <h2 id="recurring-modal-title" className="text-xl font-bold text-zinc-900 dark:text-white">
-                {editing ? 'Modifica spesa ricorrente' : 'Nuova spesa ricorrente'}
-              </h2>
-              <button type="button" onClick={closeForm} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
+        <Modal open onClose={closeForm} labelledBy="recurring-modal-title" dismissOnBackdrop={false} className="flex flex-col">
+          <div className="p-6 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between shrink-0">
+            <h2 id="recurring-modal-title" className="text-xl font-bold text-zinc-900 dark:text-white">
+              {editing ? 'Modifica spesa ricorrente' : 'Nuova spesa ricorrente'}
+            </h2>
+            <button type="button" onClick={closeForm} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Nome</label>
+              <input
+                type="text"
+                value={fName}
+                onChange={(e) => setFName(e.target.value)}
+                required
+                placeholder="es. Affitto, Netflix, Palestra"
+                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+              />
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Categoria</label>
+              <select
+                value={fCategoryId}
+                onChange={(e) => setFCategoryId(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+              >
+                <option value="">Nessuna categoria</option>
+                {expenseCategories?.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Nome</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Importo (€)</label>
                 <input
-                  type="text"
-                  value={fName}
-                  onChange={(e) => setFName(e.target.value)}
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={fAmount}
+                  onChange={(e) => setFAmount(e.target.value)}
                   required
-                  placeholder="es. Affitto, Netflix, Palestra"
+                  placeholder="0.00"
                   className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Categoria</label>
-                <select
-                  value={fCategoryId}
-                  onChange={(e) => setFCategoryId(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                >
-                  <option value="">Nessuna categoria</option>
-                  {expenseCategories?.map((cat) => (
-                    <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Importo (€)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={fAmount}
-                    onChange={(e) => setFAmount(e.target.value)}
-                    required
-                    placeholder="0.00"
-                    className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Giorno del mese</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={31}
-                    value={fDayOfMonth}
-                    onChange={(e) => setFDayOfMonth(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Attiva dal</label>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Giorno del mese</label>
                 <input
-                  type="date"
-                  value={fStartDate}
-                  onChange={(e) => setFStartDate(e.target.value)}
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={31}
+                  value={fDayOfMonth}
+                  onChange={(e) => setFDayOfMonth(e.target.value)}
                   required
                   className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
                 />
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Nessuna occorrenza verrà generata prima di questa data</p>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Metodo di pagamento</label>
-                <select
-                  value={fPaymentMethod}
-                  onChange={(e) => setFPaymentMethod(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                >
-                  <option value="">Seleziona metodo</option>
-                  {paymentMethods.map((method) => (
-                    <option key={method} value={method}>{method}</option>
-                  ))}
-                  {fPaymentMethod && !paymentMethods.includes(fPaymentMethod) && (
-                    <option value={fPaymentMethod}>{fPaymentMethod}</option>
-                  )}
-                </select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Attiva dal</label>
+              <input
+                type="date"
+                value={fStartDate}
+                onChange={(e) => setFStartDate(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+              />
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Nessuna occorrenza verrà generata prima di questa data</p>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Note (opzionale)</label>
-                <input
-                  type="text"
-                  value={fNotes}
-                  onChange={(e) => setFNotes(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Metodo di pagamento</label>
+              <select
+                value={fPaymentMethod}
+                onChange={(e) => setFPaymentMethod(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+              >
+                <option value="">Seleziona metodo</option>
+                {paymentMethods.map((method) => (
+                  <option key={method} value={method}>{method}</option>
+                ))}
+                {fPaymentMethod && !paymentMethods.includes(fPaymentMethod) && (
+                  <option value={fPaymentMethod}>{fPaymentMethod}</option>
+                )}
+              </select>
+            </div>
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={closeForm}
-                  className="flex-1 py-3 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-                >
-                  Annulla
-                </button>
-                <button
-                  type="submit"
-                  disabled={createRecurring.isPending || updateRecurring.isPending}
-                  className="flex-1 py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-medium transition-colors"
-                >
-                  {(createRecurring.isPending || updateRecurring.isPending) ? 'Salvataggio...' : editing ? 'Aggiorna' : 'Salva'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Note (opzionale)</label>
+              <input
+                type="text"
+                value={fNotes}
+                onChange={(e) => setFNotes(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+              />
+            </div>
 
-      {/* Confirm delete modal */}
-      {confirmDelete && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]" role="dialog" aria-modal="true" aria-labelledby="delete-recurring-title">
-          <div ref={deleteModalRef} className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-xl max-w-sm w-full">
-            <h3 id="delete-recurring-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina spesa ricorrente</h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">
-              Le transazioni già generate per &ldquo;{confirmDelete.name}&rdquo; restano nello storico, ma non ne verranno create di nuove. L&apos;azione è irreversibile.
-            </p>
-            <div className="flex gap-3">
+            <div className="flex gap-3 pt-4">
               <button
-                onClick={() => setConfirmDelete(null)}
-                className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+                type="button"
+                onClick={closeForm}
+                className="flex-1 py-3 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
               >
                 Annulla
               </button>
               <button
-                onClick={handleDelete}
-                disabled={deleteRecurring.isPending}
-                className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-medium transition-colors"
+                type="submit"
+                disabled={createRecurring.isPending || updateRecurring.isPending}
+                className="flex-1 py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-medium transition-colors"
               >
-                {deleteRecurring.isPending ? 'Eliminazione...' : 'Elimina'}
+                {(createRecurring.isPending || updateRecurring.isPending) ? 'Salvataggio...' : editing ? 'Aggiorna' : 'Salva'}
               </button>
             </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Confirm delete modal */}
+      {confirmDelete && (
+        <Modal open onClose={() => setConfirmDelete(null)} labelledBy="delete-recurring-title" size="sm" className="p-6">
+          <h3 id="delete-recurring-title" className="text-base font-semibold text-zinc-900 dark:text-white mb-2">Elimina spesa ricorrente</h3>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5">
+            Le transazioni già generate per &ldquo;{confirmDelete.name}&rdquo; restano nello storico, ma non ne verranno create di nuove. L&apos;azione è irreversibile.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setConfirmDelete(null)}
+              className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+            >
+              Annulla
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleteRecurring.isPending}
+              className="flex-1 py-2.5 px-4 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-medium transition-colors"
+            >
+              {deleteRecurring.isPending ? 'Eliminazione...' : 'Elimina'}
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
     </DashboardLayout>
   )
