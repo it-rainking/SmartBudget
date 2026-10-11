@@ -1,48 +1,35 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
-import Link from 'next/link'
-import { ChevronLeft, ChevronRight, TrendingUp, PiggyBank, Wallet, CalendarDays, BarChart3, Trophy, Landmark, Plus } from 'lucide-react'
-import {
-  Chart as ChartJS,
-  ArcElement,
-  Tooltip,
-  Legend,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  PointElement,
-  Filler,
-} from 'chart.js'
-import { Doughnut, Bar, Line } from 'react-chartjs-2'
+import { useMemo, useState } from 'react'
+import { BarChart3, Zap } from 'lucide-react'
 import { DashboardLayout } from '@/components/DashboardLayout'
-import { useMonthlyKPIs, useTransactions } from '@/hooks/useTransactions'
-import { useInstallmentPlans, useSettleInstallmentPlanEarly, useCancelRemainingInstallments } from '@/hooks/useInstallments'
+import { MonthSwitcher } from '@/components/MonthSwitcher'
+import { Card, EmptyState, KpiTile } from '@/components/ui'
+import { BalanceHero } from '@/components/dashboard/BalanceHero'
+import { CategoryBreakdownSection, type CategoryTotal } from '@/components/dashboard/CategoryBreakdownSection'
+import { IncomeSplitSection } from '@/components/dashboard/IncomeSplitSection'
+import { AiInsightsSection } from '@/components/dashboard/AiInsightsSection'
+import { InstallmentPlansSummary } from '@/components/dashboard/InstallmentPlansSummary'
+import { RecurringExpensesBox } from '@/components/dashboard/RecurringExpensesBox'
+import { CategoryExpensesModal } from '@/components/dashboard/CategoryExpensesModal'
+import { useMonthlyKPIs } from '@/hooks/useTransactions'
+import { useInstallmentPlans } from '@/hooks/useInstallments'
 import { useExpenseCategories } from '@/hooks/useCategories'
 import { useSettings } from '@/hooks/useSettings'
-import { useToast } from '@/components/Toast'
-import {
-  useRecurringExpensesInMonth,
-  useCreateRecurringExpense,
-  useEnsureCurrentMonthRecurring,
-  type RecurringOccurrence,
-} from '@/hooks/useRecurringExpenses'
-import { formatCurrency, formatDate, formatMonth, getLocalDateString } from '@/lib/utils'
-import type { ExpenseCategory, InstallmentPlan } from '@/types'
-import { Modal } from '@/components/ui/Modal'
+import { useSelectedMonth } from '@/hooks/useSelectedMonth'
+import { useHorizontalSwipe } from '@/hooks/useHorizontalSwipe'
+import { formatCurrency, formatMonth } from '@/lib/utils'
+import type { ExpenseCategory } from '@/types'
 
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Filler)
-
-const MONTHS = [
-  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
-]
-
+// Gerarchia della pagina, dal più consultato al meno:
+// 1. saldo disponibile con l'andamento del mese (BalanceHero)
+// 2. entrate / spese / risparmi
+// 3. indicatori secondari in una griglia compatta
+// 4. sezioni richiudibili (categorie, confronto, rate, ricorrenti, AI)
 export default function DashboardMensilePage() {
-  const currentDate = new Date()
-  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1)
-  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear())
+  // Mese condiviso con /transazioni tramite l'URL (?m=YYYY-MM)
+  const { month: selectedMonth, year: selectedYear, isCurrentMonth, goToPrevMonth, goToNextMonth } = useSelectedMonth()
+  const swipeHandlers = useHorizontalSwipe(goToPrevMonth, () => { if (!isCurrentMonth) goToNextMonth() })
 
   const { data: kpis, isLoading } = useMonthlyKPIs(selectedMonth, selectedYear)
   const { data: expenseCategories } = useExpenseCategories()
@@ -51,26 +38,20 @@ export default function DashboardMensilePage() {
 
   const currency = settings?.currency || 'EUR'
   const fmt = (n: number) => formatCurrency(n, currency)
+  // Nei 3 riquadri affiancati su mobile i centesimi non ci stanno: importo
+  // arrotondato all'euro sotto sm, completo da sm in su
+  const fmtTile = (n: number) => (
+    <>
+      <span className="sm:hidden">{new Intl.NumberFormat('it-IT', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n)}</span>
+      <span className="hidden sm:inline">{fmt(n)}</span>
+    </>
+  )
 
   // Categoria selezionata per il dettaglio delle singole spese (modal)
   const [detailCategory, setDetailCategory] = useState<ExpenseCategory | null>(null)
 
-  const isCurrentMonth = selectedMonth === currentDate.getMonth() + 1 && selectedYear === currentDate.getFullYear()
-
-  const goToPrevMonth = useCallback(() => {
-    const d = new Date(selectedYear, selectedMonth - 2, 1)
-    setSelectedMonth(d.getMonth() + 1)
-    setSelectedYear(d.getFullYear())
-  }, [selectedMonth, selectedYear])
-
-  const goToNextMonth = useCallback(() => {
-    const d = new Date(selectedYear, selectedMonth, 1)
-    setSelectedMonth(d.getMonth() + 1)
-    setSelectedYear(d.getFullYear())
-  }, [selectedMonth, selectedYear])
-
-  // Build expense breakdown by category (sorted by amount desc)
-  const categoryBreakdown = useMemo(() => {
+  // Spese per categoria, dalla più alta
+  const categoryBreakdown = useMemo<CategoryTotal[]>(() => {
     if (!expenseCategories || !kpis?.categoryBreakdown) return []
     return expenseCategories
       .filter((cat) => (kpis.categoryBreakdown[cat.id] || 0) > 0)
@@ -78,40 +59,13 @@ export default function DashboardMensilePage() {
       .sort((a, b) => b.total - a.total)
   }, [expenseCategories, kpis])
 
-  const topCategory = useMemo(() => {
-    if (!expenseCategories || !kpis?.topCategoryId) return null
-    return expenseCategories.find((c) => c.id === kpis.topCategoryId) ?? null
-  }, [expenseCategories, kpis])
-
-  // Donut chart data
-  const donutData = useMemo(() => ({
-    labels: categoryBreakdown.map((c) => `${c.icon || '📦'} ${c.name}`),
-    datasets: [{
-      data: categoryBreakdown.map((c) => c.total),
-      backgroundColor: categoryBreakdown.map((c) => (c.color || '#6b7280') + 'cc'),
-      borderColor: categoryBreakdown.map((c) => c.color || '#6b7280'),
-      borderWidth: 2,
-    }],
-  }), [categoryBreakdown])
+  const topCategory = categoryBreakdown[0] ?? null
 
   // Finché il mese non ha entrate registrate, si mostra la stima storica
   // (in giallo) al posto dello zero reale; appena arriva un'entrata vera,
   // subentra il valore reale (in verde).
   const isIncomeEstimated = !!kpis?.isIncomeEstimated
   const displayIncome = isIncomeEstimated ? (kpis?.projectedIncome ?? 0) : (kpis?.totalIncome ?? 0)
-  const incomeColor = isIncomeEstimated ? '#f59e0b' : '#10b981'
-
-  // Bar chart data
-  const barData = useMemo(() => ({
-    labels: ['Entrate', 'Spese', 'Risparmi'],
-    datasets: [{
-      data: [displayIncome, kpis?.totalExpenses ?? 0, kpis?.totalSavings ?? 0],
-      backgroundColor: [incomeColor + 'cc', '#ef4444cc', '#3b82f6cc'],
-      borderColor: [incomeColor, '#ef4444', '#3b82f6'],
-      borderWidth: 2,
-      borderRadius: 6,
-    }],
-  }), [kpis, displayIncome, incomeColor])
 
   const hasData = displayIncome > 0 || (kpis?.totalExpenses ?? 0) > 0 || (kpis?.totalSavings ?? 0) > 0
 
@@ -119,465 +73,143 @@ export default function DashboardMensilePage() {
   // piatta fino a fine mese sembrerebbe una previsione.
   const dailyBalances = kpis?.dailyBalances ?? []
   const balanceValues = isCurrentMonth
-    ? dailyBalances.slice(0, Math.min(currentDate.getDate(), dailyBalances.length))
+    ? dailyBalances.slice(0, Math.min(new Date().getDate(), dailyBalances.length))
     : dailyBalances
 
-  // AI Insights
-  const [aiInsights, setAiInsights] = useState<string[]>([])
-  const [isLoadingAI, setIsLoadingAI] = useState(false)
-  const [aiError, setAiError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setAiInsights([])
-    setAiError(null)
-  }, [selectedMonth, selectedYear])
-
-  async function handleAIInsights() {
-    if (!kpis || !hasData) return
-    setIsLoadingAI(true)
-    setAiError(null)
-    try {
-      const categoryNamesMap: Record<string, string> = {}
-      expenseCategories?.forEach((c) => { categoryNamesMap[c.id] = c.name })
-      const res = await fetch('/api/ai/insights', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          month: selectedMonth,
-          year: selectedYear,
-          kpis: {
-            totalIncome: kpis.totalIncome,
-            totalExpenses: kpis.totalExpenses,
-            totalSavings: kpis.totalSavings,
-            balance: kpis.balance,
-            savingsPercent: kpis.savingsPercent,
-            dailyAverage: kpis.dailyAverage,
-            deltaExpensePercent: kpis.deltaExpensePercent ?? null,
-            prevMonthExpenses: kpis.prevMonthExpenses ?? 0,
-            // Valori a condizioni normali: l'analisi deve ragionare su questi
-            ordinaryIncome: kpis.ordinaryIncome,
-            ordinaryExpenses: kpis.ordinaryExpenses,
-            ordinaryBalance: kpis.ordinaryBalance,
-            exceptionalIncome: kpis.exceptionalIncome,
-            exceptionalExpenses: kpis.exceptionalExpenses,
-          },
-          categoryBreakdown: kpis.categoryBreakdown,
-          categoryNames: categoryNamesMap,
-          currency,
-        }),
-      })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-      setAiInsights(data.insights ?? [])
-    } catch (e: unknown) {
-      setAiError(e instanceof Error ? e.message : 'Errore sconosciuto')
-    } finally {
-      setIsLoadingAI(false)
-    }
-  }
+  const exceptionalIncome = kpis?.exceptionalIncome ?? 0
+  const exceptionalExpenses = kpis?.exceptionalExpenses ?? 0
+  const hasExceptional = exceptionalIncome > 0 || exceptionalExpenses > 0
+  const delta = kpis?.deltaExpensePercent
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Dashboard Mensile</h1>
-            <p className="text-zinc-600 dark:text-zinc-400">
-              Riepilogo di {formatMonth(selectedMonth, selectedYear)}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={goToPrevMonth}
-              aria-label="Mese precedente"
-              className="p-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 transition-colors"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
-            >
-              {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-            </select>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
-            >
-              {Array.from({ length: 4 }, (_, i) => currentDate.getFullYear() - 1 + i).map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
-            <button
-              onClick={goToNextMonth}
-              disabled={isCurrentMonth}
-              aria-label="Mese successivo"
-              className="p-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-emerald-500 hover:text-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
+      <div className="space-y-4 sm:space-y-6" {...swipeHandlers}>
+        {/* Header: su mobile il mese è nell'header dell'app */}
+        <h1 className="sr-only">Dashboard di {formatMonth(selectedMonth, selectedYear)}</h1>
+        <div className="hidden lg:flex items-center justify-between gap-4">
+          <p aria-hidden="true" className="text-2xl font-bold text-zinc-900 dark:text-white">Dashboard</p>
+          <MonthSwitcher />
         </div>
 
-        {/* Primary KPI cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-
-          {/* Entrate */}
-          <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Entrate</span>
-              <TrendingUp size={16} className={isIncomeEstimated ? 'text-amber-500' : 'text-emerald-500'} />
-            </div>
-            {isLoading
-              ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
-              : <p className={`text-2xl font-bold ${isIncomeEstimated ? 'text-amber-500' : 'text-emerald-600'}`}>{fmt(displayIncome)}</p>
-            }
-            {!isLoading && isIncomeEstimated && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                Stima basata sulla media storica — in attesa di nuove entrate
-              </p>
-            )}
-            {!isLoading && (kpis?.exceptionalIncome ?? 0) > 0 && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                ⚡ {fmt(kpis?.exceptionalIncome ?? 0)} eccezionali, esclusi dai trend
-              </p>
-            )}
-          </div>
-
-          {/* Spese + delta */}
-          <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Spese</span>
-              {!isLoading && kpis?.deltaExpensePercent !== null && kpis?.deltaExpensePercent !== undefined && (
-                <span
-                  title="Variazione delle spese ordinarie rispetto al mese precedente (movimenti eccezionali esclusi)"
-                  className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                    kpis.deltaExpensePercent > 0
-                      ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                      : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                  }`}
-                >
-                  {kpis.deltaExpensePercent > 0 ? '▲' : '▼'} {Math.abs(kpis.deltaExpensePercent)}%
+        {/* 1-2. Saldo disponibile + entrate / spese / risparmi */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+          <BalanceHero
+            className="lg:col-span-2"
+            loading={isLoading}
+            openingBalance={kpis?.openingBalance ?? 0}
+            closingBalance={kpis?.closingBalance ?? 0}
+            balanceValues={balanceValues}
+            isCurrentMonth={isCurrentMonth}
+            currency={currency}
+          />
+          <div className="grid grid-cols-3 lg:grid-cols-1 gap-2 sm:gap-4">
+            <KpiTile
+              label={isIncomeEstimated ? 'Entrate (stima)' : 'Entrate'}
+              value={fmtTile(displayIncome)}
+              tone={isIncomeEstimated ? 'text-amber-500' : 'text-emerald-600 dark:text-emerald-400'}
+              loading={isLoading}
+              title={isIncomeEstimated ? 'Stima basata sulla media storica, in attesa di nuove entrate' : undefined}
+              hint={isIncomeEstimated ? <span className="text-amber-600 dark:text-amber-400">media storica</span> : undefined}
+            />
+            <KpiTile
+              label="Spese"
+              value={fmtTile(kpis?.totalExpenses ?? 0)}
+              tone="text-red-600 dark:text-red-400"
+              loading={isLoading}
+              title="La variazione confronta le spese ordinarie con il mese precedente (movimenti eccezionali esclusi)"
+              hint={delta !== null && delta !== undefined ? (
+                <span className={delta > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-emerald-600 dark:text-emerald-400 font-medium'}>
+                  {delta > 0 ? '▲' : '▼'} {Math.abs(delta)}%
+                  <span className="hidden sm:inline font-normal text-zinc-500 dark:text-zinc-400"> vs mese prec. ({fmt(kpis?.prevMonthExpenses ?? 0)})</span>
                 </span>
-              )}
-            </div>
-            {isLoading
-              ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
-              : <p className="text-2xl font-bold text-red-600">{fmt(kpis?.totalExpenses ?? 0)}</p>
-            }
-            {!isLoading && (kpis?.exceptionalExpenses ?? 0) > 0 && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                ⚡ {fmt(kpis?.exceptionalExpenses ?? 0)} eccezionali · ordinarie {fmt(kpis?.ordinaryExpenses ?? 0)}
-              </p>
-            )}
-            {!isLoading && kpis?.prevMonthExpenses !== undefined && kpis.prevMonthExpenses > 0 && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                Mese prec. {fmt(kpis.prevMonthExpenses)}
-                {kpis.prevMonthExceptionalExpenses > 0 ? ' (ordinarie)' : ''}
-              </p>
-            )}
-          </div>
-
-          {/* Risparmi */}
-          <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Risparmi</span>
-              <PiggyBank size={16} className="text-blue-500" />
-            </div>
-            {isLoading
-              ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
-              : <p className="text-2xl font-bold text-blue-600">{fmt(kpis?.totalSavings ?? 0)}</p>
-            }
-            {!isLoading && (kpis?.savingsPercent ?? 0) > 0 && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{kpis?.savingsPercent}% delle entrate</p>
-            )}
-          </div>
-
-          {/* Saldo */}
-          <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">Saldo netto</span>
-              <Wallet size={16} className="text-zinc-500 dark:text-zinc-400" />
-            </div>
-            {isLoading
-              ? <div className="h-7 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
-              : <p className={`text-2xl font-bold ${(kpis?.balance ?? 0) >= 0 ? 'text-zinc-900 dark:text-white' : 'text-red-600'}`}>
-                  {fmt(kpis?.balance ?? 0)}
-                </p>
-            }
-            {!isLoading && kpis?.isIncomeEstimated && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                Basato su entrata media stimata
-              </p>
-            )}
-            {!isLoading && ((kpis?.exceptionalExpenses ?? 0) > 0 || (kpis?.exceptionalIncome ?? 0) > 0) && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                ⚡ A condizioni normali: {fmt(kpis?.ordinaryBalance ?? 0)}
-              </p>
-            )}
+              ) : undefined}
+            />
+            <KpiTile
+              label="Risparmi"
+              value={fmtTile(kpis?.totalSavings ?? 0)}
+              tone="text-blue-600 dark:text-blue-400"
+              loading={isLoading}
+              hint={(kpis?.savingsPercent ?? 0) > 0 ? <>{kpis?.savingsPercent}%<span className="hidden sm:inline"> delle entrate</span></> : undefined}
+            />
           </div>
         </div>
 
-        {/* Secondary KPIs */}
-        {!isLoading && hasData && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Saldo disponibile: denaro realmente in cassa, distinto dal
-                "Saldo netto" qui sopra che è il flusso del mese. */}
-            <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/20 flex items-center justify-center shrink-0">
-                <Landmark size={22} className="text-emerald-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">Saldo disponibile</p>
-                <p className={`text-xl font-bold ${(kpis?.closingBalance ?? 0) >= 0 ? 'text-zinc-800 dark:text-zinc-100' : 'text-red-600'}`}>
-                  {fmt(kpis?.closingBalance ?? 0)}
-                </p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-                  A inizio mese {fmt(kpis?.openingBalance ?? 0)}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center shrink-0">
-                <CalendarDays size={22} className="text-orange-500" />
-              </div>
-              <div>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">Media giornaliera</p>
-                <p className="text-xl font-bold text-zinc-800 dark:text-zinc-100">{fmt(kpis?.dailyAverage ?? 0)}</p>
-                {(kpis?.exceptionalExpenses ?? 0) > 0 && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400">Esclusi i movimenti eccezionali</p>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
-                <BarChart3 size={22} className="text-blue-500" />
-              </div>
-              <div>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">Tasso di risparmio</p>
-                <p className="text-xl font-bold text-zinc-800 dark:text-zinc-100">{kpis?.savingsPercent ?? 0}%</p>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-zinc-800 rounded-xl p-5 shadow-sm border border-zinc-100 dark:border-zinc-700 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center shrink-0">
-                {topCategory?.icon
-                  ? <span className="text-2xl">{topCategory.icon}</span>
-                  : <Trophy size={22} className="text-purple-500" />}
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">Categoria top</p>
-                <p className="text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">
-                  {topCategory ? topCategory.name : '—'}
-                </p>
-                {topCategory && kpis?.topCategoryId && (
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">{fmt(kpis.categoryBreakdown[kpis.topCategoryId])}</p>
-                )}
-              </div>
-            </div>
-          </div>
+        {/* Movimenti eccezionali: una nota sola invece di una per card */}
+        {!isLoading && hasExceptional && (
+          <p className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+            <Zap size={14} className="shrink-0 mt-px" />
+            <span>
+              Movimenti eccezionali nel mese:
+              {exceptionalIncome > 0 && <> entrate {fmt(exceptionalIncome)}</>}
+              {exceptionalIncome > 0 && exceptionalExpenses > 0 && ','}
+              {exceptionalExpenses > 0 && <> spese {fmt(exceptionalExpenses)}</>}.
+              {' '}Contano nei totali, non in medie e confronti. A condizioni normali il saldo netto sarebbe {fmt(kpis?.ordinaryBalance ?? 0)}.
+            </span>
+          </p>
         )}
 
-        {/* Charts row */}
+        {/* 3. Indicatori secondari */}
         {!isLoading && hasData && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-            {/* Donut chart - expense categories */}
-            <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-100 dark:border-zinc-700">
-              <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">
-                Spese per categoria
-              </h3>
-              {categoryBreakdown.length > 0 ? (
-                <div className="flex items-center gap-6">
-                  <div className="w-40 h-40 shrink-0">
-                    <Doughnut
-                      data={donutData}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: true,
-                        cutout: '65%',
-                        plugins: {
-                          legend: { display: false },
-                          tooltip: {
-                            callbacks: {
-                              label: (ctx) => {
-                                const total = (ctx.dataset.data as number[]).reduce((a, b) => a + b, 0)
-                                const pct = total > 0 ? Math.round((ctx.parsed / total) * 100) : 0
-                                return ` ${ctx.label}: ${fmt(ctx.parsed)} (${pct}%)`
-                              },
-                            },
-                          },
-                        },
-                      }}
-                    />
-                  </div>
-                  <div className="flex-1 space-y-2 overflow-hidden">
-                    {categoryBreakdown.slice(0, 5).map((cat) => {
-                      const pct = kpis?.totalExpenses
-                        ? Math.round((cat.total / kpis.totalExpenses) * 100)
-                        : 0
-                      return (
-                        <div key={cat.id} className="flex items-center gap-2">
-                          <div
-                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: cat.color || '#6b7280' }}
-                          />
-                          <span className="text-xs text-zinc-600 dark:text-zinc-400 flex-1 truncate">
-                            {cat.icon} {cat.name}
-                          </span>
-                          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 shrink-0">
-                            {pct}%
-                          </span>
-                        </div>
-                      )
-                    })}
-                    {categoryBreakdown.length > 5 && (
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400">+{categoryBreakdown.length - 5} altre</p>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-8">Nessuna spesa registrata</p>
-              )}
-            </div>
-
-            {/* Bar chart - income vs expenses vs savings */}
-            <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-100 dark:border-zinc-700">
-              <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">
-                Confronto Entrate / Spese / Risparmi
-              </h3>
-              <div className="h-48">
-                <Bar
-                  data={barData}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                      legend: { display: false },
-                      tooltip: {
-                        callbacks: {
-                          label: (ctx) => ` ${fmt(ctx.parsed.y ?? 0)}`,
-                        },
-                      },
-                    },
-                    scales: {
-                      x: {
-                        grid: { display: false },
-                        ticks: { font: { size: 11 } },
-                      },
-                      y: {
-                        grid: { color: 'rgba(0,0,0,0.05)' },
-                        ticks: {
-                          font: { size: 10 },
-                          callback: (v) => fmt(Number(v)).replace(/\s/g, ''),
-                        },
-                      },
-                    },
-                  }}
-                />
-              </div>
-            </div>
-          </div>
+          <Card className="grid grid-cols-2 lg:grid-cols-4 divide-zinc-100 dark:divide-zinc-700 [&>*]:border-zinc-100 dark:[&>*]:border-zinc-700 [&>*:nth-child(odd)]:border-r lg:[&>*]:border-r lg:[&>*:last-child]:border-r-0 [&>*:nth-child(-n+2)]:border-b lg:[&>*]:border-b-0">
+            <SecondaryStat
+              label="Saldo netto"
+              value={fmt(kpis?.balance ?? 0)}
+              tone={(kpis?.balance ?? 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600'}
+              hint={isIncomeEstimated ? 'su entrate stimate' : 'entrate − uscite del mese'}
+            />
+            <SecondaryStat
+              label="Media giornaliera"
+              value={fmt(kpis?.dailyAverage ?? 0)}
+              hint={exceptionalExpenses > 0 ? 'eccezionali esclusi' : 'spese al giorno'}
+            />
+            <SecondaryStat
+              label="Tasso di risparmio"
+              value={`${kpis?.savingsPercent ?? 0}%`}
+              hint="sulle entrate"
+            />
+            <SecondaryStat
+              label="Categoria top"
+              value={topCategory ? `${topCategory.icon ? `${topCategory.icon} ` : ''}${topCategory.name}` : '—'}
+              hint={topCategory ? fmt(topCategory.total) : undefined}
+            />
+          </Card>
         )}
 
-        {/* Andamento del saldo giorno per giorno */}
-        {!isLoading && hasData && balanceValues.length > 0 && (
-          <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-100 dark:border-zinc-700">
-            <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-              Andamento del saldo
-            </h3>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
-              Denaro disponibile giorno per giorno{isCurrentMonth ? ', fino a oggi' : ''}
-            </p>
-            <div className="h-56">
-              <Line
-                data={{
-                  labels: balanceValues.map((_, i) => String(i + 1)),
-                  datasets: [{
-                    data: balanceValues,
-                    borderColor: '#10b981',
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    pointHoverRadius: 4,
-                    tension: 0.3,
-                    // Evidenzia l'attraversamento dello zero: è il punto
-                    // informativo del grafico.
-                    fill: {
-                      target: 'origin',
-                      above: 'rgba(16, 185, 129, 0.12)',
-                      below: 'rgba(239, 68, 68, 0.18)',
-                    },
-                  }],
-                }}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                      callbacks: {
-                        title: (items) => `Giorno ${items[0].label}`,
-                        label: (item) => fmt(item.parsed.y ?? 0),
-                      },
-                    },
-                  },
-                  scales: {
-                    x: {
-                      grid: { display: false },
-                      ticks: { maxTicksLimit: 10, color: '#a1a1aa', font: { size: 11 } },
-                    },
-                    y: {
-                      grid: { color: 'rgba(161, 161, 170, 0.15)' },
-                      ticks: {
-                        color: '#a1a1aa',
-                        font: { size: 11 },
-                        callback: (value) => fmt(Number(value)),
-                      },
-                    },
-                  },
-                }}
+        {/* 4. Sezioni richiudibili */}
+        {!isLoading && hasData && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6 items-start">
+            <CategoryBreakdownSection
+              className="lg:col-span-2"
+              categories={categoryBreakdown}
+              totalExpenses={kpis?.totalExpenses ?? 0}
+              exceptionalByCategory={kpis?.exceptionalByCategory ?? {}}
+              currency={currency}
+              onSelect={setDetailCategory}
+            />
+            <IncomeSplitSection
+              income={displayIncome}
+              isIncomeEstimated={isIncomeEstimated}
+              totalIncome={kpis?.totalIncome ?? 0}
+              totalExpenses={kpis?.totalExpenses ?? 0}
+              totalSavings={kpis?.totalSavings ?? 0}
+              expensePercent={kpis?.expensePercent ?? 0}
+              savingsPercent={kpis?.savingsPercent ?? 0}
+              currency={currency}
+            />
+            {kpis && (
+              <AiInsightsSection
+                month={selectedMonth}
+                year={selectedYear}
+                kpis={kpis}
+                expenseCategories={expenseCategories}
+                currency={currency}
               />
-            </div>
+            )}
           </div>
         )}
 
-        {/* Breakdown ripartizione % */}
-        {!isLoading && (kpis?.totalIncome ?? 0) > 0 && (
-          <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-100 dark:border-zinc-700">
-            <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">
-              Ripartizione delle entrate
-            </h3>
-            <div className="space-y-3">
-              {[
-                { label: 'Spese', pct: kpis?.expensePercent ?? 0, color: 'bg-red-500', value: kpis?.totalExpenses ?? 0 },
-                { label: 'Risparmi', pct: kpis?.savingsPercent ?? 0, color: 'bg-blue-500', value: kpis?.totalSavings ?? 0 },
-                {
-                  label: 'Disponibile',
-                  pct: Math.max(0, 100 - (kpis?.expensePercent ?? 0) - (kpis?.savingsPercent ?? 0)),
-                  color: 'bg-emerald-400',
-                  value: Math.max(0, (kpis?.totalIncome ?? 0) - (kpis?.totalExpenses ?? 0) - (kpis?.totalSavings ?? 0)),
-                },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center gap-3">
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400 w-16 sm:w-20 shrink-0">{item.label}</span>
-                  <div className="flex-1 h-2 bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden">
-                    <div className={`h-full ${item.color} rounded-full transition-all duration-500`} style={{ width: `${item.pct}%` }} />
-                  </div>
-                  <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 w-10 text-right">{item.pct}%</span>
-                  <span className="hidden sm:block text-xs text-zinc-500 dark:text-zinc-400 w-24 text-right">{fmt(item.value)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Spese PayPal a rate + Spese ricorrenti */}
         {!isLoading && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6 items-start">
             {(installmentPlans?.length ?? 0) > 0 && (
               <InstallmentPlansSummary plans={installmentPlans!} currency={currency} />
             )}
@@ -590,126 +222,16 @@ export default function DashboardMensilePage() {
           </div>
         )}
 
-        {/* Category breakdown detail */}
-        {!isLoading && categoryBreakdown.length > 0 && (
-          <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-100 dark:border-zinc-700 overflow-hidden">
-            <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-700">
-              <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Dettaglio spese per categoria</h3>
-            </div>
-            <div className="divide-y divide-zinc-50 dark:divide-zinc-700/50">
-              {categoryBreakdown.map((cat) => {
-                const pct = kpis?.totalExpenses
-                  ? Math.round((cat.total / kpis.totalExpenses) * 100)
-                  : 0
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setDetailCategory(cat)}
-                    aria-label={`Mostra dettaglio spese di ${cat.name}`}
-                    className="w-full px-6 py-3 flex items-center gap-4 text-left hover:bg-zinc-50 dark:hover:bg-zinc-700/40 transition-colors cursor-pointer"
-                  >
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-lg shrink-0"
-                      style={{ backgroundColor: (cat.color || '#6b7280') + '22' }}>
-                      {cat.icon || '📦'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                          {cat.name}
-                          {(kpis?.exceptionalByCategory[cat.id] ?? 0) > 0 && (
-                            <span
-                              title={`Include ${fmt(kpis?.exceptionalByCategory[cat.id] ?? 0)} di movimenti eccezionali, esclusi dai trend`}
-                              className="ml-2 text-xs text-amber-600 dark:text-amber-400"
-                            >
-                              ⚡ {fmt(kpis?.exceptionalByCategory[cat.id] ?? 0)}
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 ml-4 shrink-0">
-                          {fmt(cat.total)}
-                        </span>
-                      </div>
-                      <div className="h-1.5 bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${pct}%`, backgroundColor: cat.color || '#6b7280' }}
-                        />
-                      </div>
-                    </div>
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400 w-8 text-right shrink-0">{pct}%</span>
-                  </button>
-                )
-              })}
-            </div>
-            <p className="px-6 py-2.5 text-xs text-zinc-400 dark:text-zinc-500 border-t border-zinc-50 dark:border-zinc-700/50">
-              Clicca una categoria per vedere il dettaglio delle spese
-            </p>
-          </div>
-        )}
-
-        {/* AI Insights */}
-        {!isLoading && hasData && (
-          <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-100 dark:border-zinc-700">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">💡</span>
-                <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Analisi AI</h3>
-              </div>
-              <button
-                onClick={handleAIInsights}
-                disabled={isLoadingAI}
-                className="px-3 py-1.5 text-xs font-medium bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-lg transition-colors flex items-center gap-1.5"
-              >
-                {isLoadingAI ? (
-                  <>
-                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Analisi...
-                  </>
-                ) : '✨ Analizza con AI'}
-              </button>
-            </div>
-
-            {aiError && (
-              <p className="text-sm text-red-500 dark:text-red-400">{aiError}</p>
-            )}
-
-            {aiInsights.length > 0 ? (
-              <div className="space-y-3">
-                {aiInsights.map((insight, i) => (
-                  <div key={i} className="flex gap-3 p-3 bg-violet-50 dark:bg-violet-900/10 rounded-lg border border-violet-100 dark:border-violet-900/20">
-                    <span className="text-violet-500 font-bold text-xs mt-0.5 shrink-0">0{i + 1}</span>
-                    <p className="text-sm text-zinc-700 dark:text-zinc-300">{insight}</p>
-                  </div>
-                ))}
-              </div>
-            ) : !aiError && (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-4">
-                Premi &quot;Analizza con AI&quot; per ottenere 3 insight personalizzati sul mese selezionato.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Empty state */}
+        {/* Mese senza movimenti */}
         {!isLoading && !hasData && (
-          <div className="bg-white dark:bg-zinc-800 rounded-xl p-12 shadow-sm border border-zinc-100 dark:border-zinc-700 text-center">
-            <div className="text-4xl mb-4">📊</div>
-            <h3 className="text-lg font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
-              Nessun dato per questo mese
-            </h3>
-            <p className="text-zinc-500 dark:text-zinc-400 text-sm mb-6">
-              Aggiungi le tue prime transazioni per visualizzare le statistiche
-            </p>
-            <Link
-              href="/transazioni"
-              className="inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-5 rounded-lg text-sm transition-colors"
-            >
-              Aggiungi transazione
-            </Link>
-          </div>
+          <Card>
+            <EmptyState
+              Icon={BarChart3}
+              title="Nessun movimento in questo mese"
+              description="Registra entrate e spese con il pulsante + (o il tasto N) per vedere statistiche e grafici."
+            />
+          </Card>
         )}
-
       </div>
 
       {detailCategory && (
@@ -726,426 +248,12 @@ export default function DashboardMensilePage() {
   )
 }
 
-const INSTALLMENT_STATUS_LABEL: Record<InstallmentPlan['status'], string> = {
-  programmato: 'Programmato',
-  in_corso: 'In corso',
-  completato: 'Completato',
-}
-
-const INSTALLMENT_STATUS_CLASS: Record<InstallmentPlan['status'], string> = {
-  programmato: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300',
-  in_corso: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  completato: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-}
-
-// Sommario delle spese PayPal a rate che toccano il mese selezionato, con lo
-// stato di avanzamento di ciascun piano (quante rate sono già state
-// addebitate e quante restano) e le azioni sulle rate residue.
-function InstallmentPlansSummary({ plans, currency }: { plans: InstallmentPlan[]; currency: string }) {
-  const fmt = (n: number) => formatCurrency(n, currency)
-  const totalInMonth = plans.reduce((sum, p) => sum + p.amountInMonth, 0)
-  const openResidual = plans.reduce((sum, p) => sum + p.remainingAmount, 0)
-  const { showToast } = useToast()
-  const settleEarly = useSettleInstallmentPlanEarly()
-  const cancelRemaining = useCancelRemainingInstallments()
-  // Azione in attesa di conferma: un secondo tap la esegue
-  const [pending, setPending] = useState<{ planId: string; action: 'settle' | 'cancel' } | null>(null)
-  const busy = settleEarly.isPending || cancelRemaining.isPending
-
-  const run = async (planId: string, action: 'settle' | 'cancel') => {
-    if (pending?.planId !== planId || pending.action !== action) {
-      setPending({ planId, action })
-      return
-    }
-    try {
-      if (action === 'settle') {
-        const n = await settleEarly.mutateAsync(planId)
-        showToast(`${n} rate saldate oggi in anticipo`)
-      } else {
-        const n = await cancelRemaining.mutateAsync(planId)
-        showToast(`${n} rate non ancora addebitate annullate`, 'info')
-      }
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Operazione non riuscita', 'error')
-    } finally {
-      setPending(null)
-    }
-  }
-
+function SecondaryStat({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: string }) {
   return (
-    <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-100 dark:border-zinc-700 overflow-hidden">
-      <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-700 flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">💳 Spese PayPal a rate</h3>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Rate di questo mese: {fmt(totalInMonth)}
-            {openResidual > 0 && <> · Ancora da addebitare: {fmt(openResidual)}</>}
-          </p>
-        </div>
-      </div>
-      <div className="divide-y divide-zinc-50 dark:divide-zinc-700/50">
-        {plans.map((plan) => (
-          <div key={plan.planId} className="px-6 py-3">
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate">
-                {plan.description || 'Spesa a rate'}
-              </p>
-              <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${INSTALLMENT_STATUS_CLASS[plan.status]}`}>
-                {INSTALLMENT_STATUS_LABEL[plan.status]}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1.5">
-              <span>{plan.chargedCount}/{plan.installmentCount} rate addebitate · Totale {fmt(plan.totalAmount)}</span>
-              <span>Residuo {fmt(plan.remainingAmount)}</span>
-            </div>
-            <div className="h-1.5 bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden mb-2">
-              <div
-                className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                style={{ width: `${(plan.chargedCount / plan.installmentCount) * 100}%` }}
-              />
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {plan.installments.map((inst) => (
-                <span
-                  key={inst.id}
-                  title={`Rata ${inst.number}: ${fmt(inst.amount)}`}
-                  className={`text-xs px-1.5 py-0.5 rounded ${
-                    inst.status === 'addebitata'
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                      : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400'
-                  }`}
-                >
-                  {inst.number}/{plan.installmentCount} · {formatDate(inst.date)}
-                </span>
-              ))}
-            </div>
-            {plan.missingCount > 0 && (
-              <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400">
-                {plan.missingCount === 1 ? '1 rata eliminata o annullata' : `${plan.missingCount} rate eliminate o annullate`}: il totale è quello delle rate rimaste.
-              </p>
-            )}
-            {plan.nextInstallment && (
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                <span>Prossima rata {formatDate(plan.nextInstallment.date)} · {fmt(plan.nextInstallment.amount)}</span>
-                <span className="flex gap-2">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => run(plan.planId, 'settle')}
-                    className="px-2 py-1 rounded border border-blue-200 dark:border-blue-900/50 text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50"
-                  >
-                    {pending?.planId === plan.planId && pending.action === 'settle' ? 'Conferma saldo' : 'Salda ora'}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => run(plan.planId, 'cancel')}
-                    className="px-2 py-1 rounded border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
-                  >
-                    {pending?.planId === plan.planId && pending.action === 'cancel' ? 'Conferma annullo' : 'Annulla residue'}
-                  </button>
-                </span>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+    <div className="px-4 py-3 min-w-0">
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">{label}</p>
+      <p className={`text-base sm:text-lg font-semibold truncate ${tone ?? 'text-zinc-900 dark:text-white'}`}>{value}</p>
+      {hint && <p className="text-xs text-zinc-400 dark:text-zinc-500 truncate">{hint}</p>}
     </div>
-  )
-}
-
-// Box "Spese ricorrenti": occorrenze già generate nel mese selezionato (una
-// riga per ogni modello di /spese-ricorrenti che ha già una transazione
-// collegata) più il totale del mese. L'aggiunta di un nuovo modello è
-// possibile anche da qui, oltre che dal tab Transazioni (toggle "Transazione
-// ricorrente") e dal pannello dedicato.
-function RecurringExpensesBox({
-  month,
-  year,
-  currency,
-  className = '',
-}: {
-  month: number
-  year: number
-  currency: string
-  className?: string
-}) {
-  const { showToast } = useToast()
-  const fmt = (n: number) => formatCurrency(n, currency)
-  const { data: occurrences, isLoading } = useRecurringExpensesInMonth(month, year)
-  const { data: expenseCategories } = useExpenseCategories()
-  const createRecurring = useCreateRecurringExpense()
-  const ensureCurrentMonth = useEnsureCurrentMonthRecurring()
-
-  const [showForm, setShowForm] = useState(false)
-  const [fName, setFName] = useState('')
-  const [fCategoryId, setFCategoryId] = useState('')
-  const [fAmount, setFAmount] = useState('')
-  const [fDayOfMonth, setFDayOfMonth] = useState(String(new Date().getDate()))
-
-  const closeForm = () => setShowForm(false)
-
-  const total = (occurrences ?? []).reduce((sum: number, o: RecurringOccurrence) => sum + o.amount, 0)
-
-  const now = new Date()
-  const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear()
-
-  const openForm = () => {
-    setFName('')
-    setFCategoryId('')
-    setFAmount('')
-    setFDayOfMonth(String(now.getDate()))
-    setShowForm(true)
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const amount = parseFloat(fAmount)
-    if (isNaN(amount) || amount <= 0) {
-      showToast('Inserisci un importo valido maggiore di zero', 'error')
-      return
-    }
-    const dayOfMonth = parseInt(fDayOfMonth, 10)
-    if (isNaN(dayOfMonth) || dayOfMonth < 1 || dayOfMonth > 31) {
-      showToast('Il giorno del mese deve essere tra 1 e 31', 'error')
-      return
-    }
-    if (!fName.trim()) {
-      showToast('Inserisci un nome', 'error')
-      return
-    }
-
-    try {
-      await createRecurring.mutateAsync({
-        name: fName.trim(),
-        category_id: fCategoryId || undefined,
-        amount,
-        day_of_month: dayOfMonth,
-        start_date: getLocalDateString(),
-      })
-      // Genera subito l'occorrenza se il mese aperto è quello corrente,
-      // altrimenti verrà creata automaticamente al prossimo accesso o dal
-      // backfill nel pannello dedicato.
-      if (isCurrentMonth) {
-        await ensureCurrentMonth.mutateAsync()
-      }
-      showToast('Spesa ricorrente aggiunta')
-      closeForm()
-    } catch {
-      showToast('Errore durante il salvataggio', 'error')
-    }
-  }
-
-  return (
-    <div className={`bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-100 dark:border-zinc-700 overflow-hidden ${className}`}>
-      <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-700 flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">🔁 Spese ricorrenti</h3>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            {isLoading ? 'Caricamento...' : `Totale del mese: ${fmt(total)}`}
-          </p>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <button
-            onClick={openForm}
-            className="inline-flex items-center gap-1 py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors"
-          >
-            <Plus size={13} />
-            Aggiungi
-          </button>
-          <Link
-            href="/spese-ricorrenti"
-            className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
-          >
-            Gestisci →
-          </Link>
-        </div>
-      </div>
-
-      {!isLoading && (!occurrences || occurrences.length === 0) ? (
-        <p className="px-6 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-          Nessuna spesa ricorrente registrata questo mese
-        </p>
-      ) : (
-        <div className="divide-y divide-zinc-50 dark:divide-zinc-700/50 max-h-72 overflow-y-auto">
-          {occurrences?.map((o) => (
-            <div key={o.id} className="px-6 py-2.5 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span className="text-base shrink-0">{o.categoryIcon || '🔁'}</span>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate">
-                    {o.name}
-                    {!o.isActive && (
-                      <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">(in pausa)</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">{formatDate(o.date)}</p>
-                </div>
-              </div>
-              <span className="text-sm font-semibold text-red-600 shrink-0">{fmt(o.amount)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {showForm && (
-        <Modal open onClose={closeForm} labelledBy="quick-recurring-title" size="sm" dismissOnBackdrop={false} className="flex flex-col">
-          <div className="p-5 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between shrink-0">
-            <h2 id="quick-recurring-title" className="text-lg font-bold text-zinc-900 dark:text-white">Nuova spesa ricorrente</h2>
-            <button type="button" onClick={closeForm} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Nome</label>
-              <input
-                type="text"
-                value={fName}
-                onChange={(e) => setFName(e.target.value)}
-                required
-                placeholder="es. Affitto, Netflix, Palestra"
-                className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Categoria</label>
-              <select
-                value={fCategoryId}
-                onChange={(e) => setFCategoryId(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-              >
-                <option value="">Nessuna categoria</option>
-                {expenseCategories?.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Importo (€)</label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min="0"
-                  value={fAmount}
-                  onChange={(e) => setFAmount(e.target.value)}
-                  required
-                  placeholder="0.00"
-                  className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Giorno del mese</label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  max={31}
-                  value={fDayOfMonth}
-                  onChange={(e) => setFDayOfMonth(e.target.value)}
-                  required
-                  className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-                />
-              </div>
-            </div>
-
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Per metodo di pagamento, note o data di inizio personalizzata usa il pannello{' '}
-              <Link href="/spese-ricorrenti" className="text-emerald-600 hover:underline">Spese ricorrenti</Link>.
-            </p>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={closeForm}
-                className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-              >
-                Annulla
-              </button>
-              <button
-                type="submit"
-                disabled={createRecurring.isPending || ensureCurrentMonth.isPending}
-                className="flex-1 py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-medium transition-colors"
-              >
-                {(createRecurring.isPending || ensureCurrentMonth.isPending) ? 'Salvataggio...' : 'Salva'}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-    </div>
-  )
-}
-
-// Modal che elenca tutte le singole spese di una categoria nel mese selezionato.
-// È un componente separato così la query sulle transazioni parte solo quando
-// il modal è montato (cioè quando l'utente clicca una categoria).
-function CategoryExpensesModal({
-  category,
-  month,
-  year,
-  currency,
-  totalForCategory,
-  onClose,
-}: {
-  category: ExpenseCategory
-  month: number
-  year: number
-  currency: string
-  totalForCategory: number
-  onClose: () => void
-}) {
-  const { data: transactions, isLoading } = useTransactions({
-    month,
-    year,
-    type: 'expense',
-    category_id: category.id,
-  })
-  const fmt = (n: number) => formatCurrency(n, currency)
-
-  return (
-    <Modal open onClose={onClose} labelledBy="category-detail-title" className="flex flex-col">
-      <div className="p-5 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center text-lg shrink-0"
-            style={{ backgroundColor: (category.color || '#6b7280') + '22' }}>
-            {category.icon || '📦'}
-          </div>
-          <div className="min-w-0">
-            <h2 id="category-detail-title" className="text-base font-bold text-zinc-900 dark:text-white truncate">{category.name}</h2>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">{formatMonth(month, year)} · {fmt(totalForCategory)}</p>
-          </div>
-        </div>
-        <button type="button" onClick={onClose} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 shrink-0">✕</button>
-      </div>
-
-      <div className="overflow-y-auto p-2">
-        {isLoading ? (
-          <p className="p-6 text-center text-sm text-zinc-500 dark:text-zinc-400">Caricamento...</p>
-        ) : !transactions || transactions.length === 0 ? (
-          <p className="p-6 text-center text-sm text-zinc-500 dark:text-zinc-400">Nessuna spesa registrata per questa categoria</p>
-        ) : (
-          <div className="divide-y divide-zinc-100 dark:divide-zinc-700/50">
-            {transactions.map((t) => (
-              <div key={t.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">
-                    {t.description || 'Senza descrizione'}
-                  </p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {(() => { const [y, m, d] = t.date.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('it-IT') })()}
-                    {t.payment_method ? ` · ${t.payment_method}` : ''}
-                  </p>
-                </div>
-                <span className="text-sm font-semibold text-red-600 shrink-0">-{fmt(t.amount)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </Modal>
   )
 }

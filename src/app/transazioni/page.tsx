@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Upload, Pencil, Trash2, ChevronLeft, ChevronRight, Plus, Copy, X } from 'lucide-react'
+import { Upload, Pencil, Trash2, ChevronLeft, ChevronRight, Plus, Copy, X, Search, SlidersHorizontal, Receipt, Tag, Repeat, Zap } from 'lucide-react'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import {
   useTransactions,
@@ -16,11 +16,13 @@ import { useIncomeCategories, useExpenseCategories, useSavingCategories, useInit
 import { useRecurringExpenses, useCreateRecurringExpense } from '@/hooks/useRecurringExpenses'
 import { useCancelRemainingInstallments } from '@/hooks/useInstallments'
 import { PAYPAL_INSTALLMENT_MIN, PAYPAL_INSTALLMENT_MAX } from '@/lib/installments'
-import { findPossibleDuplicates, dayBandIndexes, type DuplicateReason } from '@/lib/duplicates'
+import { findPossibleDuplicates, type DuplicateReason } from '@/lib/duplicates'
 import { useToast } from '@/components/Toast'
 import { ImportCSVModal } from '@/components/ImportCSVModal'
 import { useSettings } from '@/hooks/useSettings'
-import { useModalA11y } from '@/hooks/useModalA11y'
+import { useSelectedMonth } from '@/hooks/useSelectedMonth'
+import { MonthSwitcher } from '@/components/MonthSwitcher'
+import { OPEN_FULL_FORM_EVENT } from '@/components/QuickAddSheet'
 import {
   formatCurrency,
   formatDate,
@@ -33,12 +35,8 @@ import {
   PAYPAL_INSTALLMENT_COUNT,
 } from '@/lib/utils'
 import type { TransactionType, Transaction } from '@/types'
-import { Modal } from '@/components/ui/Modal'
-
-const MONTHS = [
-  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
-]
+import { Button, Card, EmptyState, Modal, Skeleton } from '@/components/ui'
+import { SwipeRow } from '@/components/ui/SwipeRow'
 
 const PAGE_SIZE = 20
 const UNCATEGORIZED = '__uncategorized__'
@@ -60,6 +58,12 @@ function loadDismissedDuplicates(): Set<string> {
   }
 }
 
+// "Sab 10 ottobre" per le intestazioni dei giorni nella lista
+function formatDayHeading(date: string): string {
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'long' })
+}
+
 // Estrae il messaggio reale da un errore Supabase/JS: senza, ogni problema
 // diventa un generico "errore" impossibile da diagnosticare.
 function errorMessage(err: unknown): string {
@@ -71,9 +75,8 @@ function errorMessage(err: unknown): string {
 }
 
 export default function TransazioniPage() {
-  const currentDate = new Date()
-  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1)
-  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear())
+  // Mese condiviso con la dashboard tramite l'URL (?m=YYYY-MM)
+  const { month: selectedMonth, year: selectedYear } = useSelectedMonth()
   const [showForm, setShowForm] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [showImport, setShowImport] = useState(false)
@@ -182,17 +185,59 @@ export default function TransazioniPage() {
   // quello dell'elenco dell'utente (può averlo rinominato), altrimenti "PayPal"
   const paypalMethod = paymentMethods.find((m) => isPaypalMethod(m)) ?? 'PayPal'
 
-  // Shortcut tastiera: Ctrl+N = nuova transazione (Esc è gestito per-modal da useModalA11y)
+  // Cambiando mese (anche dall'header mobile) si riparte dalla prima pagina
+  useEffect(() => { setCurrentPage(1) }, [selectedMonth, selectedYear])
+
+  // Tasto "/" porta il cursore nella ricerca (desktop). Il tasto N per un
+  // nuovo movimento è globale, in DashboardLayout.
+  const searchInputRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === 'n') {
-        e.preventDefault()
-        if (!showForm && !showImport) setShowForm(true)
-      }
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return
+      const target = e.target as HTMLElement | null
+      if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
+      if (document.querySelector('[aria-modal="true"]')) return
+      e.preventDefault()
+      searchInputRef.current?.focus()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showForm, showImport])
+  }, [])
+
+  // "Più opzioni" dall'inserimento rapido: apre il form completo precompilato.
+  // Arriva con ?nuova=1 nell'URL (da un'altra pagina, poi i parametri vengono
+  // tolti e resta solo l'eventuale mese ?m=) o con un evento se questa pagina
+  // è già aperta.
+  useEffect(() => {
+    const openPrefilled = (params: URLSearchParams) => {
+      const tipo = params.get('tipo')
+      if (tipo === 'income' || tipo === 'expense' || tipo === 'saving') setFormType(tipo)
+      const importo = params.get('importo')
+      if (importo && !isNaN(parseFloat(importo))) setFormAmount(importo)
+      const categoria = params.get('categoria')
+      if (categoria) setFormCategoryId(categoria)
+      const descrizione = params.get('descrizione')
+      if (descrizione) setFormDescription(descrizione)
+      const data = params.get('data')
+      if (data && /^\d{4}-\d{2}-\d{2}$/.test(data)) setFormDate(data)
+      const metodo = params.get('metodo')
+      if (metodo) setFormPaymentMethod(metodo)
+      setEditingTransaction(null)
+      setShowForm(true)
+    }
+
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('nuova') === '1') {
+      openPrefilled(params)
+      for (const key of ['nuova', 'tipo', 'importo', 'categoria', 'descrizione', 'data', 'metodo']) params.delete(key)
+      const query = params.toString()
+      window.history.replaceState(window.history.state, '', `${window.location.pathname}${query ? `?${query}` : ''}`)
+    }
+
+    const onEvent = (e: Event) => openPrefilled(new URLSearchParams((e as CustomEvent<string>).detail))
+    window.addEventListener(OPEN_FULL_FORM_EVENT, onEvent)
+    return () => window.removeEventListener(OPEN_FULL_FORM_EVENT, onEvent)
+  }, [])
 
   // Check if categories exist (while categories are still loading, assume
   // they exist to avoid flashing the "missing categories" banner/re-init
@@ -228,10 +273,53 @@ export default function TransazioniPage() {
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE
   )
-  // Colore alternato per giorno, calcolato sull'intero elenco filtrato così
-  // il primo giorno di una pagina continua la sequenza della precedente
-  const dayBands = dayBandIndexes(filteredTransactions?.map(t => t.date) ?? [])
-  const pageOffset = (currentPage - 1) * PAGE_SIZE
+  // Lista raggruppata per giorno. Il totale del giorno è calcolato sull'intero
+  // elenco filtrato: un giorno spezzato tra due pagine mostra lo stesso totale
+  // su entrambe. Entrate in positivo, spese/risparmi/debiti in negativo.
+  const dayTotals = new Map<string, number>()
+  for (const t of filteredTransactions ?? []) {
+    const signed = t.type === 'income' ? t.amount : -t.amount
+    dayTotals.set(t.date, Math.round(((dayTotals.get(t.date) ?? 0) + signed) * 100) / 100)
+  }
+  const pageDayGroups: { date: string; items: Transaction[] }[] = []
+  for (const t of paginatedTransactions ?? []) {
+    const last = pageDayGroups[pageDayGroups.length - 1]
+    if (last && last.date === t.date) last.items.push(t)
+    else pageDayGroups.push({ date: t.date, items: [t] })
+  }
+  // Una sola riga aperta con lo swipe alla volta
+  const [swipedRowId, setSwipedRowId] = useState<string | null>(null)
+
+  // Filtri attivi, mostrati come chip rimovibili e contati sul pulsante Filtri
+  const typeLabels: Record<string, string> = { income: 'Entrate', expense: 'Spese', saving: 'Risparmi' }
+  const activeFilters: { key: string; label: string; clear: () => void }[] = [
+    filterType && { key: 'type', label: typeLabels[filterType] ?? filterType, clear: () => setFilterType('') },
+    filterCategoryId && {
+      key: 'category',
+      label: filterCategoryId === UNCATEGORIZED ? 'Non categorizzato' : (allCategories.find(c => c.id === filterCategoryId)?.name ?? 'Categoria'),
+      clear: () => setFilterCategoryId(''),
+    },
+    filterPaymentMethod && { key: 'method', label: filterPaymentMethod, clear: () => setFilterPaymentMethod('') },
+    filterExceptional && { key: 'exceptional', label: filterExceptional === 'only' ? 'Solo eccezionali' : 'Solo ordinari', clear: () => setFilterExceptional('') },
+    filterMinAmount && { key: 'min', label: `Da ${filterMinAmount} €`, clear: () => setFilterMinAmount('') },
+    filterMaxAmount && { key: 'max', label: `Fino a ${filterMaxAmount} €`, clear: () => setFilterMaxAmount('') },
+    (filterDayFrom || filterDayTo) && {
+      key: 'days',
+      label: `Giorni ${filterDayFrom || '1'}–${filterDayTo || '31'}`,
+      clear: () => { setFilterDayFrom(''); setFilterDayTo('') },
+    },
+  ].filter((f): f is { key: string; label: string; clear: () => void } => !!f)
+  const clearAllFilters = () => {
+    setFilterType('')
+    setFilterCategoryId('')
+    setFilterPaymentMethod('')
+    setFilterExceptional('')
+    setFilterMinAmount('')
+    setFilterMaxAmount('')
+    setFilterDayFrom('')
+    setFilterDayTo('')
+    setCurrentPage(1)
+  }
 
   // Possibili doppioni sulle transazioni del mese caricate (prima dei filtri
   // client-side: una ricerca testuale non deve nascondere un doppione)
@@ -438,19 +526,6 @@ export default function TransazioniPage() {
 
   const fmt = (amount: number) => formatCurrency(amount, currency)
 
-  const getTypeColor = (type: TransactionType) => {
-    switch (type) {
-      case 'income':
-        return 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20'
-      case 'expense':
-        return 'text-red-600 bg-red-50 dark:bg-red-900/20'
-      case 'saving':
-        return 'text-blue-600 bg-blue-50 dark:bg-blue-900/20'
-      case 'debt':
-        return 'text-orange-600 bg-orange-50 dark:bg-orange-900/20'
-    }
-  }
-
   const getTypeLabel = (type: TransactionType) => {
     switch (type) {
       case 'income': return 'Entrata'
@@ -487,28 +562,26 @@ export default function TransazioniPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
+        {/* Su mobile mese e "+" stanno nelle barre dell'app: l'intestazione
+            si riduce a un titolo accessibile e l'import passa nella riga di ricerca */}
+        <h1 className="sr-only sm:hidden">Transazioni</h1>
+        <div className="hidden sm:flex items-center justify-between gap-3">
+          <div className="flex items-center gap-4">
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Transazioni</h1>
-            <p className="text-zinc-600 dark:text-zinc-400">Gestisci le tue entrate e uscite</p>
+            {/* Su mobile il mese è nell'header dell'app */}
+            <MonthSwitcher allowFuture className="hidden lg:flex" />
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowImport(true)}
-              className="inline-flex items-center gap-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 font-medium py-2 px-4 rounded-lg transition-colors text-sm"
-            >
+            <Button variant="secondary" onClick={() => setShowImport(true)}>
               <Upload size={15} />
-              Importa CSV
-            </button>
-            <button
-              onClick={() => setShowForm(true)}
-              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
-            >
+              Importa CSV/OFX
+            </Button>
+            <Button onClick={() => setShowForm(true)}>
               <Plus size={15} />
-              Nuova Transazione
-            </button>
+              Nuova transazione
+            </Button>
           </div>
         </div>
 
@@ -531,63 +604,91 @@ export default function TransazioniPage() {
           </div>
         )}
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-4 items-center">
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedMonth}
-              onChange={(e) => { setSelectedMonth(Number(e.target.value)); setCurrentPage(1) }}
-              className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+        {/* Ricerca + filtri */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <div className="relative flex-1 min-w-0">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+              <input
+                ref={searchInputRef}
+                type="search"
+                placeholder="Cerca per descrizione"
+                aria-label="Cerca per descrizione"
+                value={searchTerm}
+                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }}
+                className="w-full pl-9 pr-10 py-2.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <kbd className="hidden lg:block absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400 border border-zinc-200 dark:border-zinc-600 rounded px-1.5 pointer-events-none">/</kbd>
+            </div>
+            <button
+              onClick={() => setShowAdvancedFilters(v => !v)}
+              aria-expanded={showAdvancedFilters}
+              aria-controls="transaction-filters"
+              className={`relative inline-flex items-center gap-2 px-3 sm:px-4 rounded-lg border text-sm font-medium transition-colors ${
+                showAdvancedFilters
+                  ? 'border-emerald-500 text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 dark:text-emerald-400'
+                  : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700'
+              }`}
             >
-              {MONTHS.map((month, i) => (
-                <option key={i} value={i + 1}>{month}</option>
-              ))}
-            </select>
-            <select
-              value={selectedYear}
-              onChange={(e) => { setSelectedYear(Number(e.target.value)); setCurrentPage(1) }}
-              className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
+              <SlidersHorizontal size={16} />
+              <span>Filtri</span>
+              {activeFilters.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 h-5 min-w-5 px-1 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">
+                  {activeFilters.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setShowImport(true)}
+              aria-label="Importa CSV o OFX"
+              className="sm:hidden inline-flex items-center justify-center w-11 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
             >
-              {Array.from({ length: 4 }, (_, i) => currentDate.getFullYear() - 1 + i).map(year => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
+              <Upload size={16} />
+            </button>
           </div>
 
-          <select
-            value={filterType}
-            onChange={(e) => { setFilterType(e.target.value as TransactionType | ''); setCurrentPage(1) }}
-            className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
-          >
-            <option value="">Tutti i tipi</option>
-            <option value="income">Entrate</option>
-            <option value="expense">Spese</option>
-            <option value="saving">Risparmi</option>
-          </select>
-        </div>
+          {/* Filtri attivi come chip rimovibili */}
+          {activeFilters.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {activeFilters.map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => { f.clear(); setCurrentPage(1) }}
+                  aria-label={`Rimuovi filtro ${f.label}`}
+                  className="inline-flex items-center gap-1 pl-2.5 pr-2 py-1 rounded-full bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 text-xs font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
+                >
+                  {f.label}
+                  <X size={12} />
+                </button>
+              ))}
+              {activeFilters.length > 1 && (
+                <button onClick={clearAllFilters} className="px-2 py-1 text-xs text-zinc-500 hover:text-red-500">
+                  Azzera tutti
+                </button>
+              )}
+            </div>
+          )}
 
-        {/* Ricerca testo */}
-        <input
-          type="text"
-          placeholder="Cerca per descrizione..."
-          value={searchTerm}
-          onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }}
-          className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-        />
-
-        {/* Filtri avanzati */}
-        <div>
-          <button
-            onClick={() => setShowAdvancedFilters(v => !v)}
-            className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-1 transition-colors"
-          >
-            <span>{showAdvancedFilters ? '▲' : '▼'}</span> Filtri avanzati
-          </button>
           {showAdvancedFilters && (
-            <div className="mt-3 flex flex-wrap gap-3 items-end">
+            <Card id="transaction-filters" className="p-4 grid grid-cols-2 sm:flex sm:flex-wrap gap-3 sm:items-end">
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-zinc-500 dark:text-zinc-400">Categoria</label>
+                <label htmlFor="filter-type" className="text-xs text-zinc-500 dark:text-zinc-400">Tipo</label>
                 <select
+                  id="filter-type"
+                  value={filterType}
+                  onChange={(e) => { setFilterType(e.target.value as TransactionType | ''); setCurrentPage(1) }}
+                  className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
+                >
+                  <option value="">Tutti</option>
+                  <option value="income">Entrate</option>
+                  <option value="expense">Spese</option>
+                  <option value="saving">Risparmi</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="filter-category" className="text-xs text-zinc-500 dark:text-zinc-400">Categoria</label>
+                <select
+                  id="filter-category"
                   value={filterCategoryId}
                   onChange={e => { setFilterCategoryId(e.target.value); setCurrentPage(1) }}
                   className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
@@ -600,8 +701,9 @@ export default function TransazioniPage() {
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-zinc-500 dark:text-zinc-400">Metodo pagamento</label>
+                <label htmlFor="filter-method" className="text-xs text-zinc-500 dark:text-zinc-400">Metodo pagamento</label>
                 <select
+                  id="filter-method"
                   value={filterPaymentMethod}
                   onChange={e => { setFilterPaymentMethod(e.target.value); setCurrentPage(1) }}
                   className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
@@ -611,8 +713,9 @@ export default function TransazioniPage() {
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-zinc-500 dark:text-zinc-400">Movimenti</label>
+                <label htmlFor="filter-exceptional" className="text-xs text-zinc-500 dark:text-zinc-400">Movimenti</label>
                 <select
+                  id="filter-exceptional"
                   value={filterExceptional}
                   onChange={e => { setFilterExceptional(e.target.value as '' | 'only' | 'exclude'); setCurrentPage(1) }}
                   className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
@@ -623,8 +726,9 @@ export default function TransazioniPage() {
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-zinc-500 dark:text-zinc-400">Importo min (€)</label>
+                <label htmlFor="filter-min" className="text-xs text-zinc-500 dark:text-zinc-400">Importo min (€)</label>
                 <input
+                  id="filter-min"
                   type="number"
                   inputMode="decimal"
                   min="0"
@@ -632,12 +736,13 @@ export default function TransazioniPage() {
                   value={filterMinAmount}
                   onChange={e => { setFilterMinAmount(e.target.value); setCurrentPage(1) }}
                   placeholder="0"
-                  className="w-28 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
+                  className="sm:w-28 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-zinc-500 dark:text-zinc-400">Importo max (€)</label>
+                <label htmlFor="filter-max" className="text-xs text-zinc-500 dark:text-zinc-400">Importo max (€)</label>
                 <input
+                  id="filter-max"
                   type="number"
                   inputMode="decimal"
                   min="0"
@@ -645,12 +750,13 @@ export default function TransazioniPage() {
                   value={filterMaxAmount}
                   onChange={e => { setFilterMaxAmount(e.target.value); setCurrentPage(1) }}
                   placeholder="∞"
-                  className="w-28 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
+                  className="sm:w-28 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-zinc-500 dark:text-zinc-400">Giorno da</label>
+                <label htmlFor="filter-day-from" className="text-xs text-zinc-500 dark:text-zinc-400">Giorno da</label>
                 <input
+                  id="filter-day-from"
                   type="number"
                   inputMode="numeric"
                   min="1"
@@ -659,12 +765,13 @@ export default function TransazioniPage() {
                   value={filterDayFrom}
                   onChange={e => { setFilterDayFrom(e.target.value); setCurrentPage(1) }}
                   placeholder="1"
-                  className="w-24 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
+                  className="sm:w-24 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-zinc-500 dark:text-zinc-400">Giorno a</label>
+                <label htmlFor="filter-day-to" className="text-xs text-zinc-500 dark:text-zinc-400">Giorno a</label>
                 <input
+                  id="filter-day-to"
                   type="number"
                   inputMode="numeric"
                   min="1"
@@ -673,27 +780,10 @@ export default function TransazioniPage() {
                   value={filterDayTo}
                   onChange={e => { setFilterDayTo(e.target.value); setCurrentPage(1) }}
                   placeholder="31"
-                  className="w-24 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
+                  className="sm:w-24 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white text-sm"
                 />
               </div>
-              {(filterCategoryId || filterPaymentMethod || filterExceptional || filterMinAmount || filterMaxAmount || filterDayFrom || filterDayTo) && (
-                <button
-                  onClick={() => {
-                    setFilterCategoryId('')
-                    setFilterPaymentMethod('')
-                    setFilterExceptional('')
-                    setFilterMinAmount('')
-                    setFilterMaxAmount('')
-                    setFilterDayFrom('')
-                    setFilterDayTo('')
-                    setCurrentPage(1)
-                  }}
-                  className="px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-red-500 transition-colors"
-                >
-                  Azzera filtri
-                </button>
-              )}
-            </div>
+            </Card>
           )}
         </div>
 
@@ -758,121 +848,163 @@ export default function TransazioniPage() {
           </div>
         )}
 
-        {/* Transactions List */}
-        <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-sm overflow-hidden">
-          {isLoading ? (
-            <div className="p-8 text-center text-zinc-500">Caricamento...</div>
-          ) : transactions?.length === 0 ? (
-            <div className="p-8 text-center text-zinc-500">
-              Nessuna transazione per questo periodo
-            </div>
-          ) : filteredTransactions?.length === 0 ? (
-            <div className="p-8 text-center text-zinc-500">
-              Nessun risultato per &ldquo;{searchTerm}&rdquo;
-            </div>
-          ) : (
-            <div className="divide-y divide-zinc-100 dark:divide-zinc-700">
-              {paginatedTransactions?.map((transaction, i) => (
-                <div
-                  key={transaction.id}
-                  className={`p-4 flex items-center justify-between gap-2 hover:bg-zinc-200/50 dark:hover:bg-zinc-700/60 ${dayBands[pageOffset + i] ? 'bg-zinc-100/70 dark:bg-zinc-900/40' : ''}`}
-                >
-                  <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                    <div className={`px-2 py-1 rounded text-xs font-medium shrink-0 ${getTypeColor(transaction.type)}`}>
-                      {getTypeLabel(transaction.type)}
-                    </div>
-                    <div className="min-w-0">
-                      {transaction.category_id ? (
-                        <p className="font-medium text-zinc-900 dark:text-white truncate">
-                          {getCategoryName(transaction.category_id, transaction.type)}
-                        </p>
-                      ) : (
-                        <span className="inline-block px-2 py-0.5 rounded text-xs italic text-gray-500 bg-gray-100 dark:bg-zinc-700 dark:text-gray-400">
-                          Non categorizzato
-                        </span>
-                      )}
-                      <div className="flex items-center gap-1.5">
-                        {transaction.description && (
-                          <p className="text-sm text-zinc-500 dark:text-zinc-400 truncate max-w-[160px] sm:max-w-none">{transaction.description}</p>
-                        )}
-                        {transaction.is_recurring && (
-                          <span
-                            title={transaction.recurring_expense_id ? 'Ricorrente · collegata al pannello Spese ricorrenti' : 'Ricorrente'}
-                            className="text-xs text-blue-400 shrink-0"
-                          >
-                            🔄
-                          </span>
-                        )}
-                        {transaction.installment_plan_id && (
-                          <span
-                            title={`Rata ${transaction.installment_number} di ${transaction.installment_count}`}
-                            className="shrink-0 px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                          >
-                            Rata {transaction.installment_number}/{transaction.installment_count}
-                          </span>
-                        )}
-                        {transaction.is_exceptional && (
-                          <span
-                            title="Movimento eccezionale — escluso da medie, confronti e trend"
-                            className="shrink-0 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                          >
-                            ⚡ Eccezionale
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400">{(() => { const [y, m, d] = transaction.date.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('it-IT') })()}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-                    <span className={`font-semibold text-sm sm:text-base ${transaction.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {transaction.type === 'income' ? '+' : '-'}{fmt(transaction.amount)}
-                    </span>
-                    <button
-                      onClick={() => openEditForm(transaction)}
-                      aria-label="Modifica transazione"
-                      className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => setConfirmDelete(transaction)}
-                      aria-label="Elimina transazione"
-                      className="p-1 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+        {/* Lista raggruppata per giorno */}
+        {isLoading ? (
+          <Card className="divide-y divide-zinc-100 dark:divide-zinc-700" aria-busy="true" aria-label="Caricamento transazioni">
+            {Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className="p-3 flex items-center gap-3">
+                <Skeleton className="h-9 w-9 rounded-lg" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-3.5 w-1/2" />
+                  <Skeleton className="h-3 w-1/3" />
                 </div>
-              ))}
-            </div>
-          )}
-
-          {/* Pagination */}
-          {!isLoading && totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-100 dark:border-zinc-700">
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredTransactions?.length ?? 0)} di {filteredTransactions?.length}
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-                >
-                  <ChevronLeft size={14} className="inline" /> Prec.
-                </button>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">{currentPage} / {totalPages}</span>
-                <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-                >
-                  Succ. <ChevronRight size={14} className="inline" />
-                </button>
+                <Skeleton className="h-4 w-16" />
               </div>
+            ))}
+          </Card>
+        ) : transactions?.length === 0 ? (
+          <Card>
+            <EmptyState
+              Icon={Receipt}
+              title="Nessuna transazione in questo mese"
+              description="Registra un movimento con il pulsante + oppure importa l'estratto conto in CSV o OFX."
+            />
+          </Card>
+        ) : filteredTransactions?.length === 0 ? (
+          <Card>
+            <EmptyState
+              Icon={Search}
+              title="Nessun risultato"
+              description={searchTerm ? <>Nessuna transazione corrisponde a &ldquo;{searchTerm}&rdquo; con i filtri attivi.</> : 'Nessuna transazione corrisponde ai filtri attivi.'}
+              action={<Button variant="secondary" size="sm" onClick={() => { setSearchTerm(''); clearAllFilters() }}>Azzera ricerca e filtri</Button>}
+            />
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {pageDayGroups.map(group => (
+              <section key={group.date} aria-label={formatDayHeading(group.date)}>
+                {/* Intestazione del giorno: resta in alto durante lo scroll */}
+                <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] lg:top-0 z-10 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 py-2 bg-zinc-50/95 dark:bg-zinc-900/95 backdrop-blur flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  <span>{formatDayHeading(group.date)}</span>
+                  <span className={dayTotals.get(group.date)! >= 0 ? 'text-emerald-600 dark:text-emerald-400' : ''}>
+                    {dayTotals.get(group.date)! >= 0 ? '+' : '−'}{fmt(Math.abs(dayTotals.get(group.date)!))}
+                  </span>
+                </div>
+                <Card className="overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-700">
+                  {group.items.map(transaction => {
+                    const category = transaction.category_id ? allCategories.find(c => c.id === transaction.category_id) : undefined
+                    const title = transaction.description || category?.name || 'Senza descrizione'
+                    const amountClass = transaction.type === 'income'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : transaction.type === 'saving'
+                      ? 'text-blue-600 dark:text-blue-400'
+                      : 'text-red-600 dark:text-red-400'
+                    return (
+                      <SwipeRow
+                        key={transaction.id}
+                        open={swipedRowId === transaction.id}
+                        onOpenChange={open => setSwipedRowId(open ? transaction.id : null)}
+                        actions={[
+                          { label: 'Modifica', icon: <Pencil size={16} />, className: 'bg-blue-600', onClick: () => openEditForm(transaction) },
+                          { label: 'Elimina', icon: <Trash2 size={16} />, className: 'bg-red-600', onClick: () => setConfirmDelete(transaction) },
+                        ]}
+                      >
+                        <div className="flex items-center gap-3 px-3 py-2.5 sm:px-4 hover:bg-zinc-50 dark:hover:bg-zinc-700/40">
+                          <button
+                            type="button"
+                            onClick={() => openEditForm(transaction)}
+                            className="flex items-center gap-3 min-w-0 flex-1 text-left"
+                            aria-label={`Modifica ${getTypeLabel(transaction.type)}: ${title}, ${fmt(transaction.amount)}`}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className="h-9 w-9 rounded-lg flex items-center justify-center text-base shrink-0 bg-zinc-100 dark:bg-zinc-700"
+                              style={category?.color ? { backgroundColor: category.color + '22' } : undefined}
+                            >
+                              {category?.icon || <Tag size={15} className="text-zinc-400" />}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-medium text-sm text-zinc-900 dark:text-white truncate">{title}</span>
+                              <span className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 min-w-0">
+                                <span className="truncate">
+                                  {[transaction.description ? (category?.name ?? 'Non categorizzato') : (category ? null : 'Non categorizzato'), transaction.payment_method]
+                                    .filter(Boolean)
+                                    .join(' · ') || getTypeLabel(transaction.type)}
+                                </span>
+                                {transaction.is_recurring && (
+                                  <Repeat
+                                    size={12}
+                                    className="shrink-0 text-blue-500"
+                                    aria-label={transaction.recurring_expense_id ? 'Ricorrente, collegata al pannello Spese ricorrenti' : 'Ricorrente'}
+                                  />
+                                )}
+                                {transaction.installment_plan_id && (
+                                  <span
+                                    title={`Rata ${transaction.installment_number} di ${transaction.installment_count}`}
+                                    className="shrink-0 px-1.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium"
+                                  >
+                                    Rata {transaction.installment_number}/{transaction.installment_count}
+                                  </span>
+                                )}
+                                {transaction.is_exceptional && (
+                                  <span
+                                    title="Movimento eccezionale: escluso da medie, confronti e trend"
+                                    className="shrink-0 inline-flex items-center gap-0.5 px-1.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-medium"
+                                  >
+                                    <Zap size={11} /> Eccezionale
+                                  </span>
+                                )}
+                              </span>
+                            </span>
+                          </button>
+                          <span className={`font-semibold text-sm shrink-0 ${amountClass}`}>
+                            {transaction.type === 'income' ? '+' : '−'}{fmt(transaction.amount)}
+                          </span>
+                          {/* Su desktop azioni visibili; su touch c'è lo swipe */}
+                          <div className="hidden sm:flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => openEditForm(transaction)}
+                              aria-label="Modifica transazione"
+                              className="p-1.5 rounded-lg text-zinc-400 dark:text-zinc-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => setConfirmDelete(transaction)}
+                              aria-label="Elimina transazione"
+                              className="p-1.5 rounded-lg text-zinc-400 dark:text-zinc-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </SwipeRow>
+                    )
+                  })}
+                </Card>
+              </section>
+            ))}
+            <p className="sm:hidden text-center text-xs text-zinc-400">Scorri una riga verso sinistra per modificarla o eliminarla</p>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {!isLoading && totalPages > 1 && (
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredTransactions?.length ?? 0)} di {filteredTransactions?.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                <ChevronLeft size={14} /> Prec.
+              </Button>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">{currentPage} / {totalPages}</span>
+              <Button variant="secondary" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+                Succ. <ChevronRight size={14} />
+              </Button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Add Transaction Modal */}

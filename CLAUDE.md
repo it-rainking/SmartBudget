@@ -166,11 +166,15 @@ src/
 │   ├── investimenti/page.tsx       # Header card, allocazione, tabella posizioni a tab (ETF/Azioni/Obbligazioni/Altro), modal prezzo manuale, import CSV
 │   └── settings/page.tsx           # Preferenze + export + danger zone
 ├── components/
-│   ├── DashboardLayout.tsx         # Sidebar (desktop) + header (mobile) + NotificationBell
-│   ├── Providers.tsx               # QueryClientProvider wrapper
+│   ├── DashboardLayout.tsx         # Sidebar + "Nuovo movimento" (desktop), header + barra in basso + foglio "Altro" (mobile), tasto N
+│   ├── Providers.tsx               # QueryClientProvider + ThemeProvider + ToastProvider
 │   ├── Toast.tsx                   # ToastContext + ToastProvider + useToast
 │   ├── NotificationBell.tsx        # Bell con badge, popover; unisce computed + DB notifications
-│   └── ImportCSVModal.tsx          # Drag-drop CSV, preview, bulk insert
+│   ├── MonthSwitcher.tsx           # "‹ Ottobre 2026 ›" + selettore a griglia, legge/scrive ?m= via useSelectedMonth
+│   ├── QuickAddSheet.tsx           # Inserimento rapido dal "+" (importo, categorie più usate, data, metodo)
+│   ├── ImportCSVModal.tsx          # Drag-drop CSV, preview, bulk insert
+│   ├── ui/                         # Componenti base: Modal, Section, Card, Button, KpiTile, Skeleton, EmptyState, SwipeRow
+│   └── dashboard/                  # Blocchi della dashboard mensile: BalanceHero, CategoryBreakdownSection, IncomeSplitSection, AiInsightsSection, InstallmentPlansSummary, RecurringExpensesBox, CategoryExpensesModal
 ├── hooks/
 │   ├── useAuth.ts                  # user, loading, signOut, isAuthenticated
 │   ├── useSettings.ts              # useSettings, useUpdateSettings, useCompleteOnboarding
@@ -184,7 +188,10 @@ src/
 │   ├── useAnnualData.ts            # useAnnualData (fetch anno intero, aggrega per mese)
 │   ├── useImportTransactions.ts    # parseCSV + useImportTransactions (bulk insert)
 │   ├── useNotifications.ts         # Notifiche computed in-memory + usePersistedNotifications + useMarkNotificationRead
-│   └── useInvestments.ts           # useInvestments (summary), useImportCsv
+│   ├── useInvestments.ts           # useInvestments (summary), useImportCsv
+│   ├── useModalA11y.ts             # Esc, focus trap, [data-autofocus], blocco scroll, ripristino focus (usato da ui/Modal)
+│   ├── useSelectedMonth.ts         # Mese condiviso dashboard/transazioni nell'URL (?m=YYYY-MM)
+│   └── useHorizontalSwipe.ts       # Swipe orizzontale per cambiare mese (dashboard)
 └── lib/
     ├── supabase.ts                 # createBrowserClient() — client singleton lato browser
     ├── supabase-server.ts          # createServerClient() — client lato server (cookies)
@@ -264,7 +271,17 @@ const mutation = useMutation({
 const { showToast } = useToast()
 showToast('Messaggio', 'success' | 'error' | 'info')
 ```
-`useToast` funziona solo dentro `<ToastProvider>` che è già dentro `DashboardLayout`.
+`<ToastProvider>` sta in `Providers.tsx` (radice dell'app), quindi `useToast` funziona ovunque, anche nel corpo di una pagina sopra `DashboardLayout`. Fino a ottobre 2026 il provider era dentro il layout e i toast chiamati dalle pagine finivano nel no-op di default.
+
+### Navigazione e UI condivisa
+
+- **Mobile** (sotto `lg`): header da 56px con logo, selettore del mese (su dashboard e transazioni) o titolo della pagina, campanella. In basso una barra con Home, Movimenti, "+" (inserimento rapido), Investimenti, Altro (foglio con le altre sezioni ed Esci). Il contenuto ha `pb-tabbar` (utility in `globals.css`).
+- **Desktop**: sidebar con il pulsante "Nuovo movimento" in cima. Tasto **N** (fuori dai campi di testo) apre l'inserimento rapido ovunque, **/** porta il cursore nella ricerca di `/transazioni`.
+- **Mese selezionato**: dashboard mensile e transazioni lo leggono da `useSelectedMonth()`, salvato nell'URL come `?m=YYYY-MM` (assente = mese corrente). I link di navigazione verso queste due pagine se lo portano dietro. Su mobile la dashboard cambia mese anche con lo swipe orizzontale (`data-no-swipe` esclude un elemento, es. i grafici).
+- **Modali**: usare sempre `Modal` da `@/components/ui` (bottom sheet su mobile, finestra centrata da `sm`). `dismissOnBackdrop={false}` nei form, per non perdere quanto scritto con un tocco fuori. Un campo con `data-autofocus` riceve il focus all'apertura.
+- **Inserimento rapido** (`QuickAddSheet`): importo per primo (`inputMode="decimal"`, accetta `1.234,56`), categorie ordinate per uso nel mese, data di oggi, ultimo metodo di pagamento (in `localStorage`). Rate, ricorrenze ed eccezionali restano nel form completo: "Più opzioni" apre `/transazioni?nuova=1&...` precompilato (o manda un evento se la pagina è già aperta).
+- **Importi**: tutti i campi numerici hanno `inputMode` (`decimal` o `numeric`). Il `body` usa cifre tabulari e il font di sistema (stack `font-sans` di Tailwind).
+- **Dashboard mensile**, dall'alto: `BalanceHero` (saldo disponibile + curva del mese), entrate/spese/risparmi, griglia degli indicatori secondari, poi `Section` richiudibili (stato aperto/chiuso in `localStorage` per browser).
 
 ### Valuta
 
@@ -352,7 +369,9 @@ Per l'invio asincrono: API route `/api/notifications/send` gestisce email (Resen
 
 ## Lista transazioni: colori per giorno e possibili doppioni
 
-- Le righe alternano due sfondi a ogni **cambio di data** tra righe consecutive (`dayBandIndexes()` in `src/lib/duplicates.ts`), non a ogni giorno di calendario: due giorni con movimenti separati da un giorno vuoto hanno colori diversi. L'indice è calcolato sull'elenco filtrato intero, così la sequenza continua tra una pagina e l'altra.
+- La lista è **raggruppata per giorno**: ogni gruppo ha un'intestazione fissa in alto durante lo scroll con il totale del giorno (entrate in positivo, il resto in negativo), calcolato sull'intero elenco filtrato così un giorno spezzato tra due pagine mostra lo stesso totale. Ha sostituito le bande di colore alternate: `dayBandIndexes()` in `src/lib/duplicates.ts` resta (testata) ma la UI non la usa più.
+- Filtri dietro il pulsante "Filtri" (badge con il numero di filtri attivi); quelli attivi compaiono come chip rimovibili sotto la ricerca.
+- Su touch una riga si scorre a sinistra per Modifica/Elimina (`SwipeRow`, una aperta alla volta); su desktop le icone restano visibili. Toccare la riga apre la modifica.
 - Sopra la lista compare un banner ambra con i **possibili doppioni** del mese caricato (`findPossibleDuplicates()`, prima dei filtri client-side). Criteri, stesso tipo di transazione: stesso importo (scarto ≤1%) a ≤1 giorno di distanza; oppure descrizione simile (Jaccard ≥0,6 sulle parole significative, esclusi numeri e parole da estratto conto come "pagamento", "pos") con importo entro il 10% e ≤3 giorni. Le rate dello stesso piano PayPal sono escluse. "Non è un doppione" salva la coppia in `localStorage` (preferenza del solo browser corrente). Limite: il controllo lavora sul mese selezionato, una coppia a cavallo di due mesi (31 → 1) non viene vista.
 
 ## Spese a rate (PayPal "Paga in 3 rate")

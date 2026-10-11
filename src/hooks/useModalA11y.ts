@@ -6,7 +6,8 @@ const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 // Shared modal/dialog accessibility behavior: traps Tab focus inside the
-// dialog, closes on Escape, focuses the first focusable element on open,
+// dialog, closes on Escape, focuses the [data-autofocus] element (or the
+// first focusable one) on open,
 // blocks the page scroll behind the dialog and restores focus to the
 // trigger element on close.
 export function useModalA11y<T extends HTMLElement = HTMLDivElement>(isOpen: boolean, onClose: () => void) {
@@ -17,7 +18,10 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>(isOpen: boo
     const previouslyFocused = document.activeElement as HTMLElement | null
     const container = containerRef.current
     const focusable = container?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
-    focusable?.[0]?.focus()
+    // Un campo con data-autofocus (es. l'importo) ha la precedenza sul primo
+    // elemento focusabile, che spesso è il pulsante di chiusura
+    const preferred = container?.querySelector<HTMLElement>('[data-autofocus]')
+    ;(preferred ?? focusable?.[0])?.focus()
 
     // Blocca lo scroll della pagina sotto la modale. Si salva il valore
     // precedente: con due modali aperte una sopra l'altra, la chiusura della
