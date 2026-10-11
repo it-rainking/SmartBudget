@@ -29,19 +29,19 @@ BEGIN
     (p_user_id, 'Altro Reddito', '💰', '#064e3b', 5);
 
     -- Default Expense Categories
-    INSERT INTO public.expense_categories (user_id, name, icon, color, sort_order) VALUES
-    (p_user_id, 'Casa',            '🏠', '#ef4444',  1),
-    (p_user_id, 'Trasporti',       '🚗', '#f97316',  2),
-    (p_user_id, 'Alimentari',      '🛒', '#eab308',  3),
-    (p_user_id, 'Utenze',          '💡', '#84cc16',  4),
-    (p_user_id, 'Salute',          '🏥', '#22c55e',  5),
-    (p_user_id, 'Intrattenimento', '🎬', '#14b8a6',  6),
-    (p_user_id, 'Shopping',        '🛍️', '#06b6d4',  7),
-    (p_user_id, 'Istruzione',      '📚', '#6366f1',  8),
-    (p_user_id, 'Viaggi',          '✈️', '#8b5cf6',  9),
-    (p_user_id, 'Abbonamenti',     '📱', '#a855f7', 10),
-    (p_user_id, 'Altro',           '📦', '#71717a', 11),
-    (p_user_id, 'Non categorizzato', '❓', '#a1a1aa', 12);
+    INSERT INTO public.expense_categories (user_id, name, icon, color, sort_order, spending_group) VALUES
+    (p_user_id, 'Casa',            '🏠', '#ef4444',  1, 'fixed'),
+    (p_user_id, 'Trasporti',       '🚗', '#f97316',  2, 'essential'),
+    (p_user_id, 'Alimentari',      '🛒', '#eab308',  3, 'essential'),
+    (p_user_id, 'Utenze',          '💡', '#84cc16',  4, 'fixed'),
+    (p_user_id, 'Salute',          '🏥', '#22c55e',  5, 'essential'),
+    (p_user_id, 'Intrattenimento', '🎬', '#14b8a6',  6, 'leisure'),
+    (p_user_id, 'Shopping',        '🛍️', '#06b6d4',  7, 'optional'),
+    (p_user_id, 'Istruzione',      '📚', '#6366f1',  8, 'essential'),
+    (p_user_id, 'Viaggi',          '✈️', '#8b5cf6',  9, 'extra'),
+    (p_user_id, 'Abbonamenti',     '📱', '#a855f7', 10, 'fixed'),
+    (p_user_id, 'Altro',           '📦', '#71717a', 11, NULL),
+    (p_user_id, 'Non categorizzato', '❓', '#a1a1aa', 12, NULL);
 
     -- Subcategories for Casa
     INSERT INTO public.expense_subcategories (category_id, user_id, name, icon, sort_order)

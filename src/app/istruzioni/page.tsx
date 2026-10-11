@@ -106,6 +106,9 @@ const sections: Section[] = [
               <li>Grafico donut delle spese per categoria</li>
               <li>Grafico a barre entrate vs uscite per giorno</li>
               <li>Media giornaliera delle spese</li>
+              <li>Portamonete del mese (metodo Kakebo): entrate meno uscite fisse e risparmi, quanto resta per le spese variabili e quanto puoi spendere al giorno fino a fine mese</li>
+              <li>Spese variabili settimana per settimana, con la quota di ogni settimana</li>
+              <li>Spese per grado di necessità (prima necessità, optional, cultura e tempo libero, extra e imprevisti) e totale in contanti contro carte. Il gruppo di ogni categoria si sceglie in Impostazioni</li>
             </ul>
           </div>
           <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">

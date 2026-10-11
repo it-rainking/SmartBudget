@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { InsertTables } from '@/types/database'
-import type { IncomeCategory, ExpenseCategory, SavingCategory, ExpenseSubcategory } from '@/types'
+import type { IncomeCategory, ExpenseCategory, SavingCategory, ExpenseSubcategory, SpendingGroup } from '@/types'
 
 export function useIncomeCategories() {
   return useQuery({
@@ -97,6 +97,36 @@ export function useCreateExpenseCategory() {
       return category as ExpenseCategory
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expense_categories'] })
+    },
+  })
+}
+
+// Gruppo Kakebo di una categoria di spesa (Impostazioni). Aggiornamento
+// ottimistico: il select risponde subito anche su una lista lunga.
+export function useUpdateExpenseCategoryGroup() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, spending_group }: { id: string; spending_group: SpendingGroup | null }) => {
+      const { error } = await supabase
+        .from('expense_categories')
+        .update({ spending_group })
+        .eq('id', id)
+
+      if (error) throw error
+    },
+    onMutate: async ({ id, spending_group }) => {
+      await queryClient.cancelQueries({ queryKey: ['expense_categories'] })
+      const previous = queryClient.getQueryData<ExpenseCategory[]>(['expense_categories'])
+      queryClient.setQueryData<ExpenseCategory[]>(['expense_categories'], (old) =>
+        old?.map((c) => (c.id === id ? { ...c, spending_group } : c)))
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(['expense_categories'], context.previous)
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['expense_categories'] })
     },
   })

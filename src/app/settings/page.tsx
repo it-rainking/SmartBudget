@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Sun, Moon, Monitor, Download, BarChart3, LogOut, Trash2, AlertTriangle, Plus, X } from 'lucide-react'
 import { DEFAULT_PAYMENT_METHODS, getPaymentMethods } from '@/lib/utils'
 import { AiCategorySuggestionsPanel } from '@/components/AiCategorySuggestionsPanel'
+import { SpendingGroupsPanel } from '@/components/SpendingGroupsPanel'
 import { useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { useSettings, useUpdateSettings } from '@/hooks/useSettings'
@@ -450,6 +451,9 @@ export default function SettingsPage() {
             Nota: rinominare o rimuovere un metodo non modifica le transazioni già registrate con il valore precedente.
           </p>
         </div>
+
+        {/* Gruppi di spesa (Kakebo) */}
+        <SpendingGroupsPanel />
 
         {/* Notifiche */}
         <div className="bg-white dark:bg-zinc-800 rounded-xl p-6 shadow-sm border border-zinc-100 dark:border-zinc-700">

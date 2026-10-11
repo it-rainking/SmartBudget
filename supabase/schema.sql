@@ -64,6 +64,8 @@ CREATE TABLE public.expense_categories (
     color TEXT DEFAULT '#ef4444',
     sort_order INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
+    -- Gruppo Kakebo: fixed/essential/optional/leisure/extra (vedi migrate_spending_groups.sql)
+    spending_group TEXT CHECK (spending_group IN ('fixed', 'essential', 'optional', 'leisure', 'extra')),
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
