@@ -3,10 +3,14 @@ import { NextResponse } from 'next/server'
 import { secretsMatch } from '@/lib/security'
 import { fxPairsNeeded, fxTickers } from '@/lib/prices/fx'
 import { createGoogleSheetsProvider } from '@/lib/prices/googleSheets'
+import { mapLimit } from '@/lib/prices/mapLimit'
 import { resolveAssetQuote } from '@/lib/prices/resolveQuote'
 import type { PriceProvider } from '@/lib/prices/types'
 import { yahooProvider } from '@/lib/prices/yahoo'
 import type { Database } from '@/types/database'
+
+// Richieste a Yahoo in parallelo: vedi mapLimit.ts.
+const QUOTE_CONCURRENCY = 5
 
 // POST /api/cron/prices
 // Job schedulato (vedi .github/workflows/cron-prices.yml): per ogni asset con
@@ -93,11 +97,13 @@ export async function POST(req: Request) {
     fxError = e instanceof Error ? e.message : String(e)
   }
 
-
+  const quotes = await mapLimit(assets, QUOTE_CONCURRENCY, (asset) =>
+    resolveAssetQuote(asset.ticker_gf, asset.ticker_yahoo, sheetsProvider, yahooProvider)
+  )
   const snapshots: Database['public']['Tables']['price_snapshots']['Insert'][] = []
-  for (const asset of assets) {
-    const quote = await resolveAssetQuote(asset.ticker_gf, asset.ticker_yahoo, sheetsProvider, yahooProvider)
-    if (!quote) continue
+  assets.forEach((asset, i) => {
+    const quote = quotes[i]
+    if (!quote) return
     snapshots.push({
       asset_id: asset.id,
       price: quote.price,
@@ -105,7 +111,7 @@ export async function POST(req: Request) {
       currency: quote.currency,
       source: quote.source,
     })
-  }
+  })
 
   if (snapshots.length > 0) {
     const { error } = await supabase.from('price_snapshots').insert(snapshots)
@@ -144,11 +150,14 @@ async function refreshFxRates(
   )
   if (!pairs.length) return { updated: 0, total: 0 }
 
-  const rows: Database['public']['Tables']['fx_rates']['Insert'][] = []
-  for (const pair of pairs) {
+  const quotes = await mapLimit(pairs, QUOTE_CONCURRENCY, (pair) => {
     const { tickerGf, tickerYahoo } = fxTickers(pair)
-    const quote = await resolveAssetQuote(tickerGf, tickerYahoo, sheetsProvider, yahooProvider)
-    if (!quote || !(quote.price > 0)) continue
+    return resolveAssetQuote(tickerGf, tickerYahoo, sheetsProvider, yahooProvider)
+  })
+  const rows: Database['public']['Tables']['fx_rates']['Insert'][] = []
+  pairs.forEach((pair, i) => {
+    const quote = quotes[i]
+    if (!quote || !(quote.price > 0)) return
     rows.push({
       base: pair.base,
       quote: pair.quote,
@@ -156,7 +165,7 @@ async function refreshFxRates(
       source: quote.source,
       fetched_at: new Date().toISOString(),
     })
-  }
+  })
 
   if (rows.length > 0) {
     const { error } = await supabase.from('fx_rates').upsert(rows, { onConflict: 'base,quote' })

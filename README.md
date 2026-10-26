@@ -163,8 +163,8 @@ Le notifiche funzionano su due livelli:
 
 ## Deploy
 
-Il progetto è pronto per il deploy su **Vercel** o qualsiasi piattaforma Node.js.
-Configura le variabili d'ambiente nella piattaforma di deploy prima di avviare la build.
+Il deploy è su **Netlify** (`netlify.toml`): guida in [`docs/netlify-deploy.md`](docs/netlify-deploy.md).
+L'app resta un Next.js standard e gira su qualsiasi piattaforma Node.js.
 
 ---
 

@@ -1,6 +1,6 @@
 name: Notifiche automatiche
 
-# Vedi cron-prices.yml: su Railway le entry di vercel.json non vengono eseguite.
+# Vedi cron-prices.yml: lo scheduler è qui, non sull'host del deploy.
 # 06:00 UTC ~ 07:00/08:00 in Italia a seconda dell'ora legale.
 on:
   schedule:
@@ -20,6 +20,6 @@ jobs:
             echo "::error::Configura i secret APP_URL e CRON_SECRET nel repository"
             exit 1
           fi
-          curl --fail-with-body --silent --show-error --max-time 120 \
+          curl --fail-with-body --silent --show-error --max-time 75 \
             -X POST "${APP_URL%/}/api/notifications/process" \
             -H "Authorization: Bearer ${CRON_SECRET}"

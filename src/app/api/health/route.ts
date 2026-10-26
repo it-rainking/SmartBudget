@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 
-// Commit da cui è stata costruita l'istanza in esecuzione. Vercel e Railway lo
-// espongono con nomi diversi; in locale non è impostato.
+// Commit da cui è stata costruita l'istanza in esecuzione. Netlify, Vercel e
+// Railway lo espongono con nomi diversi; in locale non è impostato.
 const COMMIT_SHA =
+  process.env.COMMIT_REF ??
   process.env.VERCEL_GIT_COMMIT_SHA ??
   process.env.RAILWAY_GIT_COMMIT_SHA ??
   process.env.GIT_COMMIT_SHA ??

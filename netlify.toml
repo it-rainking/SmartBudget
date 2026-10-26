@@ -1,0 +1,14 @@
+# Deploy su Netlify. L'adapter Next.js (OpenNext, @netlify/plugin-nextjs) viene
+# installato e aggiornato da Netlify a ogni build: non va aggiunto a package.json.
+# Pagine e API route diventano Netlify Functions (limite 60 s a richiesta), il
+# middleware un'Edge Function. Gli header di sicurezza restano in next.config.ts.
+#
+# Le variabili d'ambiente NON vanno qui: netlify.toml è letto solo in build e le
+# funzioni non lo vedono. Si impostano dalla UI di Netlify con scope Builds +
+# Functions (vedi docs/netlify-deploy.md).
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
