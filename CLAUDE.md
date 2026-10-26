@@ -59,7 +59,7 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 /api/investments/summary  → GET: riepilogo portafoglio (market_value, P&L, pesi)
 /api/investments/tickers  → GET: lista ticker_gf dell'utente, testo incollabile nel Sheet ponte
 /api/cron/prices          → POST: price fetcher (Google Sheet ponte + fallback Yahoo) + aggiornamento cambi valuta (`fx_rates`), protetto da CRON_SECRET
-/api/health               → GET: health check + commit della build in esecuzione (`commit`/`commit_short`, letto da VERCEL_/RAILWAY_GIT_COMMIT_SHA): serve a verificare che il deploy sia allineato al repo
+/api/health               → GET: health check + commit della build in esecuzione (`commit`/`commit_short`, letto da `COMMIT_REF` di Netlify, poi VERCEL_/RAILWAY_GIT_COMMIT_SHA): serve a verificare che il deploy sia allineato al repo
 ```
 
 ### Middleware (`src/middleware.ts`)
@@ -433,7 +433,9 @@ Sistema separato dal semplice toggle "ricorrente" del form transazioni: qui una 
 - Warning `baseline-browser-mapping` a ogni build: non bloccante, ignorare
 - Warning `middleware → proxy`: non bloccante (Next.js 16 depreca il nome `middleware`)
 
-**Job schedulati**: gli endpoint `/api/cron/prices` e `/api/notifications/process` sono POST protetti da `CRON_SECRET` e vanno chiamati dall'esterno. `vercel.json` li schedula **solo su Vercel**; il deploy attuale è su Railway, dove quelle entry sono inerti, quindi lo scheduler vive in `.github/workflows/cron-prices.yml` e `cron-notifications.yml` (secret del repository: `APP_URL`, `CRON_SECRET`; entrambi lanciabili a mano da Actions con `workflow_dispatch`).
+**Hosting**: Netlify (`netlify.toml`, guida in `docs/netlify-deploy.md`). Il runtime Next.js di Netlify trasforma pagine e API route in funzioni con limite di **60 s a richiesta** e il middleware in Edge Function. Tutte le variabili d'ambiente delle funzioni devono stare in **~4 KB**: per questo il service account Google si passa con `GOOGLE_SA_EMAIL` + `GOOGLE_SA_PRIVATE_KEY` (`GOOGLE_SA_KEY_B64` resta accettata per altri host). `railway.toml` resta finché il vecchio deploy Railway fa da ripiego.
+
+**Job schedulati**: gli endpoint `/api/cron/prices` e `/api/notifications/process` sono POST protetti da `CRON_SECRET` e vanno chiamati dall'esterno. Lo scheduler vive in `.github/workflows/cron-prices.yml` e `cron-notifications.yml` (secret del repository: `APP_URL`, `CRON_SECRET`; entrambi lanciabili a mano da Actions con `workflow_dispatch`). Le Scheduled Functions di Netlify non sono usate (limite 30 s). Il cron prezzi interroga le sorgenti con 5 richieste in parallelo (`src/lib/prices/mapLimit.ts`) per stare sotto i 60 s.
 
 **Scripts**:
 ```

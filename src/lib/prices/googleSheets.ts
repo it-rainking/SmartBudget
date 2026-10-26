@@ -37,9 +37,19 @@ export function isSheetStale(timestampRaw: string | undefined): boolean {
   return Date.now() - ts > STALE_AFTER_MS
 }
 
+// Due formati accettati. GOOGLE_SA_EMAIL + GOOGLE_SA_PRIVATE_KEY porta solo i
+// due campi usati: su Netlify tutte le variabili delle funzioni stanno in ~4 KB
+// complessivi (limite AWS Lambda) e il JSON intero in base64 ne occupa da solo
+// circa 3. GOOGLE_SA_KEY_B64 resta per i deploy esistenti.
 function decodeServiceAccountKey(): { client_email: string; private_key: string } {
+  const email = process.env.GOOGLE_SA_EMAIL
+  const key = process.env.GOOGLE_SA_PRIVATE_KEY
+  if (email && key) {
+    // Incollata in una UI la chiave PEM arriva spesso con i "\n" letterali.
+    return { client_email: email, private_key: key.replace(/\\n/g, '\n') }
+  }
   const b64 = process.env.GOOGLE_SA_KEY_B64
-  if (!b64) throw new Error('GOOGLE_SA_KEY_B64 non configurata')
+  if (!b64) throw new Error('Credenziali Google non configurate: imposta GOOGLE_SA_EMAIL + GOOGLE_SA_PRIVATE_KEY (o GOOGLE_SA_KEY_B64)')
   const json = Buffer.from(b64, 'base64').toString('utf-8')
   return JSON.parse(json)
 }

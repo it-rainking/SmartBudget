@@ -1,5 +1,7 @@
 # Guida al Deploy di SmartBudget su Vercel
 
+> **Guida superata.** Il deploy attuale è su Netlify: vedi [`docs/netlify-deploy.md`](docs/netlify-deploy.md). Questa pagina resta come riferimento per la parte Supabase (Parti 4-5), che vale anche lì.
+
 Questa guida ti accompagna passo dopo passo per rendere SmartBudget accessibile da Internet, su qualsiasi dispositivo, senza dover tenere il computer acceso.
 
 **Cosa otterrai:** un indirizzo web tipo `https://smartbudget.vercel.app` accessibile ovunque.

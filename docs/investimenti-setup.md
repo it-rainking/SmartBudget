@@ -280,19 +280,24 @@ Sheet con formule `GOOGLEFINANCE()`, letto in sola lettura via Sheets API.
    **chiave JSON** e scaricala.
 3. Condividi il Google Sheet ponte (creato al punto 3) con l'email del
    service account (`...@...iam.gserviceaccount.com`), permesso "Visualizzatore".
-4. Codifica il file JSON in base64:
+4. Dal file JSON servono solo due campi, `client_email` e `private_key`:
    ```sh
-   base64 -w0 service-account-key.json
+   jq -r .client_email service-account-key.json
+   jq -r .private_key  service-account-key.json
    ```
+   In alternativa (solo fuori da Netlify) si può ancora passare il file intero
+   codificato con `base64 -w0 service-account-key.json`.
 
 ## 5. Variabili d'ambiente
 
-Aggiungi al progetto (Vercel → Settings → Environment Variables, o
-`.env.local` in locale):
+Aggiungi al progetto (Netlify → Project configuration → Environment variables,
+o `.env.local` in locale):
 
 | Variabile | Valore |
 |---|---|
-| `GOOGLE_SA_KEY_B64` | output del comando `base64` sopra |
+| `GOOGLE_SA_EMAIL` | `client_email` del JSON |
+| `GOOGLE_SA_PRIVATE_KEY` | `private_key` del JSON, intera (`-----BEGIN PRIVATE KEY-----` compreso); i `\n` letterali vanno bene |
+| `GOOGLE_SA_KEY_B64` | *(alternativa alle due sopra)* JSON intero in base64. **Non usarla su Netlify**: le variabili di tutte le funzioni stanno in ~4 KB e questa da sola ne occupa circa 3 |
 | `GSHEET_ID` | l'ID del Google Sheet ponte (dalla URL, tra `/d/` e `/edit`) |
 
 `CRON_SECRET` e `SUPABASE_SERVICE_ROLE_KEY` sono già usate dal modulo
@@ -303,10 +308,9 @@ notifiche esistente — il price fetcher le riusa, nessuna nuova variabile.
 Il price fetcher è un endpoint POST protetto da `CRON_SECRET`: qualcosa deve
 chiamarlo periodicamente. **Chi lo chiama dipende da dove gira il deploy.**
 
-### Railway (e qualunque host che non sia Vercel)
+### GitHub Actions (Netlify, Railway, qualunque host)
 
-`vercel.json` **non viene letto**: le sue entry `crons` sono inerti. Lo
-scheduler è in GitHub Actions, `.github/workflows/cron-prices.yml` e
+Lo scheduler è in GitHub Actions, `.github/workflows/cron-prices.yml` e
 `cron-notifications.yml`, che chiamano gli endpoint dall'esterno.
 
 Servono due **secret del repository** (GitHub → Settings → Secrets and
@@ -314,7 +318,7 @@ variables → Actions):
 
 | Secret | Valore |
 |---|---|
-| `APP_URL` | URL pubblico dell'app, es. `https://smartbudget.up.railway.app` |
+| `APP_URL` | URL pubblico dell'app, es. `https://smartbudget.netlify.app` |
 | `CRON_SECRET` | lo stesso valore della variabile d'ambiente sul deploy |
 
 Entrambi i workflow hanno `workflow_dispatch`: dalla scheda **Actions** si
@@ -324,18 +328,11 @@ Note su GitHub Actions: i workflow schedulati girano solo sul branch di
 default, possono partire con qualche minuto di ritardo quando la coda è
 carica, e vengono disattivati dopo 60 giorni di inattività del repository.
 
-### Vercel
-
-`vercel.json` include già l'entry per `/api/cron/prices` (ogni 30 minuti,
-8-18 CET, giorni feriali). Su **Vercel Hobby** i cron sono limitati a
-un'esecuzione al giorno: se sei su questo piano, riduci la schedule a
-`"0 8 * * 1-5"` o passa a un piano Pro, altrimenti solo la prima esecuzione
-del giorno verrà effettivamente eseguita.
-
-Se dovessi girare su Vercel **e** tenere attivi i workflow, i job partirebbero
-due volte: disattiva l'uno o l'altro. Nessuno dei due endpoint fa danni se
-eseguito due volte (i prezzi aggiungono uno snapshot, le notifiche sono
-deduplicate), ma è lavoro sprecato.
+Su Netlify l'endpoint gira come funzione con limite di **60 secondi** a
+richiesta: il cron interroga Yahoo con 5 richieste in parallelo
+(`src/lib/prices/mapLimit.ts`) per restarci dentro anche con qualche ticker
+lento. Le Scheduled Functions di Netlify non sono usate: hanno un limite di 30
+secondi e partono solo sul deploy di produzione.
 
 ### Verifica manuale
 

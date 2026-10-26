@@ -1,8 +1,8 @@
 name: Prezzi investimenti
 
-# Lo scheduler dei job non può stare nell'app: vercel.json vale solo su Vercel e
-# su Railway non viene letto. GitHub Actions chiama l'endpoint dall'esterno, così
-# la schedulazione è indipendente da dove gira il deploy.
+# Lo scheduler dei job non sta nell'app: GitHub Actions chiama l'endpoint
+# dall'esterno, così la schedulazione è indipendente da dove gira il deploy.
+# Le Scheduled Functions di Netlify sono scartate: limite di 30 s a esecuzione.
 #
 # Gli orari di GitHub Actions sono in UTC: la finestra 6-17 copre l'orario di
 # Borsa Italiana (9:00-17:30 CET) sia con l'ora solare sia con l'ora legale.
@@ -25,7 +25,8 @@ jobs:
             exit 1
           fi
           # --fail-with-body: un 401/500 deve far fallire il job in modo visibile,
-          # mostrando però il corpo della risposta con il motivo.
-          curl --fail-with-body --silent --show-error --max-time 120 \
+          # mostrando però il corpo della risposta con il motivo. --max-time 75:
+          # su Netlify la funzione viene interrotta a 60 s, oltre non serve aspettare.
+          curl --fail-with-body --silent --show-error --max-time 75 \
             -X POST "${APP_URL%/}/api/cron/prices" \
             -H "Authorization: Bearer ${CRON_SECRET}"
