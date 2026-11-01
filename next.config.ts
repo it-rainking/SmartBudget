@@ -1,9 +1,7 @@
 import type { NextConfig } from "next";
 
-// frameAncestors: 'none' per l'app; 'self' solo per gli strumenti statici in
-// public/tools/, che l'app incorpora in un iframe dallo stesso dominio.
-const buildSecurityHeaders = (frameAncestors: "'none'" | "'self'") => [
-  { key: 'X-Frame-Options', value: frameAncestors === "'self'" ? 'SAMEORIGIN' : 'DENY' },
+const securityHeaders = [
+  { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
@@ -27,7 +25,7 @@ const buildSecurityHeaders = (frameAncestors: "'none'" | "'self'") => [
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.resend.com https://api.anthropic.com",
       "base-uri 'self'",
       "object-src 'none'",
-      `frame-ancestors ${frameAncestors}`,
+      "frame-ancestors 'none'",
     ].join('; '),
   },
 ]
@@ -39,10 +37,7 @@ const nextConfig: NextConfig = {
   // require Node normale a runtime (dove quel percorso non viene chiamato).
   serverExternalPackages: ['yahoo-finance2'],
   async headers() {
-    return [
-      { source: '/((?!tools/).*)', headers: buildSecurityHeaders("'none'") },
-      { source: '/tools/:path*', headers: buildSecurityHeaders("'self'") },
-    ]
+    return [{ source: '/:path*', headers: securityHeaders }]
   },
 };
 
