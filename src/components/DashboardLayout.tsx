@@ -14,7 +14,7 @@ import { classNames } from '@/lib/utils'
 import {
   LayoutDashboard, TrendingUp, CreditCard,
   Target, Settings, BookOpen,
-  Wallet, LogOut, LineChart, Repeat, Plus, MoreHorizontal,
+  Wallet, LogOut, LineChart, Repeat, Plus, MoreHorizontal, PiggyBank,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -75,6 +75,7 @@ const navigation: NavItem[] = [
   { name: 'Spese ricorrenti', href: '/spese-ricorrenti', Icon: Repeat },
   { name: 'Obiettivi', href: '/obiettivi', Icon: Target },
   { name: 'Investimenti', href: '/investimenti', Icon: LineChart },
+  { name: 'Fondo pensione', href: '/fondo-pensione', Icon: PiggyBank },
   { name: 'Impostazioni', href: '/settings', Icon: Settings },
   { name: 'Istruzioni', href: '/istruzioni', Icon: BookOpen },
 ]

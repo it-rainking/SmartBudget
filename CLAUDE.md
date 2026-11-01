@@ -45,6 +45,7 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 /obiettivi                → Obiettivi finanziari con progress bar
 /debiti                   → Debiti: strategie snowball/avalanche, piano di rimborso (⚠️ non linkata in sidebar: accesso disattivato al momento, codice mantenuto)
 /investimenti             → Portafoglio investimenti (import CSV Fineco, prezzi Google Finance/Yahoo)
+/fondo-pensione           → Confronto fondo pensione: strumento HTML autonomo (public/tools/fondo-pensione/) in iframe, vedi sezione dedicata
 /istruzioni               → Guida utente
 /settings                 → Preferenze, export GDPR, danger zone
 /auth/callback            → Callback OAuth Supabase
@@ -65,7 +66,7 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 ### Middleware (`src/middleware.ts`)
 
 Gestisce redirect auth su ogni request:
-- **Route protette** (`/dashboard`, `/budget`, `/transazioni`, `/spese-ricorrenti`, `/fatture`, `/obiettivi`, `/debiti`, `/investimenti`, `/settings`, `/istruzioni`, `/onboarding`, `/aggiorna-password`): redirect a `/login` se non autenticato
+- **Route protette** (`/dashboard`, `/budget`, `/transazioni`, `/spese-ricorrenti`, `/fatture`, `/obiettivi`, `/debiti`, `/investimenti`, `/fondo-pensione`, `/settings`, `/istruzioni`, `/onboarding`, `/aggiorna-password`): redirect a `/login` se non autenticato
 - **Route auth** (`/login`, `/signup`): redirect a `/dashboard/mensile` se già autenticato
 - Rinnova la sessione Supabase SSR ad ogni request
 
@@ -164,6 +165,7 @@ src/
 │   ├── budget/page.tsx             # Tab spese/entrate/risparmi, input inline
 │   ├── fatture/page.tsx            # Lista + calendario + modal nuova fattura
 │   ├── obiettivi/page.tsx          # Grid card + modal creazione + modal progresso
+│   ├── fondo-pensione/page.tsx     # Iframe su /tools/fondo-pensione/index.html, tema e altezza sincronizzati
 │   ├── investimenti/page.tsx       # Header card, allocazione, tabella posizioni a tab (ETF/Azioni/Obbligazioni/Altro), modal prezzo manuale, import CSV
 │   └── settings/page.tsx           # Preferenze + export + danger zone
 ├── components/
@@ -425,6 +427,15 @@ Sistema separato dal semplice toggle "ricorrente" del form transazioni: qui una 
 - **Ordine di salvataggio dal form transazioni**: la transazione viene inserita per prima; il modello ricorrente (opzione "crea nuovo modello" o checkbox) viene creato dopo e collegato con un update di `recurring_expense_id`. Se la creazione del modello fallisce, la spesa resta salvata e il toast riporta il messaggio d'errore reale — il salvataggio della transazione non dipende mai dall'operazione accessoria sul pannello.
 - Eliminare un modello non tocca le occorrenze già generate: `transactions.recurring_expense_id` passa a `NULL` (`ON DELETE SET NULL`), la transazione resta nello storico ma smette di ricevere nuove occorrenze.
 - Migrazione DB: `supabase/migrate_recurring_expenses.sql` (anche in `schema.sql`/`rls_policies.sql` per i nuovi progetti).
+
+## Confronto fondo pensione (`/fondo-pensione`)
+
+Strumento autonomo, non un modulo React: `public/tools/fondo-pensione/index.html` contiene dati, d3 v7.9.0 e logica, senza chiamate di rete. La pagina `src/app/fondo-pensione/page.tsx` lo incorpora in un iframe dello stesso dominio, gli passa il tema dell'app (`data-theme` sull'`<html>` dell'iframe, rimosso con tema "system") e ne adatta l'altezza al contenuto con un `ResizeObserver`.
+
+- **Header**: `next.config.ts` manda `frame-ancestors 'none'` / `X-Frame-Options: DENY` su tutto tranne `/tools/*`, che riceve `'self'` / `SAMEORIGIN`. Un nuovo strumento statico da incorporare va messo sotto `public/tools/`.
+- **Dati utente**: restano nel `localStorage` del browser (chiave `fp-confronto-params`), non in Supabase.
+- **Aggiornare i dati**: blocco `<script type="application/json" id="fp-data">` dell'HTML (chiavi `fondi_aperti`, `covip_rendimenti`, `covip_isc`). COVIP pubblica i rendimenti annuali di solito a giugno; le linee dei fondi aperti vengono dalle schede ciaoelsa.com su dati COVIP (lette il 01/11/2026).
+- **Limiti del calcolo**: rendimento e contributi costanti, TFR al 6,91% della retribuzione utile, esclusi spese fisse annue, aumenti di stipendio e tassazione finale.
 
 ## Ambiente di Build
 
