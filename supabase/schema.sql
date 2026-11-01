@@ -409,6 +409,13 @@ CREATE TABLE public.dismissed_duplicates (
 
 CREATE INDEX idx_dismissed_duplicates_user ON public.dismissed_duplicates(user_id);
 
+-- Dati inseriti nel confronto fondo pensione (/fondo-pensione), una riga per utente
+CREATE TABLE public.pension_comparisons (
+    user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+    params JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
 -- Recurring expenses indexes
 CREATE INDEX idx_recurring_expenses_user_id ON public.recurring_expenses(user_id);
 CREATE INDEX idx_recurring_expenses_user_active ON public.recurring_expenses(user_id, is_active);

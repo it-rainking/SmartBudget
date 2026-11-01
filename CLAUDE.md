@@ -45,6 +45,7 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 /obiettivi                → Obiettivi finanziari con progress bar
 /debiti                   → Debiti: strategie snowball/avalanche, piano di rimborso (⚠️ non linkata in sidebar: accesso disattivato al momento, codice mantenuto)
 /investimenti             → Portafoglio investimenti (import CSV Fineco, prezzi Google Finance/Yahoo)
+/fondo-pensione           → Confronto fondo pensione con medie COVIP e principali fondi aperti + simulazione restare/spostarsi, vedi sezione dedicata
 /istruzioni               → Guida utente
 /settings                 → Preferenze, export GDPR, danger zone
 /auth/callback            → Callback OAuth Supabase
@@ -65,7 +66,7 @@ Guida tecnica per agenti AI che lavorano su questo codebase.
 ### Middleware (`src/middleware.ts`)
 
 Gestisce redirect auth su ogni request:
-- **Route protette** (`/dashboard`, `/budget`, `/transazioni`, `/spese-ricorrenti`, `/fatture`, `/obiettivi`, `/debiti`, `/investimenti`, `/settings`, `/istruzioni`, `/onboarding`, `/aggiorna-password`): redirect a `/login` se non autenticato
+- **Route protette** (`/dashboard`, `/budget`, `/transazioni`, `/spese-ricorrenti`, `/fatture`, `/obiettivi`, `/debiti`, `/investimenti`, `/fondo-pensione`, `/settings`, `/istruzioni`, `/onboarding`, `/aggiorna-password`): redirect a `/login` se non autenticato
 - **Route auth** (`/login`, `/signup`): redirect a `/dashboard/mensile` se già autenticato
 - Rinnova la sessione Supabase SSR ad ogni request
 
@@ -96,6 +97,7 @@ Tutte le tabelle usano RLS con policy `user_id = auth.uid()`.
 | `isin_ticker_lookup` | isin (PK), ticker_gf?, ticker_yahoo?, name?, asset_class? | Tabella globale (non per-utente) di riferimento ISIN→ticker, manutenuta manualmente |
 | `fx_rates` | base, quote (PK composita), rate, source (gsheet/yahoo), fetched_at | Cambi valuta, tabella globale (non per-utente): una riga per coppia aggiornata in place dal cron `/api/cron/prices` (service role), letta da `/api/investments/summary` |
 | `manual_prices` | user_id, asset_id (FK→assets), price, priced_at, note? | Prezzo inserito a mano dalla pagina `/investimenti` per le posizioni senza quotazione automatica (titoli di stato sul MOT). Una riga per (utente, asset), UNIQUE, aggiornata in place |
+| `pension_comparisons` | user_id (PK), params (jsonb), updated_at | Dati inseriti in `/fondo-pensione`, una riga per utente (vedi sezione "Confronto fondo pensione") |
 | `dismissed_duplicates` | transaction_a, transaction_b (FK→transactions, ON DELETE CASCADE, `a < b`) | Coppie confermate come "non doppioni" dal controllo doppioni di `/transazioni`; UNIQUE (user_id, a, b) |
 | `recurring_expenses` | name, category_id?, subcategory_id?, amount, day_of_month, payment_method?, notes?, start_date, is_active | Modello di spesa ricorrente, UI in `/spese-ricorrenti`; le occorrenze generate sono normali righe in `transactions` con `recurring_expense_id` valorizzato |
 
@@ -164,6 +166,7 @@ src/
 │   ├── budget/page.tsx             # Tab spese/entrate/risparmi, input inline
 │   ├── fatture/page.tsx            # Lista + calendario + modal nuova fattura
 │   ├── obiettivi/page.tsx          # Grid card + modal creazione + modal progresso
+│   ├── fondo-pensione/page.tsx     # Form dati, KPI di confronto, classifica categoria, simulazione, tabelle COVIP
 │   ├── investimenti/page.tsx       # Header card, allocazione, tabella posizioni a tab (ETF/Azioni/Obbligazioni/Altro), modal prezzo manuale, import CSV
 │   └── settings/page.tsx           # Preferenze + export + danger zone
 ├── components/
@@ -176,6 +179,7 @@ src/
 │   ├── ImportCSVModal.tsx          # Drag-drop CSV, preview, bulk insert
 │   ├── ui/                         # Componenti base: Modal, Section, Card, Button, KpiTile, Skeleton, EmptyState, SwipeRow
 │   ├── SpendingGroupsPanel.tsx     # Impostazioni: gruppo Kakebo di ogni categoria di spesa
+│   ├── pension/                    # PensionCharts (classifica a barre con linee di riferimento, simulazione), format.ts
 │   └── dashboard/                  # Blocchi della dashboard mensile: BalanceHero, SpendingPlanSection, CategoryBreakdownSection, IncomeSplitSection, AiInsightsSection, InstallmentPlansSummary, RecurringExpensesBox, CategoryExpensesModal
 ├── hooks/
 │   ├── useAuth.ts                  # user, loading, signOut, isAuthenticated
@@ -192,6 +196,7 @@ src/
 │   ├── useImportTransactions.ts    # parseCSV + useImportTransactions (bulk insert)
 │   ├── useNotifications.ts         # Notifiche computed in-memory + usePersistedNotifications + useMarkNotificationRead
 │   ├── useInvestments.ts           # useInvestments (summary), useImportCsv
+│   ├── usePensionComparison.ts     # usePensionComparison, useSavePensionComparison (dati /fondo-pensione, fallback localStorage)
 │   ├── useModalA11y.ts             # Esc, focus trap, [data-autofocus], blocco scroll, ripristino focus (usato da ui/Modal)
 │   ├── useSelectedMonth.ts         # Mese condiviso dashboard/transazioni nell'URL (?m=YYYY-MM)
 │   └── useHorizontalSwipe.ts       # Swipe orizzontale per cambiare mese (dashboard)
@@ -202,6 +207,7 @@ src/
     ├── utils.ts                    # formatCurrency, formatDate, formatMonth, getMonthDateRange, classNames
     ├── kakebo.ts                   # computeSpendingPlan (portamonete del mese), expenseGroup, monthWeeks, isCashMethod (logica pura)
     ├── duplicates.ts               # findPossibleDuplicates (doppioni per importo/descrizione), dayBandIndexes (colori alternati per giorno)
+    ├── pension/compare.ts          # Confronto fondo pensione: dati COVIP (pension/data/*.json), proiezione, pareggio (logica pura)
     ├── installments.ts             # buildInstallmentPlans, findImportedInstallmentDuplicates, soglie PayPal (logica pura rate)
     ├── investments/parseFinecoCsv.ts # Parser CSV Fineco: separatore/codifica/riga header auto-rilevati, colonne per significato, dedup ISIN, valuta e fattore di quotazione per posizione
     ├── investments/resolveTicker.ts   # Deriva ticker_gf/ticker_yahoo da Simbolo + Mercato del CSV (solo mercati mappati)
@@ -252,6 +258,7 @@ Tutti gli hook usano React Query. Chiavi query:
 ['recurring_expenses']
 ['dismissed_duplicates']
 ['investments_summary']
+['pension_comparison']
 ```
 
 **React Query config** (in `src/lib/queryClient.ts`):
@@ -426,6 +433,18 @@ Sistema separato dal semplice toggle "ricorrente" del form transazioni: qui una 
 - Eliminare un modello non tocca le occorrenze già generate: `transactions.recurring_expense_id` passa a `NULL` (`ON DELETE SET NULL`), la transazione resta nello storico ma smette di ricevere nuove occorrenze.
 - Migrazione DB: `supabase/migrate_recurring_expenses.sql` (anche in `schema.sql`/`rls_policies.sql` per i nuovi progetti).
 
+## Confronto fondo pensione (`/fondo-pensione`)
+
+Confronta il comparto del fondo pensione dell'utente con le medie COVIP e con le linee dei principali fondi aperti, e simula il capitale finale restando o spostandosi in un fondo aperto.
+
+- **Logica**: `src/lib/pension/compare.ts`, pura e testata in `tests/pension/` (i casi di `simulate` sono confrontati con i risultati dello strumento HTML originale da cui la pagina deriva). Proiezione `m(i) = m(i-1) × (1 + r) + C` con versamento a fine anno; rendimento di pareggio per bisezione tra −10% e 30%.
+- **Rendimento usato**: quello a 10 anni, altrimenti a 5 (`comparisonPeriod`); classifica e medie COVIP usano lo stesso periodo. I due comparti obbligazionari condividono l'ISC medio COVIP (`OBB`).
+- **Contributi**: lavoratore + datore + TFR (`TFR_RATE` = 6,91% della retribuzione utile × quota versata). Nel fondo aperto il contributo del datore conta solo con "il contributo del datore segue" attivo.
+- **Dati di riferimento**: `src/lib/pension/data/*.json` (`fondi_aperti`, `covip_rendimenti`, `covip_isc`), importati staticamente. COVIP pubblica i rendimenti annuali di solito a giugno; le linee dei fondi aperti vengono dalle schede ciaoelsa.com su dati COVIP (lette il 01/11/2026). Aggiornando i JSON vanno aggiornate le date "31/12/2025" nei testi della pagina.
+- **Dati utente**: tabella `pension_comparisons` (una riga per utente, `params` jsonb letto con `normalizeParams`), hook `usePensionComparison` / `useSavePensionComparison`. Ogni campo si salva all'uscita (blur), con aggiornamento ottimistico della cache. Senza migrazione ripiega su `localStorage` (`smartbudget:pension-comparison`); alla prima lettura riprende anche i dati della vecchia versione in iframe (`fp-confronto-params`). Migrazione DB: `supabase/migrate_pension_comparison.sql`.
+- **Importi** sempre in euro (`src/components/pension/format.ts`), indipendenti da `settings.currency`: i fondi sono italiani.
+- **Limiti del calcolo**: rendimento e contributi costanti, esclusi spese fisse annue, aumenti di stipendio e tassazione finale.
+
 ## Ambiente di Build
 
 - `.env.local` con `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` (gitignored)
@@ -446,7 +465,7 @@ npm test       # vitest run (solo modulo investimenti, vedi sezione Testing)
 
 ### Testing
 
-**Vitest** (`npm test`): copre `src/lib/investments/parseFinecoCsv.ts`, `src/lib/prices/*` (`tests/investments/*.test.ts`) la logica delle spese a rate (`src/lib/installments.ts` + helper in `utils.ts`, `tests/installments/*.test.ts`) il rilevamento doppioni (`src/lib/duplicates.ts`, `tests/duplicates/*.test.ts`) e il portamonete Kakebo (`src/lib/kakebo.ts`, `tests/kakebo/*.test.ts`); niente altro nel repo ha test — verificare il resto delle feature manualmente. Niente jest/playwright.
+**Vitest** (`npm test`): copre `src/lib/investments/parseFinecoCsv.ts`, `src/lib/prices/*` (`tests/investments/*.test.ts`) la logica delle spese a rate (`src/lib/installments.ts` + helper in `utils.ts`, `tests/installments/*.test.ts`) il rilevamento doppioni (`src/lib/duplicates.ts`, `tests/duplicates/*.test.ts`) e il portamonete Kakebo (`src/lib/kakebo.ts`, `tests/kakebo/*.test.ts`) e il confronto fondo pensione (`src/lib/pension/compare.ts`, `tests/pension/*.test.ts`); niente altro nel repo ha test — verificare il resto delle feature manualmente. Niente jest/playwright.
 
 ---
 

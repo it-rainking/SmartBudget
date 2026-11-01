@@ -25,6 +25,7 @@ ALTER TABLE public.fx_rates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.manual_prices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recurring_expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dismissed_duplicates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pension_comparisons ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
 -- PROFILES POLICIES
@@ -392,4 +393,24 @@ CREATE POLICY "Users can insert own dismissed duplicates"
 
 CREATE POLICY "Users can delete own dismissed duplicates"
     ON public.dismissed_duplicates FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- ============================================
+-- PENSION COMPARISONS POLICIES
+-- ============================================
+
+CREATE POLICY "Users can view own pension comparison"
+    ON public.pension_comparisons FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own pension comparison"
+    ON public.pension_comparisons FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own pension comparison"
+    ON public.pension_comparisons FOR UPDATE
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own pension comparison"
+    ON public.pension_comparisons FOR DELETE
     USING (auth.uid() = user_id);
