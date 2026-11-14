@@ -2,17 +2,80 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { checkRateLimit } from '@/lib/rateLimit'
+import { callClaudeTool, MODEL_ANALYSIS, type ClaudeTool } from '@/lib/ai/claude'
+import { makeFormatter } from '@/lib/ai/facts'
 
-const MAX_DESCS_PER_CAT = 8
-const LOOKBACK_DAYS = 90
-const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
+const MAX_DESCS_PER_CAT = 6
+const LOOKBACK_DAYS = 180
+const TX_LIMIT = 1000
 const RATE_LIMIT = 10
 const RATE_WINDOW_MS = 10 * 60 * 1000
 
+type CatType = 'expense' | 'income' | 'saving'
+
+const SYSTEM = `Aiuti un utente italiano a tenere in ordine le categorie di SmartBudget, la sua app di finanze personali.
+Ricevi per ogni categoria: numero di movimenti, importo totale, ultimo utilizzo ed esempi di descrizioni degli ultimi mesi.
+Proponi SOLO miglioramenti che si giustificano con i dati:
+- merge: due o più categorie dello stesso tipo che raccolgono movimenti dello stesso genere (es. "Bar" e "Caffè"), soprattutto se poco usate.
+- split: una categoria che pesa molto sul totale e contiene movimenti chiaramente eterogenei (cita 2-3 esempi reali).
+- rename: nome ambiguo rispetto agli esempi che contiene.
+- create: movimenti non categorizzati che si ripetono e meritano una categoria propria.
+Non proporre ritocchi estetici, non toccare categorie con pochi movimenti solo per "ordine", non suggerire più di 5 interventi e usa solo ID presenti nell'elenco.
+Se i dati non giustificano nulla restituisci un elenco vuoto: è una risposta valida e preferibile a suggerimenti deboli.
+La motivazione (reason) cita un numero o un esempio concreto, max 100 caratteri.`
+
+const TOOL: ClaudeTool = {
+  name: 'suggest_improvements',
+  description: 'Restituisce i miglioramenti proposti alle categorie.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      suggestions: {
+        type: 'array',
+        maxItems: 5,
+        items: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', enum: ['merge', 'rename', 'split', 'create'] },
+            category_type: { type: 'string', enum: ['expense', 'income', 'saving'] },
+            priority: { type: 'string', enum: ['high', 'medium', 'low'] },
+            reason: { type: 'string' },
+            category_ids: { type: 'array', items: { type: 'string' }, description: 'merge: ID delle categorie da unire' },
+            category_names: { type: 'array', items: { type: 'string' } },
+            category_id: { type: 'string', description: 'rename/split: ID della categoria' },
+            current_name: { type: 'string' },
+            suggested_name: { type: 'string', description: 'merge/rename/create: nome proposto' },
+            suggested_icon: { type: 'string', description: 'emoji' },
+            suggested_names: {
+              type: 'array',
+              description: 'split: le nuove categorie',
+              items: {
+                type: 'object',
+                properties: { name: { type: 'string' }, icon: { type: 'string' } },
+                required: ['name'],
+              },
+            },
+            example_descriptions: { type: 'array', items: { type: 'string' } },
+          },
+          required: ['type', 'category_type', 'priority', 'reason'],
+        },
+      },
+    },
+    required: ['suggestions'],
+  },
+}
+
+interface Suggestion {
+  type: 'merge' | 'rename' | 'split' | 'create'
+  category_type: CatType
+  category_ids?: string[]
+  category_id?: string
+  [k: string]: unknown
+}
+
 // POST /api/ai/simplify-categories
-// Analizza le categorie e le transazioni recenti dell'utente e restituisce
-// suggerimenti strutturati per semplificare/migliorare le categorie.
-// Richiede sessione autenticata e ANTHROPIC_API_KEY nell'ambiente server.
+// Analizza categorie e movimenti recenti dell'utente e restituisce suggerimenti
+// strutturati per semplificarle. Richiede sessione e ANTHROPIC_API_KEY.
 export async function POST() {
   const cookieStore = await cookies()
   const supabase = createServerClient(
@@ -27,146 +90,99 @@ export async function POST() {
     return NextResponse.json({ error: 'Troppe richieste, riprova più tardi' }, { status: 429 })
   }
 
-  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
-  if (!ANTHROPIC_API_KEY) {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
     return NextResponse.json({ error: 'AI non configurata (manca ANTHROPIC_API_KEY)' }, { status: 503 })
   }
 
-  const [expRes, incRes, savRes] = await Promise.all([
+  const [expRes, incRes, savRes, settingsRes] = await Promise.all([
     supabase.from('expense_categories').select('id, name, icon').eq('user_id', user.id).eq('is_active', true).order('sort_order'),
     supabase.from('income_categories').select('id, name, icon').eq('user_id', user.id).eq('is_active', true).order('sort_order'),
     supabase.from('saving_categories').select('id, name, icon').eq('user_id', user.id).eq('is_active', true).order('sort_order'),
+    supabase.from('settings').select('currency').eq('user_id', user.id).maybeSingle(),
   ])
+  const fmt = makeFormatter(settingsRes.data?.currency || 'EUR')
 
-  const expenseCats = expRes.data ?? []
-  const incomeCats = incRes.data ?? []
-  const savingCats = savRes.data ?? []
-  const allCats = [...expenseCats, ...incomeCats, ...savingCats]
+  type Cat = { id: string; name: string; icon: string | null }
+  const groups: { type: CatType; label: string; cats: Cat[] }[] = [
+    { type: 'expense', label: 'Spese', cats: (expRes.data ?? []) as Cat[] },
+    { type: 'income', label: 'Entrate', cats: (incRes.data ?? []) as Cat[] },
+    { type: 'saving', label: 'Risparmi', cats: (savRes.data ?? []) as Cat[] },
+  ]
+  const allIds = new Map<string, CatType>()
+  for (const g of groups) for (const c of g.cats) allIds.set(c.id, g.type)
 
-  if (allCats.length === 0) {
+  if (allIds.size === 0) {
     return NextResponse.json({ suggestions: [], analyzed_transactions: 0, analyzed_categories: 0 })
   }
 
-  const lookbackDate = new Date()
-  lookbackDate.setDate(lookbackDate.getDate() - LOOKBACK_DAYS)
-
+  const since = new Date()
+  since.setDate(since.getDate() - LOOKBACK_DAYS)
   const { data: transactions } = await supabase
     .from('transactions')
-    .select('type, category_id, description')
+    .select('type, category_id, description, amount, date')
     .eq('user_id', user.id)
-    .gte('date', lookbackDate.toISOString().split('T')[0])
-    .not('description', 'is', null)
+    .gte('date', since.toISOString().slice(0, 10))
     .order('date', { ascending: false })
-    .limit(500)
-
+    .limit(TX_LIMIT)
   const txList = transactions ?? []
 
-  const descsByCategory: Record<string, string[]> = {}
-  const txCountByCategory: Record<string, number> = {}
-
-  for (const tx of txList) {
-    const catId = tx.category_id ?? '__none__'
-    txCountByCategory[catId] = (txCountByCategory[catId] ?? 0) + 1
-    if (!descsByCategory[catId]) descsByCategory[catId] = []
-    if (tx.description && descsByCategory[catId].length < MAX_DESCS_PER_CAT) {
-      descsByCategory[catId].push(tx.description)
-    }
+  // Statistiche per categoria: volume, importo, ultimo uso, esempi distinti
+  type Stat = { count: number; total: number; last: string; descs: string[] }
+  const stats = new Map<string, Stat>()
+  for (const t of txList) {
+    const key = t.category_id ?? '__none__'
+    const s: Stat = stats.get(key) ?? { count: 0, total: 0, last: t.date, descs: [] }
+    s.count++
+    s.total += Number(t.amount)
+    if (t.date > s.last) s.last = t.date
+    if (t.description && s.descs.length < MAX_DESCS_PER_CAT && !s.descs.includes(t.description)) s.descs.push(t.description.slice(0, 50))
+    stats.set(key, s)
   }
 
-  function buildSection(
-    cats: Array<{ id: string; name: string; icon?: string | null }>,
-    label: string
-  ): string {
-    if (!cats.length) return ''
-    const lines = cats.map(c => {
-      const count = txCountByCategory[c.id] ?? 0
-      const descs = descsByCategory[c.id] ?? []
-      const descStr = descs.length
-        ? ` → es: ${descs.map(d => `"${d}"`).join(', ')}`
-        : ' → nessuna transazione recente'
-      return `- ID:${c.id} | "${c.name}"${c.icon ? ` ${c.icon}` : ''} | ${count} tx${descStr}`
+  const section = (g: (typeof groups)[number]) => {
+    if (!g.cats.length) return ''
+    const typeTotal = g.cats.reduce((sum, c) => sum + (stats.get(c.id)?.total ?? 0), 0)
+    const lines = g.cats.map((c) => {
+      const s = stats.get(c.id)
+      if (!s) return `- ID:${c.id} | "${c.name}"${c.icon ? ` ${c.icon}` : ''} | nessun movimento negli ultimi ${LOOKBACK_DAYS} giorni`
+      const share = typeTotal > 0 ? ` (${Math.round((s.total / typeTotal) * 100)}%)` : ''
+      const ex = s.descs.length ? ` | es: ${s.descs.map((d) => `"${d}"`).join(', ')}` : ''
+      return `- ID:${c.id} | "${c.name}"${c.icon ? ` ${c.icon}` : ''} | ${s.count} mov., ${fmt(s.total)}${share}, ultimo ${s.last}${ex}`
     })
-    return `### ${label}:\n${lines.join('\n')}`
+    return `### ${g.label} (category_type: ${g.type})\n${lines.join('\n')}`
   }
 
-  const uncategorized = descsByCategory['__none__'] ?? []
-  const uncatSection = uncategorized.length
-    ? `\n### Non categorizzate (${txCountByCategory['__none__'] ?? 0} transazioni):\n${uncategorized.slice(0, 10).map(d => `- "${d}"`).join('\n')}`
+  const none = stats.get('__none__')
+  const uncategorized = none
+    ? `### Movimenti senza categoria: ${none.count}, ${fmt(none.total)}\nEsempi: ${none.descs.map((d) => `"${d}"`).join(', ')}`
     : ''
 
-  const prompt = `Sei un assistente finanziario per l'app SmartBudget (italiano).
-
-Analizza le categorie dell'utente e le transazioni recenti (ultimi ${LOOKBACK_DAYS} giorni).
-Suggerisci AL MASSIMO 5 miglioramenti concreti e rilevanti.
-
-## Categorie con transazioni recenti:
-
-${buildSection(expenseCats, 'Spese')}
-
-${buildSection(incomeCats, 'Entrate')}
-
-${buildSection(savingCats, 'Risparmi')}
-${uncatSection}
-
-## Tipi di suggerimento:
-- "merge": unire 2+ categorie con contenuto simile
-- "rename": rinominare categoria con nome ambiguo o poco chiaro
-- "split": dividere categoria troppo generica con transazioni eterogenee
-- "create": creare nuova categoria per transazioni ricorrenti non categorizzate
-
-Rispondi SOLO con un array JSON valido, senza testo aggiuntivo.
-Se non ci sono miglioramenti significativi, restituisci [].
-
-Schema (includi solo i campi pertinenti al tipo):
-[
-  {
-    "type": "merge" | "rename" | "split" | "create",
-    "category_type": "expense" | "income" | "saving",
-    "priority": "high" | "medium" | "low",
-    "reason": "motivazione breve (max 100 caratteri)",
-    "category_ids": ["id1","id2"],
-    "category_names": ["Nome1","Nome2"],
-    "category_id": "id",
-    "current_name": "Nome Attuale",
-    "suggested_name": "Nuovo Nome",
-    "suggested_icon": "emoji",
-    "suggested_names": [{"name":"Nome","icon":"emoji"}],
-    "example_descriptions": ["desc1","desc2"]
-  }
-]`
+  const prompt = `Ultimi ${LOOKBACK_DAYS} giorni, ${txList.length} movimenti analizzati.\n\n${groups.map(section).filter(Boolean).join('\n\n')}\n\n${uncategorized}`
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL ?? DEFAULT_MODEL,
-        max_tokens: 1024,
-        messages: [{ role: 'user', content: prompt }],
-      }),
+    const result = await callClaudeTool<{ suggestions: Suggestion[] }>({
+      apiKey,
+      model: MODEL_ANALYSIS,
+      system: SYSTEM,
+      prompt,
+      tool: TOOL,
+      maxTokens: 2048,
     })
+    if (!result.ok) return NextResponse.json({ error: 'Errore API AI' }, { status: 502 })
 
-    if (!res.ok) {
-      return NextResponse.json({ error: 'Errore API AI' }, { status: 502 })
-    }
-
-    const aiData = await res.json()
-    const text: string = aiData.content?.[0]?.text ?? '[]'
-
-    let suggestions: unknown[] = []
-    const match = text.match(/\[[\s\S]*\]/)
-    if (match) {
-      try { suggestions = JSON.parse(match[0]) } catch { /* restituisce [] */ }
-    }
+    // Scarta i suggerimenti che citano ID inesistenti o di tipo diverso
+    const ok = (id: string | undefined, type: CatType) => !!id && allIds.get(id) === type
+    const suggestions = (result.input.suggestions ?? []).filter((s) => {
+      if (s.type === 'merge') return (s.category_ids?.length ?? 0) >= 2 && s.category_ids!.every((id) => ok(id, s.category_type))
+      if (s.type === 'rename' || s.type === 'split') return ok(s.category_id, s.category_type)
+      return s.type === 'create'
+    })
 
     return NextResponse.json({
       suggestions,
       analyzed_transactions: txList.length,
-      analyzed_categories: allCats.length,
+      analyzed_categories: allIds.size,
     })
   } catch {
     return NextResponse.json({ error: 'Errore interno AI' }, { status: 500 })

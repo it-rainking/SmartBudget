@@ -1,6 +1,6 @@
 'use client'
 
-import '@/components/dashboard/chartSetup'
+import '@/components/charts/chartSetup'
 import { Bar, Line } from 'react-chartjs-2'
 import type { Plugin } from 'chart.js'
 import { formatPct, formatEur } from './format'

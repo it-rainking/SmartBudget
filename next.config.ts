@@ -1,4 +1,16 @@
 import type { NextConfig } from "next";
+import { execSync } from 'node:child_process'
+import pkg from './package.json'
+
+// Giorno di revisione: data dell'ultimo commit; se .git non c'è (alcuni build
+// di deploy) si ripiega sul giorno della build.
+function revisionDate(): string {
+  try {
+    const d = execSync('git log -1 --format=%cs', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d
+  } catch { /* nessun repo git */ }
+  return new Date().toISOString().slice(0, 10)
+}
 
 const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
@@ -32,6 +44,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  env: {
+    NEXT_PUBLIC_APP_VERSION: pkg.version,
+    NEXT_PUBLIC_APP_REVISION: revisionDate(),
+  },
   // yahoo-finance2 ships un dynamic import verso i propri file di test (usati
   // solo per il suo dev harness Deno) che il bundler prova a risolvere in
   // build anche se non viene mai eseguito: escluso dal bundling, resta un

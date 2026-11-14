@@ -1,222 +1,682 @@
 {
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/eslint.config.mjs": {
-    "mtime": 1763919512.0,
+    "mtime": 1780829989.0,
     "hash": "dfa1f5f6a7037bf39dc510f30b180002"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/next-env.d.ts": {
-    "mtime": 1763923253.0,
-    "hash": "d0f8375ae1199dc7acd3977fc33b78b8"
+    "mtime": 1780841025.0,
+    "hash": "2a74d3909800ca5467fa83b0ab4a4890"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/next.config.ts": {
-    "mtime": 1763919512.0,
-    "hash": "9b77af189a21a7a64e4bd7a426f64176"
+    "mtime": 1794656772.0,
+    "hash": "0efc2c3f70d11deb0380174cbd7fe986"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/postcss.config.mjs": {
-    "mtime": 1763919512.0,
+    "mtime": 1780829989.0,
     "hash": "239f3ebf717465dc636818a1a619398d"
   },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/vitest.config.ts": {
+    "mtime": 1794656772.0,
+    "hash": "739dfef3103ce3f5a9de94fc781bb9d1"
+  },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/middleware.ts": {
-    "mtime": 1763922981.0,
-    "hash": "a08290dbcfae94dd210232179afb3ff3"
+    "mtime": 1794656772.0,
+    "hash": "3d405fc11508abb9bd53762b6474d776"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/error.tsx": {
+    "mtime": 1780829989.0,
+    "hash": "ed13be49860bdc516d18a29633423c82"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/layout.tsx": {
-    "mtime": 1779343994.0,
-    "hash": "da8ae1d17fe4cca337d6864fa7681995"
+    "mtime": 1794656772.0,
+    "hash": "f61eb3bc7c5f89f4da721fa1cc72a630"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/loading.tsx": {
+    "mtime": 1780829989.0,
+    "hash": "85dea5f20bf7241c0668c92d55574007"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/manifest.ts": {
+    "mtime": 1782581865.0,
+    "hash": "470cfd614ceab71f7317d167aab42ee9"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/page.tsx": {
-    "mtime": 1763920112.0,
+    "mtime": 1780829989.0,
     "hash": "a10745009d702fc6f0bc3a2a4b20e949"
   },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/aggiorna-password/page.tsx": {
+    "mtime": 1783444492.0,
+    "hash": "54a81c9a0ba297c801690468801c4ac0"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/api/account/delete/route.ts": {
+    "mtime": 1783444492.0,
+    "hash": "0fdb417a6a5ddf81be29a4a40cc1d93e"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/api/ai/categorize/route.ts": {
+    "mtime": 1783444492.0,
+    "hash": "11efa31c6b7586e1b31c83046b63d731"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/api/ai/insights/route.ts": {
+    "mtime": 1794656772.0,
+    "hash": "5ab987f44b415bd4276dfe5d0db877a1"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/api/ai/simplify-categories/route.ts": {
+    "mtime": 1783444492.0,
+    "hash": "01ec9cbb3828784f72f22b75e5e0ae9e"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/api/cron/prices/route.ts": {
+    "mtime": 1794656772.0,
+    "hash": "e4efb23bec6fbd53ed3f5d3aaf0c2fe6"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/api/health/route.ts": {
+    "mtime": 1794656772.0,
+    "hash": "198296edb583c2cd5049bb5526b4564a"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/api/investments/import/route.ts": {
+    "mtime": 1794656772.0,
+    "hash": "ffa738339487a5135a874332323cc0dc"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/api/investments/summary/route.ts": {
+    "mtime": 1794656772.0,
+    "hash": "088fefd7b59ca63a08a788c08e2575d2"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/api/investments/tickers/route.ts": {
+    "mtime": 1794656772.0,
+    "hash": "416de6614f32c104d10a3fff3b0408ef"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/api/notifications/process/route.ts": {
+    "mtime": 1783444492.0,
+    "hash": "56eabcec7ded1a8b6a0bfec246f3ed6d"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/api/notifications/send/route.ts": {
+    "mtime": 1783444492.0,
+    "hash": "fed0abf4b9ae7e2cb7fde82563d678fe"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/api/notifications/test/route.ts": {
+    "mtime": 1783444492.0,
+    "hash": "c3cc47d2f04cfdf5258ca1d2b8bbd9bf"
+  },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/auth/callback/route.ts": {
-    "mtime": 1763923039.0,
-    "hash": "365d2f1b13f4089dd26f5e26a300da8d"
+    "mtime": 1782581865.0,
+    "hash": "4d49a153b7000847966bdefe30708260"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/budget/page.tsx": {
-    "mtime": 1779343994.0,
-    "hash": "0b3d86e5a704927050529f4ae64b962a"
+    "mtime": 1794656772.0,
+    "hash": "156927e12cc8da4959229f2d93dd9ac6"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/dashboard/annuale/page.tsx": {
-    "mtime": 1779343994.0,
-    "hash": "45f029c7a8fecbfc26f1389f91d160bf"
+    "mtime": 1794656772.0,
+    "hash": "c9c23ba38a1fdd96b6c0c13b4a29de0c"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/dashboard/mensile/page.tsx": {
-    "mtime": 1779343994.0,
-    "hash": "ec840166c5a71fb7ec1da1976ee07604"
+    "mtime": 1794656772.0,
+    "hash": "0841bc15f87cd6832fac825b1b7e9e49"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/debiti/page.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "8f1d5bb5d5eaec3afdb76b798e59f1d8"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/fatture/page.tsx": {
-    "mtime": 1779343994.0,
-    "hash": "ef610f2aae0dc850c32e19b7365981a8"
+    "mtime": 1794656772.0,
+    "hash": "5a45d20c22d6edf07f2c9231dddc58f4"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/fondo-pensione/page.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "36c2188b68daaa9f94d306ed30a2b2b4"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/investimenti/page.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "41cfaee1e1203dc0f503e81e327377b8"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/istruzioni/page.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "6c0b8d44a26c7ecec27470aca8fff321"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/login/page.tsx": {
-    "mtime": 1779343994.0,
-    "hash": "bd6078081efe132565d7747123a0b211"
+    "mtime": 1782368389.0,
+    "hash": "b4ce052f2780bbb125f90be48ec01503"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/obiettivi/page.tsx": {
-    "mtime": 1779343994.0,
-    "hash": "6bcf1019e3be9091655672907260e327"
+    "mtime": 1794656772.0,
+    "hash": "5c80db6e3a422c0be62710998667ee3e"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/onboarding/page.tsx": {
-    "mtime": 1779343994.0,
-    "hash": "924df000f5a8b9e957f910a6065b3bce"
+    "mtime": 1794656772.0,
+    "hash": "3e8f412723a07ab0f9ed95707c9debd7"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/recupera-password/page.tsx": {
+    "mtime": 1782368389.0,
+    "hash": "96e2315e724a26ef3c274a510d22a11d"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/settings/page.tsx": {
-    "mtime": 1779343994.0,
-    "hash": "d9ddd921d89116caccf5946800d32589"
+    "mtime": 1794656772.0,
+    "hash": "9343fc43444450cebce7172decfe7b0c"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/signup/page.tsx": {
-    "mtime": 1763923089.0,
-    "hash": "41a24f90c837c5f6fb2a016715f89528"
+    "mtime": 1783444492.0,
+    "hash": "7030ae0b958946cfd07e9e3d2f3998bc"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/spese-ricorrenti/page.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "c011b8639621a2f8fe41862a1efedc99"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/app/transazioni/page.tsx": {
-    "mtime": 1779343994.0,
-    "hash": "b67ddd6b4b6dbbcb927439382a82c468"
+    "mtime": 1794656772.0,
+    "hash": "247a2c2d63cdb9ac450109f4f8d5d8c3"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/AiCategorySuggestionsPanel.tsx": {
+    "mtime": 1783444492.0,
+    "hash": "b22599c58a70db43627c9a067c23ca69"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/DashboardLayout.tsx": {
-    "mtime": 1779343994.0,
-    "hash": "be8f0586e5046bcae38f7fc2d445a958"
+    "mtime": 1794656772.0,
+    "hash": "0b7bb35f3f8d17226e93d8309f733dd7"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/ImportCSVModal.tsx": {
-    "mtime": 1779343994.0,
-    "hash": "1f210a35fe2bbdd9837ff1c6735f3936"
+    "mtime": 1794656772.0,
+    "hash": "5f269940145a08a05325710c278d6fe2"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/MonthSwitcher.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "23bc06540b5c5c0c0212386cf4e3c5a8"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/NotificationBell.tsx": {
-    "mtime": 1779343994.0,
-    "hash": "53f60fd00c8c41a988cb2c66226315c8"
+    "mtime": 1783444492.0,
+    "hash": "31d99d3377d4e27bbd3ca03ee4e3b91d"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/Providers.tsx": {
-    "mtime": 1763920080.0,
-    "hash": "a1708e6a5610897c9a554f4c23b24c5b"
+    "mtime": 1794656772.0,
+    "hash": "10fe068c6b216290117d22f9a1096e5e"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/QuickAddSheet.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "046366ec8b4be33d10d74c8017be46e1"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/SpendingGroupsPanel.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "7194029d6bd91e693212ea06ebe03ec5"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/ThemeProvider.tsx": {
+    "mtime": 1783444492.0,
+    "hash": "72a1df96bb08bbf8993f729c9c013093"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/Toast.tsx": {
-    "mtime": 1779343994.0,
-    "hash": "05d53aaa0eb039228d019e6ac4572fd4"
+    "mtime": 1794656772.0,
+    "hash": "8efaf716bcda07ba0b0877208844fb53"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/charts/chartImpl.ts": {
+    "mtime": 1794656772.0,
+    "hash": "c178c1648cd356f0c51611c06b1f885e"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/charts/chartSetup.ts": {
+    "mtime": 1794656772.0,
+    "hash": "e1d7765b428e622b8dd22d7c37b4c47d"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/charts/LazyCharts.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "e01849bfd1653d0d80faddf0b39f2283"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/dashboard/AiInsightsSection.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "7ae42216742ed4ee668b9f20cd39939b"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/dashboard/BalanceHero.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "f2ad77344b9c07afe09cd29865b41aaf"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/dashboard/CategoryBreakdownSection.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "7e13eaa154cc87e95e973000cfd886ea"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/dashboard/CategoryExpensesModal.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "8d6d36f320f978c1be80e5e5ed545f3d"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/dashboard/IncomeSplitSection.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "8a815927c2db19cc30b8570427c64f08"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/dashboard/InstallmentPlansSummary.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "5a89e33fd84be6596fc17282721519f9"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/dashboard/RecurringExpensesBox.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "f39d3239e361041b2791bd4093deb109"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/dashboard/SpendingPlanSection.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "0ad9d293445b7c0530c9935b1c76579f"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/pension/format.ts": {
+    "mtime": 1794656772.0,
+    "hash": "37ab79c9fe427be9c1cc5dd40599f9aa"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/pension/PensionCharts.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "5ac75548189a3434d88114050aec5128"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/ui/Button.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "7716c4054f88f12bd38ccdaf83da613b"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/ui/Card.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "0c0dc1b65edd09fc508f32144c9160b1"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/ui/EmptyState.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "68a5538cdcbd5f92791c896fdaa5a232"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/ui/index.ts": {
+    "mtime": 1794656772.0,
+    "hash": "f89ca6c20976b6ce9e837e080c539f73"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/ui/KpiTile.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "c69b8315379b0f64b29bc8854173ce0b"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/ui/Modal.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "f247d49d24f4acd6b1ce427b427b629b"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/ui/Section.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "c5d2a02c1402d0dea924e3f1ca82e651"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/ui/Skeleton.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "43dbd08cce36d43985a9d949bed5040d"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/components/ui/SwipeRow.tsx": {
+    "mtime": 1794656772.0,
+    "hash": "d88d131df385187154d610055121c341"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useAiCategorySimplification.ts": {
+    "mtime": 1782581865.0,
+    "hash": "166f4f68d18f26f4a638cbb677324d7f"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useAnnualData.ts": {
-    "mtime": 1779343994.0,
-    "hash": "134191c3f8809bde24b0163688fa9ee2"
+    "mtime": 1794656772.0,
+    "hash": "df6ceb8377a99b2886dd76e448f86f25"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useAuth.ts": {
-    "mtime": 1763923067.0,
-    "hash": "809fc1a3c8aff1c11c1609820cb52a9f"
+    "mtime": 1783444492.0,
+    "hash": "fdfa0866ca22531f4b664cd1800f6b82"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useBudget.ts": {
-    "mtime": 1779343994.0,
-    "hash": "4e60426386a11ee1f921b7c1d0bbe5d5"
+    "mtime": 1794656772.0,
+    "hash": "1325826687c958d63cefefebbbc9b76c"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useCategories.ts": {
-    "mtime": 1779343994.0,
-    "hash": "54a32b3296d8babf5416023fedf97c9e"
+    "mtime": 1794656772.0,
+    "hash": "d00e74fc84cd011109c8990f735bd75e"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useDebtItems.ts": {
+    "mtime": 1780829989.0,
+    "hash": "87c919a7ab4e3a6102e53a995de2c944"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useDismissedDuplicates.ts": {
+    "mtime": 1794656772.0,
+    "hash": "1585d264c139ac5b08d7d3747b6cd963"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useGoals.ts": {
-    "mtime": 1779343994.0,
-    "hash": "d779fe7f701ceca76f66189da64d6a28"
+    "mtime": 1782581865.0,
+    "hash": "e12275072296562be9abca107ab89215"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useHorizontalSwipe.ts": {
+    "mtime": 1794656772.0,
+    "hash": "49ca79294f91438ede4682dadf7eea36"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useImportTransactions.ts": {
-    "mtime": 1779343994.0,
-    "hash": "1e3cadd8fbe8b72d57aabdce3e0f6e0a"
+    "mtime": 1794656772.0,
+    "hash": "4e94c5b184999aacdaa9755ebc8a07bc"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useInstallments.ts": {
+    "mtime": 1794656772.0,
+    "hash": "6f8749f6459cd2d15322cff3c7146ccc"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useInvestments.ts": {
+    "mtime": 1794656772.0,
+    "hash": "9a8965ed948221f721108ecd4d8ca437"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useInvoices.ts": {
-    "mtime": 1779343994.0,
-    "hash": "13905241eab577f9dc4af9b1c6f24c30"
+    "mtime": 1783444492.0,
+    "hash": "b9c785ce35fdea1cf079cff0dc7ff712"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useModalA11y.ts": {
+    "mtime": 1794656772.0,
+    "hash": "e748e0797e62a754ccd9a55437dc2bc7"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useNotifications.ts": {
-    "mtime": 1779343994.0,
-    "hash": "eaeda2da03a71dd4c160c7db4d526a3e"
+    "mtime": 1794656772.0,
+    "hash": "154547d5faeffd8921835d1f76101177"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/usePensionComparison.ts": {
+    "mtime": 1794656772.0,
+    "hash": "25d4f84158c0a279bf2a5725c692d626"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useRecurringExpenses.ts": {
+    "mtime": 1794656772.0,
+    "hash": "e812c1ec2c46b6a141cdb3638a76c7ea"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useSelectedMonth.ts": {
+    "mtime": 1794656772.0,
+    "hash": "7d2f56996c38ac5a5415a1d76c95e832"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useSettings.ts": {
-    "mtime": 1779343994.0,
+    "mtime": 1780829989.0,
     "hash": "db12bd1241b9e2f69ffa3eeb7a111660"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/hooks/useTransactions.ts": {
-    "mtime": 1779343994.0,
-    "hash": "b675b7c943af188620b3bdcd5e08514c"
+    "mtime": 1794656772.0,
+    "hash": "ab645ff1c2378e9f618c8e60cac29eea"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/duplicates.ts": {
+    "mtime": 1794656772.0,
+    "hash": "4f10f7ffaf6320e1cd1287fab101de73"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/installments.ts": {
+    "mtime": 1794656772.0,
+    "hash": "9641deb8b23a8a671bd6a2315e645925"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/kakebo.ts": {
+    "mtime": 1794656772.0,
+    "hash": "5db0c6bf70264ae0d3832c412085ac9f"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/queryClient.ts": {
-    "mtime": 1763920070.0,
+    "mtime": 1780829989.0,
     "hash": "848322caa022875f9f54cece828361df"
   },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/rateLimit.ts": {
+    "mtime": 1783444492.0,
+    "hash": "a02b911b137d17c6118c50f2416a0e5d"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/security.ts": {
+    "mtime": 1783444492.0,
+    "hash": "f4a94d8a14c1f392f481c018eb4246be"
+  },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/supabase-server.ts": {
-    "mtime": 1763922980.0,
+    "mtime": 1780829989.0,
     "hash": "a2289ab09b18ed8046484f23fe8e39d8"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/supabase.ts": {
-    "mtime": 1763922979.0,
-    "hash": "a3a256bd4839de98ecf4b34b886dd114"
+    "mtime": 1783444492.0,
+    "hash": "10d1833a7dc712d22ee853f4378325e0"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/themeScript.ts": {
+    "mtime": 1783444492.0,
+    "hash": "841292ae65d619a1b42b8527c3b22bec"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/utils.ts": {
-    "mtime": 1779343994.0,
-    "hash": "7a850e644fec731193a4d1519b90c76d"
+    "mtime": 1794656772.0,
+    "hash": "087c37e7ea0b0161cee78d1d22e95dcb"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/investments/classifyAsset.ts": {
+    "mtime": 1794656772.0,
+    "hash": "284fce7d9fa80c63c3efc5c3b701f302"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/investments/parseFinecoCsv.ts": {
+    "mtime": 1794656772.0,
+    "hash": "993d114b91d80daebf01aa9721309b61"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/investments/resolveTicker.ts": {
+    "mtime": 1794656772.0,
+    "hash": "f8af01751e3dd6de4cad5b15d2f3e712"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/pension/compare.ts": {
+    "mtime": 1794656772.0,
+    "hash": "d44c71be486b85eb744f40f9bde3adc0"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/prices/fx.ts": {
+    "mtime": 1794656772.0,
+    "hash": "624d96fff8b8561f00d2989dfa97a00d"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/prices/googleSheets.ts": {
+    "mtime": 1794656772.0,
+    "hash": "3685d03bcc2c98af659a7655a0cb7ba8"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/prices/resolveQuote.ts": {
+    "mtime": 1794656772.0,
+    "hash": "bb58217761ea1ed977a3a5fac119fca7"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/prices/types.ts": {
+    "mtime": 1794656772.0,
+    "hash": "47814f4e58ba02c7ef706c87debdae70"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/prices/yahoo.ts": {
+    "mtime": 1794656772.0,
+    "hash": "b07ee1ff7e9ec2e83bb41fcbaeae8a41"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/lib/prices/yahooChart.ts": {
+    "mtime": 1794656772.0,
+    "hash": "5018ebc3f1e29fa1c39fce202ebf8ace"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/types/database.ts": {
-    "mtime": 1779343994.0,
-    "hash": "97a120f2c287b3a09220255d1a47877d"
+    "mtime": 1794656772.0,
+    "hash": "a8f8e56d688cb8fbd3c87967b797818c"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/types/index.ts": {
-    "mtime": 1763925114.0,
-    "hash": "f82237ab713c3ca0a19fa07cb538274d"
+    "mtime": 1794656772.0,
+    "hash": "f4539a3a743547c1605e4a77e09ee1a2"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/src/types/investments.ts": {
+    "mtime": 1794656772.0,
+    "hash": "28ec7e50c07781cb22a5cf4e3ae4c9f9"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_categories_v2.sql": {
+    "mtime": 1782581865.0,
+    "hash": "b29aae003956803c59685050a692361d"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_custom_payment_methods.sql": {
+    "mtime": 1783753889.0,
+    "hash": "d96759cfec70331946fd48a4d0bfe988"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_dedupe_categories.sql": {
+    "mtime": 1794656772.0,
+    "hash": "f75c27d89def4256d37998c20bfa8c36"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_dismissed_duplicates.sql": {
+    "mtime": 1794656772.0,
+    "hash": "9b65f0d0ad8e10178647b1c1de09dd37"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_exceptional_transactions.sql": {
+    "mtime": 1794656772.0,
+    "hash": "3715eed2e9efc31eb5a5b1791769a5d6"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_investments.sql": {
+    "mtime": 1794656772.0,
+    "hash": "830248e65f1b408b5c50aa2953db98b1"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_investments_bond_quotation.sql": {
+    "mtime": 1794656772.0,
+    "hash": "df785fd8ac4f2532f2311298e34c5017"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_investments_fx.sql": {
+    "mtime": 1794656772.0,
+    "hash": "ef7eaee59828602132cf2ead7011aebd"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_investments_manual_prices.sql": {
+    "mtime": 1794656772.0,
+    "hash": "3b66de6228545001d6db5716112d0a01"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_payment_methods.sql": {
+    "mtime": 1782581865.0,
+    "hash": "eddd7736a5a3b64c2eec7c11476de727"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_paypal_installments.sql": {
+    "mtime": 1794656772.0,
+    "hash": "cddb0a601f40de21146993a23d937005"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_pension_comparison.sql": {
+    "mtime": 1794656772.0,
+    "hash": "c2c1255d367eb44ab9baef0d3c220929"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_performance.sql": {
+    "mtime": 1794656772.0,
+    "hash": "17aa84274cb57aa2a6ac4aac225cf7ea"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_recurring_expenses.sql": {
+    "mtime": 1794656772.0,
+    "hash": "4fd7242b9fa208aa37254294e24fcd82"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/migrate_spending_groups.sql": {
+    "mtime": 1794656772.0,
+    "hash": "b6d3a08e90288c13aa8fdfd9626ac790"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/rls_policies.sql": {
-    "mtime": 1763922914.0,
-    "hash": "e6a570dde4ab19ec890582570e4a6365"
+    "mtime": 1794656772.0,
+    "hash": "5810ade525b34d6634514be683290800"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/schema.sql": {
-    "mtime": 1763922883.0,
-    "hash": "758111a658227e2e104fe2b1255fa1dc"
+    "mtime": 1794656772.0,
+    "hash": "4ef38848d24c6bd548555fcf2429363c"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/supabase/seed_categories.sql": {
-    "mtime": 1763922941.0,
-    "hash": "4ec5a6d12621815bc23aaa6bd78ec6e8"
+    "mtime": 1794656772.0,
+    "hash": "5585f376063e7b9e71391ae385ffef3d"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/tests/duplicates/duplicates.test.ts": {
+    "mtime": 1794656772.0,
+    "hash": "7433c40a7afa641fdf29c9c48352df03"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/tests/installments/installments.test.ts": {
+    "mtime": 1794656772.0,
+    "hash": "0649b942503befa59840b06ef0355871"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/tests/investments/classifyAsset.test.ts": {
+    "mtime": 1794656772.0,
+    "hash": "9326ca1e25cfc6cd2c1c840c83663fe3"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/tests/investments/fx.test.ts": {
+    "mtime": 1794656772.0,
+    "hash": "5fcfa174a4e3546cd78a062903c14fcc"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/tests/investments/parseFinecoCsv.test.ts": {
+    "mtime": 1794656772.0,
+    "hash": "f9cb6da24b926d97f985153e98834fbf"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/tests/investments/priceFetcher.test.ts": {
+    "mtime": 1794656772.0,
+    "hash": "1df05e9610e8aa867bbe9a94fabad230"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/tests/kakebo/kakebo.test.ts": {
+    "mtime": 1794656772.0,
+    "hash": "f008441ebbe32356688a3c9741b5a105"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/tests/pension/compare.test.ts": {
+    "mtime": 1794656772.0,
+    "hash": "7230fcac5cd465756b7d533433b2916e"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/CLAUDE.md": {
-    "mtime": 1780157314.0,
-    "hash": "cc18d3a905cbb4fc23c4e11731d8d195"
+    "mtime": 1794656926.0,
+    "hash": "46d5f5ceff57d8fe65ee83eb608d1452"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/CLOUD_INSTALL.md": {
+    "mtime": 1780854481.0,
+    "hash": "55f5e75f15a1d5099c0c92cbf7065996"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/DEPLOY.md": {
+    "mtime": 1780841317.0,
+    "hash": "3e5ca8a293a8357fcb1727eadadb513b"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/INSTALLAZIONE.md": {
+    "mtime": 1780771710.0,
+    "hash": "5083c1ac0bd43475ad769233b4447318"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/README.md": {
-    "mtime": 1779343994.0,
-    "hash": "747103412aa88fe5aee5d433a4d20e73"
+    "mtime": 1780829989.0,
+    "hash": "0486a9feca8ecc8525b7439466fb9a6d"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/SMARTBUDGET \u2014 TECH SPEC COMPLETA (V.3).txt": {
-    "mtime": 1763916422.0,
+    "mtime": 1780829989.0,
     "hash": "8231da1030ef086f6038ddf6c13eff92"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/SmartBudget_TechDoc_TOC.md": {
-    "mtime": 1763908173.0,
+    "mtime": 1780829989.0,
     "hash": "eb4fe1060ac88365dbc713a852afcb00"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/SmartBudget_TechSpec.html": {
-    "mtime": 1763908122.0,
+    "mtime": 1780829989.0,
     "hash": "594a8637d3d4d9ebc3d71e8486537ec1"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/SmartBudget_TechSpec.md": {
-    "mtime": 1763907742.0,
+    "mtime": 1780829989.0,
     "hash": "152eb2930331f6ba2ab752598b5d0633"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/SmartBudget_TechSpec_Notion.md": {
-    "mtime": 1763908135.0,
+    "mtime": 1780829989.0,
     "hash": "f021ee7c9ea28f5accd433c62481fce2"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/TODO.md": {
-    "mtime": 1779343994.0,
-    "hash": "030175bde8072a8941e1caad11cc6b71"
+    "mtime": 1780829989.0,
+    "hash": "e52ed1720733fd96258104387f4e90d0"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/docs/ARCHITETTURA.md": {
+    "mtime": 1794656898.0,
+    "hash": "e3e4a0902714e11890e8fd4dacceab50"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/docs/investimenti-setup.md": {
+    "mtime": 1794656772.0,
+    "hash": "9e84bc244429cb28b14710f1b47c43c2"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/docs/kakebo-parte 1.pdf": {
+    "mtime": 1794656772.0,
+    "hash": "4f7996f2ac764d9b4e2d12786760f440"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/docs/kakebo-parte 2.pdf": {
+    "mtime": 1794656772.0,
+    "hash": "516c73dafa2318794426cd2b1d38d009"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/apple-touch-icon.png": {
+    "mtime": 1782581865.0,
+    "hash": "b2bd44949e4c410382af4fc1bc042861"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/favicon-32x32.png": {
+    "mtime": 1782581865.0,
+    "hash": "0513091376f6b797bc6699bbe04a185e"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/file.svg": {
-    "mtime": 1763919512.0,
+    "mtime": 1780829989.0,
     "hash": "d09f95206c3fa0bb9bd9fefabfd0ea71"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/globe.svg": {
-    "mtime": 1763919512.0,
+    "mtime": 1780829989.0,
     "hash": "2aaafa6a49b6563925fe440891e32717"
   },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/icon-192.png": {
+    "mtime": 1782581865.0,
+    "hash": "64b0755abd8aa4c007d79fa0ff028b5c"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/icon-512.png": {
+    "mtime": 1782581865.0,
+    "hash": "a463799a27f78b0311e4a3399cef1589"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/icon_v2_aurora.png": {
+    "mtime": 1782581865.0,
+    "hash": "85ecb1c11af15260ef2e1bf9902ea756"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/icon_v2_coin.png": {
+    "mtime": 1782581865.0,
+    "hash": "0224857ddffa7825813ad88828c7a342"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/icon_v2_leaf.png": {
+    "mtime": 1782581865.0,
+    "hash": "c6717f2e6c98a4f38cd136ebb93a92db"
+  },
+  "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/icon_v2_neon.png": {
+    "mtime": 1782581865.0,
+    "hash": "2bc6fb1434149928fa0754c8fb007b67"
+  },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/next.svg": {
-    "mtime": 1763919512.0,
+    "mtime": 1780829989.0,
     "hash": "8e061864f388b47f33a1c3780831193e"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/vercel.svg": {
-    "mtime": 1763919512.0,
+    "mtime": 1780829989.0,
     "hash": "c0af2f507b369b085b35ef4bbe3bcf1e"
   },
   "/Volumes/Dati/Dropbox/GitHub/SmartBudget/public/window.svg": {
-    "mtime": 1763919512.0,
+    "mtime": 1780829989.0,
     "hash": "a2760511c65806022ad20adf74370ff3"
   }
 }

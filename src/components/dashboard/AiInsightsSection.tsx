@@ -3,28 +3,38 @@
 import { useEffect, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { Section } from '@/components/ui'
-import type { useMonthlyKPIs } from '@/hooks/useTransactions'
-import type { ExpenseCategory } from '@/types'
+import { classNames } from '@/lib/utils'
 
-type Kpis = NonNullable<ReturnType<typeof useMonthlyKPIs>['data']>
+interface AiInsight {
+  title: string
+  text: string
+  action: string | null
+  tone: 'alert' | 'warning' | 'info' | 'positive'
+}
 
 interface AiInsightsSectionProps {
   month: number
   year: number
-  kpis: Kpis
-  expenseCategories: ExpenseCategory[] | undefined
-  currency: string
   className?: string
 }
 
-// Tre insight sul mese generati da /api/ai/insights, su richiesta
-export function AiInsightsSection({ month, year, kpis, expenseCategories, currency, className }: AiInsightsSectionProps) {
-  const [insights, setInsights] = useState<string[]>([])
+const TONE_STYLE: Record<AiInsight['tone'], { dot: string; box: string }> = {
+  alert: { dot: 'bg-red-500', box: 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/20' },
+  warning: { dot: 'bg-amber-500', box: 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/20' },
+  info: { dot: 'bg-violet-500', box: 'bg-violet-50 dark:bg-violet-900/10 border-violet-100 dark:border-violet-900/20' },
+  positive: { dot: 'bg-emerald-500', box: 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/20' },
+}
+
+// Analisi del mese generata da /api/ai/insights, su richiesta. Il server legge i
+// dati da sé (storico incluso): qui si invia solo il mese selezionato.
+export function AiInsightsSection({ month, year, className }: AiInsightsSectionProps) {
+  const [insights, setInsights] = useState<AiInsight[] | null>(null)
+  const [baselineMonths, setBaselineMonths] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setInsights([])
+    setInsights(null)
     setError(null)
   }, [month, year])
 
@@ -32,44 +42,28 @@ export function AiInsightsSection({ month, year, kpis, expenseCategories, curren
     setLoading(true)
     setError(null)
     try {
-      const categoryNames: Record<string, string> = {}
-      expenseCategories?.forEach((c) => { categoryNames[c.id] = c.name })
       const res = await fetch('/api/ai/insights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          month,
-          year,
-          kpis: {
-            totalIncome: kpis.totalIncome,
-            totalExpenses: kpis.totalExpenses,
-            totalSavings: kpis.totalSavings,
-            balance: kpis.balance,
-            savingsPercent: kpis.savingsPercent,
-            dailyAverage: kpis.dailyAverage,
-            deltaExpensePercent: kpis.deltaExpensePercent ?? null,
-            prevMonthExpenses: kpis.prevMonthExpenses ?? 0,
-            // Valori a condizioni normali: l'analisi deve ragionare su questi
-            ordinaryIncome: kpis.ordinaryIncome,
-            ordinaryExpenses: kpis.ordinaryExpenses,
-            ordinaryBalance: kpis.ordinaryBalance,
-            exceptionalIncome: kpis.exceptionalIncome,
-            exceptionalExpenses: kpis.exceptionalExpenses,
-          },
-          categoryBreakdown: kpis.categoryBreakdown,
-          categoryNames,
-          currency,
-        }),
+        body: JSON.stringify({ month, year }),
       })
       const data = await res.json()
-      if (data.error) throw new Error(data.error)
+      if (!res.ok || data.error) throw new Error(data.error || 'Errore AI')
       setInsights(data.insights ?? [])
+      setBaselineMonths(data.baselineMonths ?? 0)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Errore sconosciuto')
     } finally {
       setLoading(false)
     }
   }
+
+  const summary =
+    insights === null
+      ? 'Cosa merita attenzione questo mese'
+      : insights.length > 0
+        ? `${insights.length} ${insights.length === 1 ? 'osservazione' : 'osservazioni'} sul mese`
+        : 'Nessuna anomalia rilevante'
 
   return (
     <Section
@@ -78,7 +72,7 @@ export function AiInsightsSection({ month, year, kpis, expenseCategories, curren
       Icon={Sparkles}
       defaultOpen={false}
       className={className}
-      summary={insights.length > 0 ? `${insights.length} osservazioni sul mese` : '3 osservazioni sul mese selezionato'}
+      summary={summary}
       actions={
         <button
           onClick={analyze}
@@ -96,18 +90,33 @@ export function AiInsightsSection({ month, year, kpis, expenseCategories, curren
     >
       <div className="p-4 sm:p-5">
         {error && <p className="text-sm text-red-500 dark:text-red-400">{error}</p>}
-        {insights.length > 0 ? (
+        {insights && insights.length > 0 ? (
           <ol className="space-y-3">
-            {insights.map((insight, i) => (
-              <li key={i} className="flex gap-3 p-3 bg-violet-50 dark:bg-violet-900/10 rounded-lg border border-violet-100 dark:border-violet-900/20">
-                <span className="text-violet-500 font-bold text-xs mt-0.5 shrink-0">{i + 1}</span>
-                <p className="text-sm text-zinc-700 dark:text-zinc-300">{insight}</p>
-              </li>
-            ))}
+            {insights.map((insight, i) => {
+              const style = TONE_STYLE[insight.tone] ?? TONE_STYLE.info
+              return (
+                <li key={i} className={classNames('p-3 rounded-lg border', style.box)}>
+                  <div className="flex items-center gap-2">
+                    <span className={classNames('w-2 h-2 rounded-full shrink-0', style.dot)} />
+                    <h4 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">{insight.title}</h4>
+                  </div>
+                  <p className="mt-1.5 text-sm text-zinc-700 dark:text-zinc-300">{insight.text}</p>
+                  {insight.action && (
+                    <p className="mt-1.5 text-sm font-medium text-zinc-800 dark:text-zinc-200">→ {insight.action}</p>
+                  )}
+                </li>
+              )
+            })}
           </ol>
+        ) : insights ? (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-2">
+            {baselineMonths > 0
+              ? `Nessuna anomalia: il mese è in linea con la media dei ${baselineMonths} mesi precedenti.`
+              : 'Servono almeno un paio di mesi di movimenti per individuare scostamenti significativi.'}
+          </p>
         ) : !error && (
           <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-2">
-            Premi &quot;Analizza&quot; per ottenere 3 osservazioni personalizzate sul mese selezionato.
+            Premi &quot;Analizza&quot; per vedere cosa si discosta dal tuo andamento abituale.
           </p>
         )}
       </div>
