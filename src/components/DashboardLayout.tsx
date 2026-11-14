@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
@@ -53,6 +53,19 @@ function useQuickAddShortcut(open: () => void) {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
+  }, [open])
+}
+
+// ?rapido=1 nell'URL apre l'inserimento rapido all'arrivo sulla pagina: è il
+// link da usare nei Comandi rapidi di iOS (es. tocco posteriore). Il parametro
+// viene tolto subito, così un refresh o il tasto indietro non riaprono il foglio.
+function useQuickAddFromUrl(open: () => void) {
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('rapido') !== '1') return
+    url.searchParams.delete('rapido')
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+    open()
   }, [open])
 }
 
@@ -110,7 +123,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   useAutoGenerateRecurringExpenses()
-  useQuickAddShortcut(() => setQuickAddOpen(true))
+  const openQuickAdd = useCallback(() => setQuickAddOpen(true), [])
+  useQuickAddShortcut(openQuickAdd)
+  useQuickAddFromUrl(openQuickAdd)
 
   const hrefFor = (item: { href: string; monthAware?: boolean }) =>
     item.monthAware ? withMonthParam(item.href, monthParam) : item.href
