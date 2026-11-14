@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Providers } from "@/components/Providers";
+import { VersionBadge } from "@/components/VersionBadge";
 import { themeScript } from "@/lib/themeScript";
 import "./globals.css";
 
@@ -38,6 +39,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="antialiased font-sans">
+        <VersionBadge />
         <Providers>
           {children}
         </Providers>
