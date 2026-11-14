@@ -1,7 +1,6 @@
 'use client'
 
-import './chartSetup'
-import { Bar } from 'react-chartjs-2'
+import { Bar } from '@/components/charts/LazyCharts'
 import { BarChart3 } from 'lucide-react'
 import { Section } from '@/components/ui'
 import { formatCurrency } from '@/lib/utils'

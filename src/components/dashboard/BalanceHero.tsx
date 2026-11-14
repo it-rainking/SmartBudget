@@ -1,7 +1,6 @@
 'use client'
 
-import './chartSetup'
-import { Line } from 'react-chartjs-2'
+import { Line } from '@/components/charts/LazyCharts'
 import { Landmark } from 'lucide-react'
 import { Card, Skeleton } from '@/components/ui'
 import { formatCurrency, classNames } from '@/lib/utils'
