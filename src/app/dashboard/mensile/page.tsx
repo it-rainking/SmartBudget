@@ -152,11 +152,11 @@ export default function DashboardMensilePage() {
               value={fmtTile(kpis?.totalExpenses ?? 0)}
               tone="text-red-600 dark:text-red-400"
               loading={isLoading}
-              title="La variazione confronta le spese ordinarie con il mese precedente (movimenti eccezionali esclusi)"
+              title="La variazione confronta le spese ordinarie con il mese precedente allo stesso giorno del mese (movimenti eccezionali esclusi)"
               hint={delta !== null && delta !== undefined ? (
                 <span className={delta > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-emerald-600 dark:text-emerald-400 font-medium'}>
                   {delta > 0 ? '▲' : '▼'} {Math.abs(delta)}%
-                  <span className="hidden sm:inline font-normal text-zinc-500 dark:text-zinc-400"> vs mese prec. ({fmt(kpis?.prevMonthExpenses ?? 0)})</span>
+                  <span className="hidden sm:inline font-normal text-zinc-500 dark:text-zinc-400"> vs mese prec. ({fmt(kpis?.prevMonthExpensesToDate ?? 0)})</span>
                 </span>
               ) : undefined}
             />
@@ -245,15 +245,7 @@ export default function DashboardMensilePage() {
               savingsPercent={kpis?.savingsPercent ?? 0}
               currency={currency}
             />
-            {kpis && (
-              <AiInsightsSection
-                month={selectedMonth}
-                year={selectedYear}
-                kpis={kpis}
-                expenseCategories={expenseCategories}
-                currency={currency}
-              />
-            )}
+            {kpis && <AiInsightsSection month={selectedMonth} year={selectedYear} />}
           </div>
         )}
 

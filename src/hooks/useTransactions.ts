@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { getMonthDateRange, installmentDates, splitInstallments, PAYPAL_INSTALLMENT_COUNT } from '@/lib/utils'
+import { getLocalDateString, getMonthDateRange, installmentDates, splitInstallments, PAYPAL_INSTALLMENT_COUNT } from '@/lib/utils'
 import type { Transaction, TransactionFormData } from '@/types'
 import type { PlanExpense } from '@/lib/kakebo'
 
@@ -341,6 +341,12 @@ export function useMonthlyKPIs(month?: number, year?: number) {
   const { startDate: histStart } = getMonthDateRange(histStartM, histStartY)
 
   const daysInMonth = new Date(y, m, 0).getDate()
+  // Giorni trascorsi del mese (oggi incluso): base di media giornaliera e di
+  // confronto col mese precedente, che altrimenti metterebbe a confronto un
+  // mese parziale con uno intero. Mesi passati/futuri: mese intero.
+  const today = getLocalDateString()
+  const isCurrentMonth = startDate.slice(0, 7) === today.slice(0, 7)
+  const elapsedDays = isCurrentMonth ? Number(today.slice(8, 10)) : daysInMonth
 
   return useQuery({
     queryKey: ['monthly_kpis', { month: m, year: y }],
@@ -356,7 +362,7 @@ export function useMonthlyKPIs(month?: number, year?: number) {
           .lte('date', endDate),
         supabase
           .from('transactions')
-          .select('type, amount, is_exceptional')
+          .select('type, amount, is_exceptional, date')
           .gte('date', prevStart)
           .lte('date', prevEnd),
         supabase
@@ -405,6 +411,9 @@ export function useMonthlyKPIs(month?: number, year?: number) {
         // Spese ordinarie del mese precedente (base del confronto)
         prevMonthExpenses: 0,
         prevMonthExceptionalExpenses: 0,
+        // Spese ordinarie del mese precedente fino allo stesso giorno del mese:
+        // è il termine di confronto di deltaExpensePercent
+        prevMonthExpensesToDate: 0,
         deltaExpensePercent: null as number | null,
         dailyAverage: 0,
         topCategoryId: null as string | null,
@@ -468,7 +477,10 @@ export function useMonthlyKPIs(month?: number, year?: number) {
         if (t.type !== 'expense') return
         const amt = Number(t.amount)
         if (t.is_exceptional) kpis.prevMonthExceptionalExpenses += amt
-        else kpis.prevMonthExpenses += amt
+        else {
+          kpis.prevMonthExpenses += amt
+          if (Number(t.date.slice(8, 10)) <= elapsedDays) kpis.prevMonthExpensesToDate += amt
+        }
       })
 
       // Entrata mensile storica (media robusta degli ultimi 12 mesi, esclusi
@@ -490,7 +502,7 @@ export function useMonthlyKPIs(month?: number, year?: number) {
       // Saldo "a condizioni normali": ignora sia le entrate sia le spese una tantum
       kpis.ordinaryBalance = effectiveOrdinaryIncome - kpis.ordinaryExpenses - kpis.ordinarySavings - kpis.ordinaryDebts
       // La media giornaliera descrive il ritmo di spesa abituale: niente una tantum
-      kpis.dailyAverage = kpis.ordinaryExpenses / daysInMonth
+      kpis.dailyAverage = kpis.ordinaryExpenses / elapsedDays
 
       if (kpis.totalIncome > 0) {
         kpis.expensePercent = Math.round((kpis.totalExpenses / kpis.totalIncome) * 100)
@@ -500,8 +512,9 @@ export function useMonthlyKPIs(month?: number, year?: number) {
 
       // Delta mese su mese calcolato solo sulle spese ordinarie: una spesa
       // straordinaria non deve far sembrare il mese fuori controllo.
-      if (kpis.prevMonthExpenses > 0) {
-        const raw = ((kpis.ordinaryExpenses - kpis.prevMonthExpenses) / kpis.prevMonthExpenses) * 100
+      // Nel mese in corso il confronto è allo stesso giorno del mese precedente.
+      if (kpis.prevMonthExpensesToDate > 0) {
+        const raw = ((kpis.ordinaryExpenses - kpis.prevMonthExpensesToDate) / kpis.prevMonthExpensesToDate) * 100
         kpis.deltaExpensePercent = isNaN(raw) || !isFinite(raw) ? null : Math.round(raw)
       } else {
         kpis.deltaExpensePercent = null

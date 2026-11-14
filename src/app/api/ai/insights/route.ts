@@ -2,19 +2,66 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { checkRateLimit } from '@/lib/rateLimit'
+import { callClaudeTool, MODEL_ANALYSIS, type ClaudeTool } from '@/lib/ai/claude'
+import { buildFacts, type AiCategory, type AiRecurringModel, type AiTx } from '@/lib/ai/facts'
 
 const RATE_LIMIT = 20
 const RATE_WINDOW_MS = 10 * 60 * 1000
+const HISTORY_MONTHS = 3
+const PAGE_SIZE = 1000
+const MAX_PAGES = 6 // l'API Supabase limita a 1000 righe per richiesta
 
-// Modello Claude da usare. Sovrascrivi con la variabile d'ambiente ANTHROPIC_MODEL.
-// claude-haiku-4-5-20251001  — veloce, economico ($0.80/$4.00 per MTok in/out)
-// claude-sonnet-4-6           — bilanciato ($3.00/$15.00 per MTok in/out)
-// claude-opus-4-8             — più capace ($15.00/$75.00 per MTok in/out)
-const DEFAULT_MODEL = 'claude-haiku-4-5-20251001'
+const MONTHS_IT = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
 
-// POST /api/ai/insights
-// Genera 3 insight personalizzati sui dati finanziari del mese usando Claude.
-// Richiede sessione autenticata e ANTHROPIC_API_KEY nell'ambiente server.
+const SYSTEM = `Sei l'analista finanziario di SmartBudget, un'app italiana di gestione delle finanze personali.
+Ricevi un elenco di FATTI già calcolati sui dati reali dell'utente. Il tuo compito è scegliere i più utili, spiegarli in modo chiaro e dire cosa fare.
+
+Regole:
+- Usa SOLO i numeri presenti nei fatti. Non inventare cifre, non fare calcoli nuovi, non citare dati che non ci sono.
+- Scegli da 1 a 3 fatti, in ordine di importanza per il portafoglio dell'utente. Meno è meglio: se i fatti sono poco rilevanti, restituisci meno insight o nessuno.
+- Mai consigli generici ("spendi meno", "controlla le spese", "risparmia di più"). Ogni azione deve riferirsi a una voce concreta citata nel fatto e poter essere fatta oggi.
+- Se un fatto è una buona notizia (positive: true) dillo in modo sobrio, senza esagerare; l'azione può essere assente.
+- Se il mese è in corso, parla di proiezione e ritmo, non di totali finali. Se le entrate sono stimate, dillo.
+- Tono diretto e concreto, in italiano, dando del tu. Niente emoji, niente premesse, niente ripetizione dei dati già evidenti.
+- Gli importi sono già formattati nei fatti: riportali identici.`
+
+const TOOL: ClaudeTool = {
+  name: 'report_insights',
+  description: "Restituisce gli insight scelti, ognuno basato su uno o più fatti dell'elenco.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      insights: {
+        type: 'array',
+        maxItems: 3,
+        items: {
+          type: 'object',
+          properties: {
+            fact_ids: { type: 'array', items: { type: 'string' }, minItems: 1, description: 'ID dei fatti su cui si basa (es. F1)' },
+            title: { type: 'string', description: 'Titolo di massimo 6 parole' },
+            text: { type: 'string', description: 'Spiegazione in 1-2 frasi con i numeri dei fatti' },
+            action: { type: 'string', description: "Azione concreta da fare, 1 frase. Stringa vuota se è una buona notizia senza nulla da fare" },
+            tone: { type: 'string', enum: ['alert', 'warning', 'info', 'positive'] },
+          },
+          required: ['fact_ids', 'title', 'text', 'action', 'tone'],
+        },
+      },
+    },
+    required: ['insights'],
+  },
+}
+
+interface RawInsight {
+  fact_ids: string[]
+  title: string
+  text: string
+  action: string
+  tone: 'alert' | 'warning' | 'info' | 'positive'
+}
+
+// POST /api/ai/insights   body: { month, year }
+// Carica i dati dell'utente, calcola i fatti rilevanti (src/lib/ai/facts.ts) e
+// chiede a Claude di sceglierli e formularli. Richiede sessione e ANTHROPIC_API_KEY.
 export async function POST(req: Request) {
   const cookieStore = await cookies()
   const supabase = createServerClient(
@@ -29,122 +76,122 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Troppe richieste, riprova più tardi' }, { status: 429 })
   }
 
-  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
-  if (!ANTHROPIC_API_KEY) {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
     return NextResponse.json({ error: 'AI non configurata (manca ANTHROPIC_API_KEY)' }, { status: 503 })
   }
 
-  let body: {
-    month: number
-    year: number
-    kpis: {
-      totalIncome: number
-      totalExpenses: number
-      totalSavings: number
-      balance: number
-      savingsPercent: number
-      dailyAverage: number
-      deltaExpensePercent: number | null
-      prevMonthExpenses: number
-      // Valori al netto dei movimenti marcati come eccezionali (opzionali per
-      // retro-compatibilità con client non aggiornati)
-      ordinaryIncome?: number
-      ordinaryExpenses?: number
-      ordinaryBalance?: number
-      exceptionalIncome?: number
-      exceptionalExpenses?: number
-    }
-    categoryBreakdown: Record<string, number>
-    categoryNames: Record<string, string>
-    currency: string
-  }
-
+  let body: { month?: number; year?: number }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'JSON non valido' }, { status: 400 })
   }
-
-  const { month, year, kpis, categoryBreakdown, categoryNames, currency } = body
-  if (!month || !year || !kpis) {
-    return NextResponse.json({ error: 'Dati mancanti' }, { status: 400 })
+  const month = Number(body.month)
+  const year = Number(body.year)
+  if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(year) || year < 2000 || year > 2100) {
+    return NextResponse.json({ error: 'Mese o anno non validi' }, { status: 400 })
   }
-  const MONTHS_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre']
-  const monthName = MONTHS_IT[month - 1] ?? `Mese ${month}`
 
-  // Prepara il top 3 categorie per spesa
-  const topCats = Object.entries(categoryBreakdown)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 3)
-    .map(([id, amt]) => `${categoryNames[id] ?? 'Altro'}: ${amt.toFixed(2)} ${currency}`)
-    .join(', ')
+  // Intervallo: primo giorno di (mese − 3) → ultimo giorno del mese richiesto
+  const start = new Date(year, month - 1 - HISTORY_MONTHS, 1)
+  const startDate = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-01`
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`
 
-  // Movimenti eccezionali (una tantum): vanno citati a parte, non devono
-  // inquinare la lettura dell'andamento ordinario.
-  const exceptionalIncome = kpis.exceptionalIncome ?? 0
-  const exceptionalExpenses = kpis.exceptionalExpenses ?? 0
-  const hasExceptional = exceptionalIncome > 0 || exceptionalExpenses > 0
-  const exceptionalBlock = hasExceptional
-    ? `
-Movimenti eccezionali una tantum (già inclusi nei totali sopra, ma da considerare fuori dall'andamento ordinario):
-- Entrate eccezionali: ${exceptionalIncome.toFixed(2)} ${currency}
-- Spese eccezionali: ${exceptionalExpenses.toFixed(2)} ${currency}
-- Spese ordinarie (al netto delle eccezionali): ${(kpis.ordinaryExpenses ?? kpis.totalExpenses).toFixed(2)} ${currency}
-- Saldo a condizioni normali: ${(kpis.ordinaryBalance ?? kpis.balance).toFixed(2)} ${currency}
-Valuta l'andamento del mese sui valori ordinari; menziona i movimenti eccezionali solo come evento isolato, senza trattarli come tendenza.`
-    : ''
+  const [settingsRes, catsRes, recurringRes] = await Promise.all([
+    supabase.from('settings').select('currency').eq('user_id', user.id).maybeSingle(),
+    supabase.from('expense_categories').select('id, name, spending_group').eq('user_id', user.id),
+    supabase.from('recurring_expenses').select('id, name, amount, start_date, is_active').eq('user_id', user.id),
+  ])
 
-  const prompt = `Sei un consulente finanziario personale che analizza i dati finanziari di un utente.
+  const txs: AiTx[] = []
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('type, amount, date, category_id, description, payment_method, is_exceptional, is_recurring, recurring_expense_id, installment_plan_id')
+      .eq('user_id', user.id)
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: true })
+      .order('id', { ascending: true })
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+    if (error) return NextResponse.json({ error: 'Errore lettura dati' }, { status: 500 })
+    for (const t of data ?? []) {
+      txs.push({
+        type: t.type,
+        amount: Number(t.amount),
+        date: t.date,
+        category_id: t.category_id,
+        description: t.description,
+        payment_method: t.payment_method,
+        is_exceptional: !!t.is_exceptional,
+        is_recurring: !!t.is_recurring,
+        recurring_expense_id: t.recurring_expense_id ?? null,
+        installment_plan_id: t.installment_plan_id ?? null,
+      })
+    }
+    if ((data?.length ?? 0) < PAGE_SIZE) break
+  }
 
-Dati di ${monthName} ${year}:
-- Entrate totali: ${kpis.totalIncome.toFixed(2)} ${currency}
-- Spese totali: ${kpis.totalExpenses.toFixed(2)} ${currency}
-- Risparmi: ${kpis.totalSavings.toFixed(2)} ${currency}
-- Saldo netto: ${kpis.balance.toFixed(2)} ${currency}
-- Tasso di risparmio: ${kpis.savingsPercent}%
-- Spesa giornaliera media: ${kpis.dailyAverage.toFixed(2)} ${currency}
-- Variazione spese ordinarie vs mese precedente: ${kpis.deltaExpensePercent !== null ? `${kpis.deltaExpensePercent > 0 ? '+' : ''}${kpis.deltaExpensePercent}%` : 'N/D'}
-- Top 3 categorie di spesa: ${topCats || 'nessuna'}
-${exceptionalBlock}
+  const currency = settingsRes.data?.currency || 'EUR'
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Rome' })
+  const { facts, context } = buildFacts({
+    month,
+    year,
+    today,
+    currency,
+    txs,
+    categories: (catsRes.data ?? []) as AiCategory[],
+    recurring: (recurringRes.data ?? []).map((r) => ({ ...r, amount: Number(r.amount) })) as AiRecurringModel[],
+  })
 
-Genera esattamente 3 insight finanziari in italiano, concisi (max 2 frasi ciascuno), pratici e personalizzati su questi dati.
-Sii specifico sui numeri, non generico.
-Rispondi SOLO con un array JSON di 3 stringhe, nessun testo aggiuntivo.
-Esempio: ["Insight 1", "Insight 2", "Insight 3"]`
+  // Niente di rilevante: meglio dirlo che far inventare osservazioni al modello
+  if (facts.length === 0) {
+    return NextResponse.json({ insights: [], factCount: 0, baselineMonths: context.baselineMonths })
+  }
+
+  const prompt = [
+    `Oggi è ${today}. Analisi di ${MONTHS_IT[month - 1]} ${year} (valuta: ${currency}).`,
+    context.isCurrentMonth
+      ? `Il mese è in corso: giorno ${context.elapsedDays} di ${context.daysInMonth}.`
+      : 'Il mese è concluso.',
+    context.baselineMonths === 0
+      ? 'Non ci sono mesi precedenti con cui confrontare.'
+      : `Termine di confronto: media dei ${context.baselineMonths} mesi precedenti.`,
+    context.incomeEstimated ? 'Le entrate del mese non sono ancora registrate: i valori usano la media storica.' : null,
+    '',
+    'FATTI (ordinati per importanza decrescente):',
+    ...facts.map((f) => `${f.id} [${f.kind}${f.positive ? ', positive: true' : ''}] ${f.text}`),
+  ].filter((l): l is string => l !== null).join('\n')
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL ?? DEFAULT_MODEL,
-        max_tokens: 512,
-        messages: [{ role: 'user', content: prompt }],
-      }),
+    const result = await callClaudeTool<{ insights: RawInsight[] }>({
+      apiKey,
+      model: MODEL_ANALYSIS,
+      system: SYSTEM,
+      prompt,
+      tool: TOOL,
+      maxTokens: 1024,
     })
+    if (!result.ok) return NextResponse.json({ error: 'Errore API AI' }, { status: 502 })
 
-    if (!res.ok) {
-      return NextResponse.json({ error: 'Errore API AI' }, { status: 502 })
-    }
+    const validIds = new Set(facts.map((f) => f.id))
+    const insights = (result.input.insights ?? [])
+      .filter((i) => i.title && i.text && i.fact_ids?.some((id) => validIds.has(id)))
+      .slice(0, 3)
+      .map((i) => ({
+        title: i.title.trim(),
+        text: i.text.trim(),
+        action: i.action?.trim() || null,
+        tone: i.tone,
+      }))
 
-    const data = await res.json()
-    const text: string = data.content?.[0]?.text ?? '[]'
-
-    let insights: string[] = []
-    const match = text.match(/\[[\s\S]*?\]/)
-    if (match) {
-      try { insights = JSON.parse(match[0]) } catch { /* fallback */ }
-    }
-    if (!insights.length) {
-      insights = [text.trim()]
-    }
-
-    const usage = data.usage ?? {}
-    return NextResponse.json({ insights, usage })
+    return NextResponse.json({
+      insights,
+      factCount: facts.length,
+      baselineMonths: context.baselineMonths,
+      usage: result.usage,
+    })
   } catch {
     return NextResponse.json({ error: 'Errore interno AI' }, { status: 500 })
   }
