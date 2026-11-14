@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
@@ -14,7 +14,7 @@ import { classNames } from '@/lib/utils'
 import {
   LayoutDashboard, TrendingUp, CreditCard,
   Target, Settings, BookOpen,
-  Wallet, LogOut, LineChart, Repeat, Plus, MoreHorizontal,
+  Wallet, LogOut, LineChart, Repeat, Plus, MoreHorizontal, PiggyBank,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -56,6 +56,19 @@ function useQuickAddShortcut(open: () => void) {
   }, [open])
 }
 
+// ?rapido=1 nell'URL apre l'inserimento rapido all'arrivo sulla pagina: è il
+// link da usare nei Comandi rapidi di iOS (es. tocco posteriore). Il parametro
+// viene tolto subito, così un refresh o il tasto indietro non riaprono il foglio.
+function useQuickAddFromUrl(open: () => void) {
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('rapido') !== '1') return
+    url.searchParams.delete('rapido')
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+    open()
+  }, [open])
+}
+
 interface NavItem {
   name: string
   href: string
@@ -75,6 +88,7 @@ const navigation: NavItem[] = [
   { name: 'Spese ricorrenti', href: '/spese-ricorrenti', Icon: Repeat },
   { name: 'Obiettivi', href: '/obiettivi', Icon: Target },
   { name: 'Investimenti', href: '/investimenti', Icon: LineChart },
+  { name: 'Fondo pensione', href: '/fondo-pensione', Icon: PiggyBank },
   { name: 'Impostazioni', href: '/settings', Icon: Settings },
   { name: 'Istruzioni', href: '/istruzioni', Icon: BookOpen },
 ]
@@ -109,7 +123,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   useAutoGenerateRecurringExpenses()
-  useQuickAddShortcut(() => setQuickAddOpen(true))
+  const openQuickAdd = useCallback(() => setQuickAddOpen(true), [])
+  useQuickAddShortcut(openQuickAdd)
+  useQuickAddFromUrl(openQuickAdd)
 
   const hrefFor = (item: { href: string; monthAware?: boolean }) =>
     item.monthAware ? withMonthParam(item.href, monthParam) : item.href

@@ -1,0 +1,38 @@
+[
+{
+"comparto": "GAR",
+"comparto_label": "Garantito",
+"isc_fpn": 0.67,
+"isc_fpa": 1.19,
+"isc_pip": 1.87,
+"isc_min": 0.27,
+"isc_max": 2.58
+},
+{
+"comparto": "OBB",
+"comparto_label": "Obbligazionario (puro e misto)",
+"isc_fpn": 0.36,
+"isc_fpa": 1.06,
+"isc_pip": 1.94,
+"isc_min": 0.13,
+"isc_max": 2.7
+},
+{
+"comparto": "BIL",
+"comparto_label": "Bilanciato",
+"isc_fpn": 0.38,
+"isc_fpa": 1.44,
+"isc_pip": 2.14,
+"isc_min": 0.16,
+"isc_max": 2.9
+},
+{
+"comparto": "AZN",
+"comparto_label": "Azionario",
+"isc_fpn": 0.38,
+"isc_fpa": 1.72,
+"isc_pip": 2.62,
+"isc_min": 0.23,
+"isc_max": 4.07
+}
+]

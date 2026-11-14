@@ -35,7 +35,7 @@ export async function middleware(request: NextRequest) {
   const user = claimsData?.claims?.sub ? claimsData.claims : null
 
   // Protected routes
-  const protectedPaths = ['/dashboard', '/budget', '/transazioni', '/spese-ricorrenti', '/fatture', '/obiettivi', '/settings', '/onboarding', '/istruzioni', '/debiti', '/investimenti', '/aggiorna-password']
+  const protectedPaths = ['/dashboard', '/budget', '/transazioni', '/spese-ricorrenti', '/fatture', '/obiettivi', '/settings', '/onboarding', '/istruzioni', '/debiti', '/investimenti', '/fondo-pensione', '/aggiorna-password']
   const isProtectedPath = protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))
 
   // Auth routes (redirect if already logged in)

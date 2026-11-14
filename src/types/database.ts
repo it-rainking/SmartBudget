@@ -898,6 +898,32 @@ export type Database = {
           }
         ]
       }
+      pension_comparisons: {
+        Row: {
+          user_id: string
+          params: Record<string, unknown>
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          params?: Record<string, unknown>
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          params?: Record<string, unknown>
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'pension_comparisons_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: true
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
