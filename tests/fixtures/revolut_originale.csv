@@ -1,0 +1,8 @@
+Tipo,Prodotto,Data di inizio,Data di completamento,Descrizione,Importo,Costo,Valuta,State,Saldo
+Pagamento con carta,Attuale,2026-03-01 09:15:02,2026-03-02 07:01:44,Esselunga,-42.30,0.00,EUR,COMPLETATO,957.70
+Pagamento con carta,Attuale,2026-03-03 18:20:00,2026-03-04 06:00:00,PayPal *Steam,-19.99,0.00,EUR,COMPLETATO,937.71
+Pagamento con carta,Attuale,2026-03-05 10:00:00,,Ristorante Da Gino,-55.00,0.00,EUR,IN SOSPESO,
+Cambio,Attuale,2026-03-06 10:00:00,2026-03-06 10:00:00,Cambiato in USD,-100.00,0.50,EUR,COMPLETATO,837.21
+Pagamento con carta,Attuale,2026-03-07 10:00:00,2026-03-08 10:00:00,Satispay,-20.00,0.00,EUR,COMPLETATO,817.21
+Trasferimento,Attuale,2026-03-09 10:00:00,2026-03-09 10:00:00,Rimborso cena,35.00,0.00,EUR,COMPLETATO,852.21
+Pagamento con carta,Attuale,2026-03-10 10:00:00,2026-03-10 10:00:00,Ufficio postale,-10.00,1.00,EUR,COMPLETATO,841.21

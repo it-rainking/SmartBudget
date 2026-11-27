@@ -33,9 +33,9 @@ src/components/ DashboardLayout, Providers, Toast, NotificationBell, MonthSwitch
                 ImportCSVModal, ui/ (Modal, Section, Card, Button, KpiTile, ...), charts/, dashboard/, pension/
 src/hooks/      un hook React Query per dominio (useTransactions, useRecurringExpenses, useInvestments, ...)
 src/lib/        supabase(.ts|-server.ts), utils, kakebo, duplicates, installments, pension/, investments/, prices/,
-                ai/ (facts.ts: fatti calcolati per /api/ai/insights; claude.ts: client Anthropic con tool use)
+                import/ (estratti Fineco/Revolut: parser, regole, doppioni), ai/ (facts.ts: fatti calcolati per /api/ai/insights; claude.ts: client Anthropic con tool use)
 src/types/      database.ts (Supabase), index.ts (dominio), investments.ts
-tests/          vitest: investments, installments, duplicates, kakebo, pension
+tests/          vitest: investments, installments, duplicates, kakebo, pension, import
 ```
 
 ## Convenzioni
@@ -61,6 +61,7 @@ tests/          vitest: investments, installments, duplicates, kakebo, pension
 - **Investimenti**: controvalore = `quantità × prezzo / price_divisor`; prezzo con precedenza `market` > `manual` > `cost`; posizioni in valuta senza cambio **escluse** dai totali, mai sommare valute diverse. `holdings` sostituite integralmente a ogni import CSV.
 - **Invoice status**: `overdue` calcolato lato client (`applyDynamicStatus`).
 - **Import CSV/OFX**: categorie risolte per nome case-insensitive; senza match → "Non categorizzato" (spese) o badge ⚠️ in anteprima.
+- **Import estratti Fineco/Revolut** (`src/lib/import/`): regole di scarto (giroconti, addebito carta, compravendita titoli) e doppioni via `external_id` (UNIQUE `user_id, external_id`, migrazione `migrate_import_source.sql`); CSV Revolut salvato da Excel = importi ×100, corretti e verificati sulla catena dei saldi.
 - **AI**: il codice calcola i fatti (`src/lib/ai/facts.ts`, testati), Claude li sceglie e li formula (tool use, mai numeri inventati). Le route leggono i dati da sé (il client invia solo mese/anno). Modelli: `ANTHROPIC_MODEL` (default Sonnet 5.5), `ANTHROPIC_MODEL_SMALL` (categorize, default Haiku 5.5). `categorize` risolve prima dallo storico dell'utente.
 - **Fondo pensione**: logica pura in `src/lib/pension/compare.ts`; importi sempre in euro; dati COVIP in `src/lib/pension/data/*.json`.
 

@@ -177,6 +177,10 @@ CREATE TABLE public.transactions (
     installment_count INTEGER,
     -- Movimento eccezionale/una tantum: escluso da medie, delta e trend
     is_exceptional BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Import estratti conto: banca di provenienza e impronta del movimento
+    -- (UNIQUE per utente, vedi migrate_import_source.sql)
+    import_source TEXT,
+    external_id TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     CONSTRAINT transactions_installment_check CHECK (
@@ -395,6 +399,7 @@ CREATE INDEX idx_transactions_user_date ON public.transactions(user_id, date);
 CREATE INDEX idx_transactions_installment_plan ON public.transactions(installment_plan_id) WHERE installment_plan_id IS NOT NULL;
 CREATE INDEX idx_transactions_user_exceptional ON public.transactions(user_id, is_exceptional);
 CREATE INDEX idx_transactions_recurring_expense ON public.transactions(recurring_expense_id) WHERE recurring_expense_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_transactions_user_external_id ON public.transactions(user_id, external_id);
 
 -- Coppie di transazioni confermate come "non doppioni" (controllo doppioni in /transazioni)
 CREATE TABLE public.dismissed_duplicates (
