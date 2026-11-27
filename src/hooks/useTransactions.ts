@@ -81,6 +81,7 @@ export function useCreateTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['annual_data'] })
       queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
     },
   })
@@ -125,6 +126,7 @@ export function useCreateInstallmentPlan() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['annual_data'] })
       queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
     },
   })
@@ -204,6 +206,7 @@ export function useConvertToInstallmentPlan() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['annual_data'] })
       queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
     },
   })
@@ -227,6 +230,7 @@ export function useUpdateTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['annual_data'] })
       queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
     },
   })
@@ -247,6 +251,7 @@ export function useDeleteTransaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['annual_data'] })
       queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
     },
   })
@@ -268,6 +273,7 @@ export function useDeleteInstallmentPlan() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['annual_data'] })
       queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
     },
   })

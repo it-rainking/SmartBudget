@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Sun, Moon, Monitor, Download, BarChart3, LogOut, Trash2, AlertTriangle, Plus, X } from 'lucide-react'
 import { DEFAULT_PAYMENT_METHODS, getPaymentMethods } from '@/lib/utils'
+import { fetchAllRows } from '@/lib/supabaseFetchAll'
 import { AiCategorySuggestionsPanel } from '@/components/AiCategorySuggestionsPanel'
 import { SpendingGroupsPanel } from '@/components/SpendingGroupsPanel'
 import { useRouter } from 'next/navigation'
@@ -191,7 +192,9 @@ export default function SettingsPage() {
     setIsExporting(true)
     try {
       const uid = user.id
-      const { data: transactions } = await supabase.from('transactions').select('*').eq('user_id', uid).order('date', { ascending: false })
+      const transactions = await fetchAllRows((from, to) =>
+        supabase.from('transactions').select('*').eq('user_id', uid).order('date', { ascending: false }).order('id').range(from, to)
+      )
       const { data: invoices } = await supabase.from('invoices').select('*').eq('user_id', uid)
       const { data: goals } = await supabase.from('goals').select('*').eq('user_id', uid)
       const { data: budgets } = await supabase.from('monthly_budgets').select('*, monthly_budget_items(*)').eq('user_id', uid)
@@ -200,7 +203,7 @@ export default function SettingsPage() {
         exported_at: new Date().toISOString(),
         user_email: user?.email,
         settings,
-        transactions: transactions ?? [],
+        transactions,
         invoices: invoices ?? [],
         goals: goals ?? [],
         budgets: budgets ?? [],
@@ -225,8 +228,10 @@ export default function SettingsPage() {
     setIsExportingCSV(true)
     try {
       if (!user) return
-      const [{ data: transactions }, { data: expCats }, { data: incCats }, { data: savCats }] = await Promise.all([
-        supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
+      const [transactions, { data: expCats }, { data: incCats }, { data: savCats }] = await Promise.all([
+        fetchAllRows((from, to) =>
+          supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }).order('id').range(from, to)
+        ),
         supabase.from('expense_categories').select('id, name').eq('user_id', user.id),
         supabase.from('income_categories').select('id, name').eq('user_id', user.id),
         supabase.from('saving_categories').select('id, name').eq('user_id', user.id),
@@ -247,7 +252,7 @@ export default function SettingsPage() {
 
       const rows = [
         ['Data', 'Tipo', 'Categoria', 'Importo', 'Descrizione', 'Metodo di pagamento'].join(';'),
-        ...(transactions ?? []).map(t => [
+        ...transactions.map(t => [
           t.date,
           TYPE_IT[t.type] ?? t.type,
           escapeCsvFormula(t.category_id ? (catMap[t.category_id] ?? '') : 'Non categorizzato'),

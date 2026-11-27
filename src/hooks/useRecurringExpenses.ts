@@ -128,7 +128,13 @@ async function generateOccurrencesForMonth(userId: string, month: number, year: 
   if (toInsert.length === 0) return 0
 
   const { error: insertError } = await supabase.from('transactions').insert(toInsert)
-  if (insertError) throw insertError
+  if (insertError) {
+    // Un'altra scheda ha generato le stesse occorrenze nel frattempo e l'indice
+    // unico (migrate_hardening.sql) ha respinto il blocco: non è un errore. Le
+    // eventuali occorrenze mancanti arrivano al prossimo giro.
+    if (insertError.code === '23505') return 0
+    throw insertError
+  }
   return toInsert.length
 }
 
@@ -150,6 +156,7 @@ export function useEnsureCurrentMonthRecurring() {
       if (createdCount > 0) {
         queryClient.invalidateQueries({ queryKey: ['transactions'] })
         queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
+        queryClient.invalidateQueries({ queryKey: ['annual_data'] })
         queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
         queryClient.invalidateQueries({ queryKey: ['recurring_expenses'] })
       }
@@ -179,6 +186,7 @@ export function useGenerateRecurringBackfill() {
       if (createdCount > 0) {
         queryClient.invalidateQueries({ queryKey: ['transactions'] })
         queryClient.invalidateQueries({ queryKey: ['monthly_kpis'] })
+        queryClient.invalidateQueries({ queryKey: ['annual_data'] })
         queryClient.invalidateQueries({ queryKey: ['installment_plans'] })
         queryClient.invalidateQueries({ queryKey: ['recurring_expenses'] })
       }

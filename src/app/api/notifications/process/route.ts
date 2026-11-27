@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   )
 
   const sent = results.filter((r) => r.status === 'fulfilled').length
-  return NextResponse.json({ ok: true, processed: sent })
+  return NextResponse.json({ ok: true, processed: sent, failed: results.length - sent })
 }
 
 async function processUserNotifications(
@@ -118,9 +118,12 @@ async function processUserNotifications(
   if (!newNotifs.length) return
 
   // 3. Persisti le nuove notifiche
-  await supabase
+  // Senza salvataggio la deduplica non le vedrebbe e il giro successivo le
+  // rimanderebbe: si invia solo ciò che è stato registrato.
+  const { error: insertError } = await supabase
     .from('notifications')
     .insert(newNotifs.map((n) => ({ ...n, user_id: userId })))
+  if (insertError) throw new Error(`Salvataggio notifiche fallito: ${insertError.message}`)
 
   // 4. Invia ogni notifica tramite i canali configurati (email/Telegram)
   const origin = process.env.NEXT_PUBLIC_APP_URL

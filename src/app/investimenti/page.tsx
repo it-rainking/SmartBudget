@@ -5,7 +5,7 @@ import { DashboardLayout } from '@/components/DashboardLayout'
 import { useToast } from '@/components/Toast'
 import { useSettings } from '@/hooks/useSettings'
 import { useDeleteManualPrice, useImportCsv, useInvestments, useSetManualPrices } from '@/hooks/useInvestments'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, getLocalDateString } from '@/lib/utils'
 import type { AssetClass, ImportDiff, InvestmentPosition } from '@/types/investments'
 import { Modal } from '@/components/ui/Modal'
 
@@ -51,10 +51,6 @@ const MANUAL_PRICE_STALE_DAYS = 30
 
 type SortKey = 'weight' | 'name' | 'pnl'
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
@@ -89,7 +85,7 @@ function ManualPricesPanel({
       positions.map((p) => [p.asset_id, p.manual_price !== null ? String(p.manual_price) : ''])
     )
   )
-  const [pricedAt, setPricedAt] = useState(todayIso())
+  const [pricedAt, setPricedAt] = useState(getLocalDateString())
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -258,7 +254,7 @@ function ManualPricesPanel({
             <input
               type="date"
               value={pricedAt}
-              max={todayIso()}
+              max={getLocalDateString()}
               onChange={(e) => setPricedAt(e.target.value)}
               className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100"
             />

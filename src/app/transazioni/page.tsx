@@ -250,12 +250,18 @@ export default function TransazioniPage() {
                         (expenseCategories?.length || 0) > 0 ||
                         (savingCategories?.length || 0) > 0
 
+  // "Non categorizzato" comprende sia le transazioni senza categoria sia quelle
+  // assegnate alla categoria omonima (usata dall'import per le spese)
+  const uncategorizedIds = new Set(
+    (expenseCategories ?? []).filter(c => c.name.trim().toLowerCase() === 'non categorizzato').map(c => c.id)
+  )
+
   // Filtra client-side per descrizione, range importo e categoria
   const filteredTransactions = transactions?.filter(t => {
     if (searchTerm && !t.description?.toLowerCase().includes(searchTerm.toLowerCase())) return false
     if (filterMinAmount && t.amount < parseFloat(filterMinAmount)) return false
     if (filterMaxAmount && t.amount > parseFloat(filterMaxAmount)) return false
-    if (filterCategoryId === UNCATEGORIZED && t.category_id) return false
+    if (filterCategoryId === UNCATEGORIZED && t.category_id && !uncategorizedIds.has(t.category_id)) return false
     if (filterCategoryId && filterCategoryId !== UNCATEGORIZED && t.category_id !== filterCategoryId) return false
     // Filtro per giorno / range di giorni del mese (t.date è 'YYYY-MM-DD')
     if (filterDayFrom || filterDayTo) {
@@ -273,9 +279,12 @@ export default function TransazioniPage() {
   ]
 
   const totalPages = Math.ceil((filteredTransactions?.length ?? 0) / PAGE_SIZE)
+  // Eliminando l'ultima voce dell'ultima pagina, quella pagina sparisce: si
+  // mostra l'ultima esistente invece di una lista vuota
+  const page = Math.min(currentPage, Math.max(totalPages, 1))
   const paginatedTransactions = filteredTransactions?.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
   )
   // Lista raggruppata per giorno. Il totale del giorno è calcolato sull'intero
   // elenco filtrato: un giorno spezzato tra due pagine mostra lo stesso totale
@@ -485,8 +494,8 @@ export default function TransazioniPage() {
         category_id: formCategoryId || undefined,
         amount,
         date: formDate,
-        description: formDescription || undefined,
-        payment_method: formPaymentMethod || undefined,
+        description: formDescription || null,
+        payment_method: formPaymentMethod || null,
         is_recurring: formIsRecurring,
         is_exceptional: formIsExceptional,
         recurring_expense_id: linkedRecurringId,
@@ -736,7 +745,7 @@ export default function TransazioniPage() {
                 >
                   <option value="">Tutte</option>
                   <option value={UNCATEGORIZED}>Non categorizzato</option>
-                  {allCategories.map(c => (
+                  {allCategories.filter(c => !uncategorizedIds.has(c.id)).map(c => (
                     <option key={c.id} value={c.id}>{c.icon ? `${c.icon} ` : ''}{c.name}</option>
                   ))}
                 </select>
@@ -1062,14 +1071,14 @@ export default function TransazioniPage() {
         {!isLoading && totalPages > 1 && (
           <div className="flex items-center justify-between">
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredTransactions?.length ?? 0)} di {filteredTransactions?.length}
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredTransactions?.length ?? 0)} di {filteredTransactions?.length}
             </p>
             <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+              <Button variant="secondary" size="sm" onClick={() => setCurrentPage(Math.max(1, page - 1))} disabled={page === 1}>
                 <ChevronLeft size={14} /> Prec.
               </Button>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">{currentPage} / {totalPages}</span>
-              <Button variant="secondary" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">{page} / {totalPages}</span>
+              <Button variant="secondary" size="sm" onClick={() => setCurrentPage(Math.min(totalPages, page + 1))} disabled={page === totalPages}>
                 Succ. <ChevronRight size={14} />
               </Button>
             </div>
@@ -1123,10 +1132,11 @@ export default function TransazioniPage() {
 
             {/* Category */}
             <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+              <label htmlFor="tx-category" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                 Categoria
               </label>
               <select
+                id="tx-category"
                 value={formCategoryId}
                 onChange={(e) => setFormCategoryId(e.target.value)}
                 required
@@ -1143,10 +1153,11 @@ export default function TransazioniPage() {
 
             {/* Amount */}
             <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+              <label htmlFor="tx-amount" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                 {formIsInstallment ? 'Importo totale (€)' : 'Importo (€)'}
               </label>
               <input
+                id="tx-amount"
                 type="number"
                 inputMode="decimal"
                 step="0.01"
@@ -1161,10 +1172,11 @@ export default function TransazioniPage() {
 
             {/* Date */}
             <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+              <label htmlFor="tx-date" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                 Data
               </label>
               <input
+                id="tx-date"
                 type="date"
                 value={formDate}
                 onChange={(e) => setFormDate(e.target.value)}
@@ -1175,10 +1187,11 @@ export default function TransazioniPage() {
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+              <label htmlFor="tx-description" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                 Descrizione (opzionale)
               </label>
               <input
+                id="tx-description"
                 type="text"
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
@@ -1189,10 +1202,11 @@ export default function TransazioniPage() {
 
             {/* Payment Method */}
             <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+              <label htmlFor="tx-method" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                 Metodo di pagamento
               </label>
               <select
+                id="tx-method"
                 value={formPaymentMethod}
                 onChange={(e) => setFormPaymentMethod(e.target.value)}
                 className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white"
@@ -1287,6 +1301,7 @@ export default function TransazioniPage() {
                 onClick={() => setFormIsRecurring(v => !v)}
                 className={`relative w-11 h-6 rounded-full transition-colors focus:outline-none ${formIsRecurring ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}
                 aria-pressed={formIsRecurring}
+                aria-label="Transazione ricorrente"
               >
                 <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formIsRecurring ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>

@@ -1,15 +1,19 @@
 'use client'
 
 import { useState, useRef, useMemo } from 'react'
-import { parseCSV, parseOFX, resolveCategoryNames, useImportTransactions, findSimilarTransactions, type ParsedTransaction, type ParseRowError } from '@/hooks/useImportTransactions'
+import { useImportTransactions } from '@/hooks/useImportTransactions'
+import { parseCSV, parseOFX, resolveCategoryNames, findSimilarTransactions, type ParsedTransaction, type ParseRowError } from '@/lib/importParsers'
 import { useToast } from '@/components/Toast'
 import { useSettings } from '@/hooks/useSettings'
 import { useExpenseCategories, useIncomeCategories, useSavingCategories } from '@/hooks/useCategories'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
+import { decodeCsvBuffer } from '@/lib/decodeCsvBuffer'
 
 const TYPE_LABELS = { income: 'Entrata', expense: 'Spesa', saving: 'Risparmio' }
 const TYPE_COLORS = { income: 'text-emerald-600', expense: 'text-red-600', saving: 'text-blue-600' }
+// Massimo di descrizioni accettato da /api/ai/categorize per richiesta
+const AI_BATCH = 100
 
 const EXAMPLE_CSV = `data,tipo,importo,descrizione,categoria,sottocategoria,metodo,tag,note,eccezionale
 2026-01-15,entrata,2500,Stipendio gennaio,Stipendio,,bonifico,,,no
@@ -56,7 +60,8 @@ export function ImportCSVModal({ onClose }: Props) {
     const isOFX = /\.(ofx|qfx|qif)$/i.test(file.name)
     const reader = new FileReader()
     reader.onload = (e) => {
-      const text = e.target?.result as string
+      // Molte banche esportano in Windows-1252: forzare UTF-8 corrompe gli accenti
+      const text = decodeCsvBuffer(e.target?.result as ArrayBuffer)
       const { transactions, errors } = isOFX ? parseOFX(text) : parseCSV(text)
       setParseErrors(errors)
       if (transactions.length === 0) {
@@ -82,7 +87,7 @@ export function ImportCSVModal({ onClose }: Props) {
       setRows(resolved)
       setStep('preview')
     }
-    reader.readAsText(file, 'UTF-8')
+    reader.readAsArrayBuffer(file)
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -122,44 +127,52 @@ export function ImportCSVModal({ onClose }: Props) {
       return
     }
 
-    // Solo righe con descrizione non vuota e senza categoria già assegnata
-    const toClassify = rows.filter(r => r.description && r.category_id === undefined)
-    if (!toClassify.length) {
+    // Righe con descrizione e senza categoria. I risparmi restano fuori: l'AI
+    // conosce solo le categorie di spesa ed entrata.
+    const needsCategory = (r: ParsedTransaction) => !!r.description && r.category_id === undefined && r.type !== 'saving'
+    // Ogni descrizione una volta sola: le ripetizioni non consumano il limite per richiesta
+    const descriptions = [...new Set(rows.filter(needsCategory).map(r => r.description))]
+    if (!descriptions.length) {
       showToast('Tutte le righe hanno già una categoria', 'info')
       return
     }
 
     setIsCategorizingAI(true)
+    const found = new Map<string, { category_id: string; category_name: string }>()
+    let failure: string | null = null
     try {
-      const res = await fetch('/api/ai/categorize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          descriptions: toClassify.map(r => r.description),
-          categories: allCategories,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        showToast(data.error || 'Errore AI', 'error')
-        return
+      for (let i = 0; i < descriptions.length && !failure; i += AI_BATCH) {
+        const batch = descriptions.slice(i, i + AI_BATCH)
+        const res = await fetch('/api/ai/categorize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ descriptions: batch, categories: allCategories }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          failure = data.error || 'Errore AI'
+          break
+        }
+        // Le risposte sono nello stesso ordine delle descrizioni inviate: si
+        // ricollegano per posizione, perché il server tronca i testi lunghi.
+        // NONE (category_id null) non si applica: la spesa finirà in "Non categorizzato".
+        ;(data.suggestions ?? []).forEach((s: { category_id: string | null; category_name: string }, j: number) => {
+          if (s.category_id && batch[j] !== undefined) found.set(batch[j], { category_id: s.category_id, category_name: s.category_name })
+        })
       }
-
-      const suggestionsMap: Record<string, { category_id: string | null; category_name: string }> = {}
-      for (const s of data.suggestions ?? []) {
-        suggestionsMap[s.description] = { category_id: s.category_id, category_name: s.category_name }
-      }
-
-      setRows(prev => prev.map(r => {
-        if (r.category_id !== undefined || !r.description) return r
-        const s = suggestionsMap[r.description]
-        return s ? { ...r, category_id: s.category_id, category_name: s.category_name } : r
-      }))
-      showToast('Categorie suggerite dall\'AI', 'success')
     } catch {
-      showToast('Errore connessione AI', 'error')
+      failure = 'Errore connessione AI'
     } finally {
       setIsCategorizingAI(false)
+    }
+
+    if (found.size > 0) {
+      setRows(prev => prev.map(r => (needsCategory(r) && found.has(r.description) ? { ...r, ...found.get(r.description)! } : r)))
+    }
+    if (failure) {
+      showToast(found.size > 0 ? `${failure}: categorie applicate solo in parte` : failure, 'error')
+    } else {
+      showToast(found.size > 0 ? `Categoria suggerita per ${found.size} descrizioni su ${descriptions.length}` : 'Nessuna categoria adatta trovata', found.size > 0 ? 'success' : 'info')
     }
   }
 
@@ -240,8 +253,8 @@ export function ImportCSVModal({ onClose }: Props) {
                   <div className="grid grid-cols-2 gap-1 text-xs">
                     {[
                       ['data / date', 'YYYY-MM-DD o DD/MM/YYYY'],
-                      ['tipo / type', 'entrata · spesa · risparmio'],
-                      ['importo / amount', 'numero positivo'],
+                      ['tipo / type', 'entrata · spesa · risparmio; se manca decide il segno'],
+                      ['importo / amount', 'numero (con ; la virgola è il decimale)'],
                       ['descrizione', 'opzionale'],
                       ['categoria', 'opzionale — nome esatto di una tua categoria'],
                       ['sottocategoria', 'opzionale — solo per le spese'],
@@ -390,7 +403,7 @@ export function ImportCSVModal({ onClose }: Props) {
                           )}
                         </td>
                         <td className="px-3 py-2">
-                          <button onClick={() => removeRow(i)} className="text-zinc-300 hover:text-red-500 dark:text-zinc-600 dark:hover:text-red-400 transition-colors">✕</button>
+                          <button onClick={() => removeRow(i)} aria-label={`Rimuovi la riga del ${row.date}`} className="text-zinc-300 hover:text-red-500 dark:text-zinc-600 dark:hover:text-red-400 transition-colors">✕</button>
                         </td>
                       </tr>
                     )
