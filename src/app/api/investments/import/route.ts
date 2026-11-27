@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     // Stato precedente (per il diff), prima di sostituire le holdings.
     const [{ data: existingAssets }, { data: existingHoldings }] = await Promise.all([
       supabase.from('assets').select('id, isin, ticker_gf, ticker_yahoo, name, asset_class, currency').eq('user_id', user.id),
-      supabase.from('holdings').select('asset_id, quantity, avg_cost').eq('user_id', user.id),
+      supabase.from('holdings').select('asset_id, quantity, avg_cost, source, imported_at').eq('user_id', user.id),
     ])
     const existingByIsin = new Map((existingAssets ?? []).map((a) => [a.isin, a]))
     const assetIdToIsin = new Map((existingAssets ?? []).map((a) => [a.id, a.isin]))
@@ -166,6 +166,13 @@ export async function POST(req: Request) {
 
     const { error: insertError } = await supabase.from('holdings').insert(holdingsToInsert)
     if (insertError) {
+      // Le posizioni precedenti sono già state cancellate: si rimettono, così un
+      // import fallito non lascia il portafoglio vuoto.
+      // shortcut: non è una transazione, se cade anche questo insert le posizioni
+      // vanno reimportate; passare a una funzione SQL se succede davvero.
+      if (existingHoldings?.length) {
+        await supabase.from('holdings').insert(existingHoldings.map((h) => ({ ...h, user_id: user.id })))
+      }
       return NextResponse.json({ error: `Errore inserimento holdings: ${insertError.message}` }, { status: 500 })
     }
 

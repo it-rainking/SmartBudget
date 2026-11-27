@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/supabaseFetchAll'
 
 export interface MonthlyAnnualData {
   month: number
@@ -57,13 +58,15 @@ export function useAnnualData(year: number) {
   return useQuery({
     queryKey: ['annual_data', year],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('type, amount, date, is_exceptional')
-        .gte('date', `${year}-01-01`)
-        .lte('date', `${year}-12-31`)
-
-      if (error) throw error
+      const data = await fetchAllRows((from, to) =>
+        supabase
+          .from('transactions')
+          .select('type, amount, date, is_exceptional')
+          .gte('date', `${year}-01-01`)
+          .lte('date', `${year}-12-31`)
+          .order('id')
+          .range(from, to)
+      )
 
       const months: MonthlyAnnualData[] = Array.from({ length: 12 }, (_, i) => ({
         month: i + 1,
@@ -81,7 +84,7 @@ export function useAnnualData(year: number) {
         exceptionalSavings: 0,
       }))
 
-      data?.forEach((t) => {
+      data.forEach((t) => {
         const mi = parseInt(t.date.split('-')[1]) - 1
         const amt = Number(t.amount)
         const exceptional = !!t.is_exceptional

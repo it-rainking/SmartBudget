@@ -4,12 +4,12 @@ import { NextResponse } from 'next/server'
 import { checkRateLimit } from '@/lib/rateLimit'
 import { callClaudeTool, MODEL_ANALYSIS, type ClaudeTool } from '@/lib/ai/claude'
 import { buildFacts, type AiCategory, type AiRecurringModel, type AiTx } from '@/lib/ai/facts'
+import { fetchAllRows, SUPABASE_PAGE_SIZE } from '@/lib/supabaseFetchAll'
 
 const RATE_LIMIT = 20
 const RATE_WINDOW_MS = 10 * 60 * 1000
 const HISTORY_MONTHS = 3
-const PAGE_SIZE = 1000
-const MAX_PAGES = 6 // l'API Supabase limita a 1000 righe per richiesta
+const MAX_ROWS = 6 * SUPABASE_PAGE_SIZE
 
 const MONTHS_IT = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
 
@@ -104,34 +104,36 @@ export async function POST(req: Request) {
     supabase.from('recurring_expenses').select('id, name, amount, start_date, is_active').eq('user_id', user.id),
   ])
 
-  const txs: AiTx[] = []
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('type, amount, date, category_id, description, payment_method, is_exceptional, is_recurring, recurring_expense_id, installment_plan_id')
-      .eq('user_id', user.id)
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .order('date', { ascending: true })
-      .order('id', { ascending: true })
-      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
-    if (error) return NextResponse.json({ error: 'Errore lettura dati' }, { status: 500 })
-    for (const t of data ?? []) {
-      txs.push({
-        type: t.type,
-        amount: Number(t.amount),
-        date: t.date,
-        category_id: t.category_id,
-        description: t.description,
-        payment_method: t.payment_method,
-        is_exceptional: !!t.is_exceptional,
-        is_recurring: !!t.is_recurring,
-        recurring_expense_id: t.recurring_expense_id ?? null,
-        installment_plan_id: t.installment_plan_id ?? null,
-      })
-    }
-    if ((data?.length ?? 0) < PAGE_SIZE) break
+  let rows
+  try {
+    rows = await fetchAllRows(
+      (from, to) =>
+        supabase
+          .from('transactions')
+          .select('type, amount, date, category_id, description, payment_method, is_exceptional, is_recurring, recurring_expense_id, installment_plan_id')
+          .eq('user_id', user.id)
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .order('date', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, to),
+      MAX_ROWS
+    )
+  } catch {
+    return NextResponse.json({ error: 'Errore lettura dati' }, { status: 500 })
   }
+  const txs: AiTx[] = rows.map((t) => ({
+    type: t.type,
+    amount: Number(t.amount),
+    date: t.date,
+    category_id: t.category_id,
+    description: t.description,
+    payment_method: t.payment_method,
+    is_exceptional: !!t.is_exceptional,
+    is_recurring: !!t.is_recurring,
+    recurring_expense_id: t.recurring_expense_id ?? null,
+    installment_plan_id: t.installment_plan_id ?? null,
+  }))
 
   const currency = settingsRes.data?.currency || 'EUR'
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Rome' })

@@ -279,8 +279,9 @@ export interface TransactionFormData {
   subcategory_id?: string
   amount: number
   date: string
-  description?: string
-  payment_method?: string
+  // null cancella il valore in modifica; undefined lo lascia invariato
+  description?: string | null
+  payment_method?: string | null
   tags?: string[]
   notes?: string
   is_recurring?: boolean
