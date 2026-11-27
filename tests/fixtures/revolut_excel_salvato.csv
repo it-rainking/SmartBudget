@@ -1,0 +1,10 @@
+Tipo;Prodotto;Data di inizio;Data di completamento;Descrizione;Importo;Costo;Valuta;State;Saldo
+Pagamento;Attuale;02/01/26 10:47;02/01/26 10:47;To Robo portfolio;-500;0;EUR;COMPLETATO;180614
+Pagamento;Attuale;02/01/26 14:47;02/01/26 14:47;To Robo portfolio;-900;0;EUR;COMPLETATO;179714
+Pagamento con carta;Attuale;02/01/26 10:47;03/01/26 06:12;ATM - Azienda Trasporti Milanesi;-1950;0;EUR;COMPLETATO;177764
+Pagamento con carta;Attuale;02/01/26 14:47;03/01/26 16:16;Pane & Trita;-15010;0;EUR;COMPLETATO;162754
+Pagamento con carta;Attuale;19/01/26 21:02;20/01/26 03:42;Amazon;-2200;0;EUR;COMPLETATO;160554
+Ricarica;Attuale;29/01/26 03:02;29/01/26 03:02;Pagamento da MARIO ROSSI;100000;0;EUR;COMPLETATO;260554
+Pagamento con carta;Attuale;30/01/26 12:00;31/01/26 08:00;Bar Centrale;-350;0;EUR;COMPLETATO;250000
+;;;;;;;;;
+;;;;;;;;;

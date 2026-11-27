@@ -7,6 +7,9 @@ import { useSettings } from '@/hooks/useSettings'
 import { useExpenseCategories, useIncomeCategories, useSavingCategories } from '@/hooks/useCategories'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Modal } from '@/components/ui/Modal'
+import { StatementReview } from '@/components/StatementReview'
+import { fetchExistingForImport, useImportStatement, type ImportStatementResult } from '@/hooks/useImportStatement'
+import { classifyAgainstExisting, defaultIncluded, isSelected, parseStatementFile, type DuplicateDecision, type ReviewItem, type StatementSource } from '@/lib/import'
 
 const TYPE_LABELS = { income: 'Entrata', expense: 'Spesa', saving: 'Risparmio' }
 const TYPE_COLORS = { income: 'text-emerald-600', expense: 'text-red-600', saving: 'text-blue-600' }
@@ -37,7 +40,14 @@ export function ImportCSVModal({ onClose }: Props) {
   const [showParseErrors, setShowParseErrors] = useState(false)
   const [unmatchedCategories, setUnmatchedCategories] = useState<string[]>([])
   const [fileName, setFileName] = useState<string | null>(null)
-  const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
+  const [step, setStep] = useState<'upload' | 'preview' | 'review' | 'done'>('upload')
+  // Estratto conto riconosciuto (Fineco, Revolut): flusso con revisione doppioni
+  const importStatement = useImportStatement()
+  const [statement, setStatement] = useState<{ source: StatementSource; warnings: string[]; errors: { location: string; reason: string }[] } | null>(null)
+  const [reviewItems, setReviewItems] = useState<ReviewItem[]>([])
+  const [included, setIncluded] = useState<Set<string>>(new Set())
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [statementResult, setStatementResult] = useState<ImportStatementResult | null>(null)
   const [importResult, setImportResult] = useState<{ inserted: number; skipped: number } | null>(null)
   const [isCategorizingAI, setIsCategorizingAI] = useState(false)
 
@@ -47,13 +57,40 @@ export function ImportCSVModal({ onClose }: Props) {
 
   const similarMatches = useMemo(() => findSimilarTransactions(rows), [rows])
 
-  function handleFile(file: File) {
+  async function handleFile(file: File) {
     setParseError(null)
     setParseErrors([])
     setShowParseErrors(false)
     setUnmatchedCategories([])
     setFileName(file.name)
     const isOFX = /\.(ofx|qfx|qif)$/i.test(file.name)
+
+    if (!isOFX) {
+      setIsAnalyzing(true)
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer())
+        const parsed = parseStatementFile(file.name, bytes, { baseCurrency: currency })
+        if (parsed) {
+          if (parsed.candidates.length === 0) {
+            setParseError(parsed.errors[0]?.reason ?? 'Nessun movimento trovato nel file')
+            return
+          }
+          const existing = await fetchExistingForImport(parsed.candidates)
+          const items = classifyAgainstExisting(parsed.candidates, existing)
+          setStatement({ source: parsed.source, warnings: parsed.warnings, errors: parsed.errors })
+          setReviewItems(items)
+          setIncluded(defaultIncluded(items))
+          setStep('review')
+          return
+        }
+      } catch (err) {
+        setParseError(err instanceof Error ? err.message : 'Errore nella lettura del file')
+        return
+      } finally {
+        setIsAnalyzing(false)
+      }
+    }
+
     const reader = new FileReader()
     reader.onload = (e) => {
       const text = e.target?.result as string
@@ -83,6 +120,39 @@ export function ImportCSVModal({ onClose }: Props) {
       setStep('preview')
     }
     reader.readAsText(file, 'UTF-8')
+  }
+
+  function toggleMany(ids: string[], value: boolean) {
+    setIncluded(prev => {
+      const next = new Set(prev)
+      ids.forEach(id => (value ? next.add(id) : next.delete(id)))
+      return next
+    })
+  }
+
+  function setDecision(externalId: string, decision: DuplicateDecision) {
+    setReviewItems(prev => prev.map(i => (i.external_id === externalId ? { ...i, decision } : i)))
+  }
+
+  const statementSelected = useMemo(() => reviewItems.filter(i => isSelected(i, included)).length, [reviewItems, included])
+
+  async function handleImportStatement() {
+    try {
+      const result = await importStatement.mutateAsync({ items: reviewItems, included })
+      setStatementResult(result)
+      showToast(`${result.inserted + result.replaced} movimenti importati`, 'success')
+      setStep('done')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Errore durante l\'importazione', 'error')
+    }
+  }
+
+  function resetStatement() {
+    setStep('upload')
+    setStatement(null)
+    setReviewItems([])
+    setIncluded(new Set())
+    setFileName(null)
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -183,6 +253,9 @@ export function ImportCSVModal({ onClose }: Props) {
           {step === 'preview' && (
             <p className="text-xs text-zinc-500 dark:text-zinc-400">{fileName} — {rows.length} righe trovate</p>
           )}
+          {step === 'review' && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">{fileName} — {reviewItems.length} movimenti</p>
+          )}
         </div>
         <button onClick={onClose} aria-label="Chiudi" className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">✕</button>
       </div>
@@ -203,13 +276,13 @@ export function ImportCSVModal({ onClose }: Props) {
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
               className="border-2 border-dashed border-zinc-300 dark:border-zinc-600 rounded-xl p-10 text-center cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
             >
-              <div className="text-4xl mb-3">📂</div>
-              <p className="font-medium text-zinc-700 dark:text-zinc-300">Trascina qui il file</p>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">CSV, OFX / QFX — oppure clicca per selezionare</p>
+              <div className="text-4xl mb-3">{isAnalyzing ? '⏳' : '📂'}</div>
+              <p className="font-medium text-zinc-700 dark:text-zinc-300">{isAnalyzing ? 'Analisi del file e controllo doppioni...' : 'Trascina qui il file'}</p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Estratto Fineco (.xlsx) o Revolut (.csv), CSV, OFX / QFX — oppure clicca per selezionare</p>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,.txt,.ofx,.qfx,.qif"
+                accept=".csv,.txt,.ofx,.qfx,.qif,.xlsx"
                 className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
               />
@@ -235,6 +308,13 @@ export function ImportCSVModal({ onClose }: Props) {
             <div className="bg-zinc-50 dark:bg-zinc-700/40 rounded-xl p-4 space-y-3">
               <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wide">Formati supportati</p>
               <div className="space-y-2">
+                <div>
+                  <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300">Estratti conto Fineco e Revolut</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Fineco: export movimenti in .xlsx. Revolut: estratto conto in .csv, caricato così come lo scarichi (non salvarlo da Excel).
+                    Prima dell&apos;import vedi doppioni, giroconti e addebiti carta scartati, e decidi tu cosa tenere.
+                  </p>
+                </div>
                 <div>
                   <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">CSV (separatore , o ;)</p>
                   <div className="grid grid-cols-2 gap-1 text-xs">
@@ -407,11 +487,35 @@ export function ImportCSVModal({ onClose }: Props) {
           </div>
         )}
 
+        {/* Step: Review estratto conto */}
+        {step === 'review' && statement && (
+          <StatementReview
+            source={statement.source}
+            items={reviewItems}
+            included={included}
+            warnings={statement.warnings}
+            errors={statement.errors}
+            currency={currency}
+            onToggle={(id, v) => toggleMany([id], v)}
+            onToggleMany={toggleMany}
+            onDecision={setDecision}
+          />
+        )}
+
         {/* Step: Done */}
         {step === 'done' && (
           <div className="p-12 text-center">
             <div className="text-5xl mb-4">✅</div>
             <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-1">Importazione completata</h3>
+            {statementResult && (
+              <div className="text-sm text-zinc-500 dark:text-zinc-400 space-y-1 mt-2">
+                <p>{statementResult.inserted} movimenti importati</p>
+                {statementResult.replaced > 0 && <p>{statementResult.replaced} transazioni esistenti aggiornate</p>}
+                {statementResult.alreadyPresent > 0 && (
+                  <p className="text-amber-600 dark:text-amber-400">{statementResult.alreadyPresent} già presenti, saltati</p>
+                )}
+              </div>
+            )}
             {importResult && (
               <div className="text-sm text-zinc-500 dark:text-zinc-400 space-y-1 mt-2">
                 <p>{importResult.inserted} transazioni importate</p>
@@ -443,6 +547,20 @@ export function ImportCSVModal({ onClose }: Props) {
               className="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
             >
               {importTx.isPending ? 'Importazione...' : `Importa ${rows.length} transazioni`}
+            </button>
+          </>
+        )}
+        {step === 'review' && (
+          <>
+            <button onClick={resetStatement} className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
+              ← Indietro
+            </button>
+            <button
+              onClick={handleImportStatement}
+              disabled={statementSelected === 0 || importStatement.isPending}
+              className="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              {importStatement.isPending ? 'Importazione...' : `Importa ${statementSelected} movimenti`}
             </button>
           </>
         )}

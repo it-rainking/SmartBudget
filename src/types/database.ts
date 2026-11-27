@@ -362,6 +362,8 @@ export type Database = {
           installment_number: number | null
           installment_count: number | null
           is_exceptional: boolean
+          import_source: string | null
+          external_id: string | null
           created_at: string
           updated_at: string
         }
@@ -384,6 +386,8 @@ export type Database = {
           installment_number?: number | null
           installment_count?: number | null
           is_exceptional?: boolean
+          import_source?: string | null
+          external_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -406,6 +410,8 @@ export type Database = {
           installment_number?: number | null
           installment_count?: number | null
           is_exceptional?: boolean
+          import_source?: string | null
+          external_id?: string | null
           created_at?: string
           updated_at?: string
         }
